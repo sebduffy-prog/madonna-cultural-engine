@@ -12,14 +12,33 @@ const TEAL = "#2DD4BF";
 const AMBER = "#F59E0B";
 const GREEN = "#34D399";
 const PURPLE = "#A78BFA";
+const CORAL = "#FB923C";
 
 const TABS = [
+  { id: "madonna", label: "Madonna", color: Y, icon: "\u2605" },
   { id: "fashion", label: "Fashion", color: PINK, icon: "\u2666" },
   { id: "gay", label: "Gay Community", color: TEAL, icon: "\u2665" },
-  { id: "underground", label: "Underground Trends", color: AMBER, icon: "\u2605" },
+  { id: "culture", label: "General Cultural", color: AMBER, icon: "\u266B" },
 ];
 
 const RECOMMENDATIONS = {
+  madonna: [
+    {
+      type: "Media",
+      title: "Cross-Platform Narrative Seeding",
+      description: "Coordinate a simultaneous editorial drop across Vogue, Dazed, and PinkNews: three different angles on the same week. Vogue gets the fashion legacy. Dazed gets the club culture roots. PinkNews gets the queer community story. Same Madonna, three audiences, one unified message: the original is still writing the playbook.",
+    },
+    {
+      type: "Strategic",
+      title: "Stuart Price Album Rollout via Culture, Not Charts",
+      description: "Don't chase streaming numbers. Seed the new album through the cultural channels that matter: Resident Advisor reviews, Mixmag features, underground DJ sets. Let the dance music press validate the sound before pop media covers it. The narrative becomes 'Madonna made an album the clubs are already playing' not 'Madonna releases new album.'",
+    },
+    {
+      type: "Strategic",
+      title: "Netflix Series as Cultural Reset",
+      description: "Use the Shawn Levy Netflix series not as biography but as cultural intervention. Time the trailer to drop during a major fashion week or Pride month. Partner with Them and Gay Times for exclusive behind-the-scenes content that positions the series as a queer history document, not a celebrity biopic.",
+    },
+  ],
   fashion: [
     {
       type: "Media",
@@ -54,7 +73,7 @@ const RECOMMENDATIONS = {
       description: "Launch a public mentorship initiative with 3-5 emerging queer artists across music, performance, and fashion. Position it not as charity but as Madonna recognising the community that built her and investing back. Partner with Attitude magazine for ongoing coverage of the mentees' journeys.",
     },
   ],
-  underground: [
+  culture: [
     {
       type: "Media",
       title: "Dazed x Madonna: Club Culture Origin Map",
@@ -72,6 +91,31 @@ const RECOMMENDATIONS = {
     },
   ],
 };
+
+// Decode HTML entities that RSS feeds often include
+function decodeEntities(str) {
+  if (!str) return "";
+  return str
+    .replace(/&#8220;/g, "\u201C")
+    .replace(/&#8221;/g, "\u201D")
+    .replace(/&#8216;/g, "\u2018")
+    .replace(/&#8217;/g, "\u2019")
+    .replace(/&#8211;/g, "\u2013")
+    .replace(/&#8212;/g, "\u2014")
+    .replace(/&#8230;/g, "\u2026")
+    .replace(/&#038;/g, "&")
+    .replace(/&#38;/g, "&")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&#\d+;/g, (match) => {
+      const code = parseInt(match.replace(/&#|;/g, ""), 10);
+      return isNaN(code) ? match : String.fromCharCode(code);
+    });
+}
 
 function FeedCard({ item }) {
   return (
@@ -93,7 +137,7 @@ function FeedCard({ item }) {
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 6 }}>
         <h3 style={{ fontSize: 14, fontWeight: 600, color: WHITE, margin: 0, lineHeight: 1.4, fontFamily: "'Newsreader', serif" }}>
-          {item.title}
+          {decodeEntities(item.title)}
         </h3>
         <span style={{
           fontSize: 10, color: BG, background: item.type === "brave" ? TEAL : MUTED,
@@ -105,7 +149,7 @@ function FeedCard({ item }) {
       </div>
       {item.description && (
         <p style={{ fontSize: 12, color: DIM, margin: 0, lineHeight: 1.5 }}>
-          {item.description.length > 200 ? item.description.slice(0, 200) + "..." : item.description}
+          {decodeEntities(item.description).length > 200 ? decodeEntities(item.description).slice(0, 200) + "..." : decodeEntities(item.description)}
         </p>
       )}
       {item.date && (
@@ -117,7 +161,7 @@ function FeedCard({ item }) {
   );
 }
 
-function RecommendationCard({ rec, color }) {
+function RecommendationCard({ rec }) {
   const typeColors = { Media: PINK, Strategic: TEAL };
   const tc = typeColors[rec.type] || AMBER;
   return (
@@ -145,13 +189,13 @@ function RecommendationCard({ rec, color }) {
 }
 
 export default function CulturalFeed() {
-  const [activeTab, setActiveTab] = useState("fashion");
+  const [activeTab, setActiveTab] = useState("madonna");
   const [feeds, setFeeds] = useState({});
   const [loading, setLoading] = useState({});
   const [errors, setErrors] = useState({});
 
   const fetchFeed = useCallback(async (category) => {
-    if (feeds[category]) return; // Already loaded
+    if (feeds[category]) return;
     setLoading((prev) => ({ ...prev, [category]: true }));
     try {
       const res = await fetch(`/api/news?category=${category}`);
@@ -192,7 +236,7 @@ export default function CulturalFeed() {
       </div>
 
       {/* Sub-tabs */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 24, flexWrap: "wrap" }}>
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -215,15 +259,22 @@ export default function CulturalFeed() {
 
       {/* Feed content */}
       <div style={{ marginBottom: 32 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <div style={{ width: 2, height: 14, background: tabDef.color, borderRadius: 1 }} />
-          <span style={{
-            fontSize: 12, fontWeight: 600, color: tabDef.color,
-            textTransform: "uppercase", letterSpacing: "0.04em",
-            fontFamily: "'Inter Tight', sans-serif",
-          }}>
-            Latest from {tabDef.label}
-          </span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 2, height: 14, background: tabDef.color, borderRadius: 1 }} />
+            <span style={{
+              fontSize: 12, fontWeight: 600, color: tabDef.color,
+              textTransform: "uppercase", letterSpacing: "0.04em",
+              fontFamily: "'Inter Tight', sans-serif",
+            }}>
+              {activeTab === "madonna" ? "All Madonna coverage" : `Latest from ${tabDef.label}`}
+            </span>
+          </div>
+          {currentFeed && (
+            <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
+              {currentFeed.items.length} results {currentFeed.cachedAt ? `\u00B7 updated ${new Date(currentFeed.cachedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}
+            </span>
+          )}
         </div>
 
         {isLoading && (
@@ -266,7 +317,7 @@ export default function CulturalFeed() {
                 Brave Search API key not configured. Showing RSS feeds only. Add your key to <code style={{ color: Y }}>.env.local</code> for richer results.
               </div>
             )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 500, overflowY: "auto" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: activeTab === "madonna" ? 800 : 600, overflowY: "auto" }}>
               {currentFeed.items.length === 0 ? (
                 <p style={{ color: MUTED, fontSize: 13, padding: 20 }}>No articles found. RSS feeds may be temporarily unavailable.</p>
               ) : (
@@ -294,7 +345,7 @@ export default function CulturalFeed() {
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {recs.map((rec, i) => (
-            <RecommendationCard key={i} rec={rec} color={tabDef.color} />
+            <RecommendationCard key={i} rec={rec} />
           ))}
         </div>
       </div>
