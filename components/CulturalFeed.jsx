@@ -334,7 +334,7 @@ export default function CulturalFeed() {
             {currentFeed && (
               <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
                 {activeTab === "social"
-                  ? `${currentFeed.sentiment?.total || 0} mentions`
+                  ? `${(currentFeed.metrics?.totalMentions || 0).toLocaleString()} today \u00B7 ${(currentFeed.metrics?.cumulativeMentions || 0).toLocaleString()} total`
                   : `${currentFeed.items?.length || 0} results`}
                 {(currentFeed.cachedAt || currentFeed.fetchedAt) ? ` \u00B7 updated ${new Date(currentFeed.cachedAt || currentFeed.fetchedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}
               </span>
@@ -416,7 +416,7 @@ export default function CulturalFeed() {
           return (
             <>
               {/* Metrics row */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
                 {currentFeed.sentiment && (
                   <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
                     <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, fontFamily: "'Inter Tight', sans-serif" }}>Sentiment</div>
@@ -433,8 +433,16 @@ export default function CulturalFeed() {
                   </div>
                 )}
                 <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>Total Mentions</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{currentFeed.metrics?.totalMentions || 0}</div>
+                  <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>Today</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{(currentFeed.metrics?.totalMentions || 0).toLocaleString()}</div>
+                  <div style={{ fontSize: 9, color: DIM, fontFamily: "'Inter Tight', sans-serif", marginTop: 2 }}>mentions found</div>
+                </div>
+                <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>Cumulative</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: Y, fontFamily: "'Inter Tight', sans-serif" }}>{(currentFeed.metrics?.cumulativeMentions || currentFeed.metrics?.totalMentions || 0).toLocaleString()}</div>
+                  <div style={{ fontSize: 9, color: DIM, fontFamily: "'Inter Tight', sans-serif", marginTop: 2 }}>
+                    {currentFeed.history?.length > 0 ? `across ${currentFeed.history.length} snapshots` : "all time"}
+                  </div>
                 </div>
                 {currentFeed.metrics?.platformBreakdown && (
                   <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
@@ -447,13 +455,36 @@ export default function CulturalFeed() {
                           <div style={{ flex: 1, height: 4, background: BORDER, borderRadius: 2, overflow: "hidden" }}>
                             <div style={{ width: `${(count / max) * 100}%`, height: "100%", background: PLATFORM_COLORS[p] || PURPLE, borderRadius: 2 }} />
                           </div>
-                          <span style={{ fontSize: 10, color: WHITE, fontWeight: 600, width: 18, textAlign: "right", fontFamily: "'Inter Tight', sans-serif" }}>{count}</span>
+                          <span style={{ fontSize: 10, color: WHITE, fontWeight: 600, width: 24, textAlign: "right", fontFamily: "'Inter Tight', sans-serif" }}>{count}</span>
                         </div>
                       );
                     })}
                   </div>
                 )}
               </div>
+              {/* Engagement metrics */}
+              {(currentFeed.metrics?.totalComments > 0 || currentFeed.metrics?.totalViews > 0) && (
+                <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+                  {currentFeed.metrics.totalComments > 0 && (
+                    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 14px", flex: 1 }}>
+                      <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>Comments/Replies: </span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: TEAL, fontFamily: "'Inter Tight', sans-serif" }}>{currentFeed.metrics.totalComments.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {currentFeed.metrics.totalScore > 0 && (
+                    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 14px", flex: 1 }}>
+                      <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>Upvotes/Likes: </span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }}>{currentFeed.metrics.totalScore.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {currentFeed.metrics.totalViews > 0 && (
+                    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 14px", flex: 1 }}>
+                      <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>Views: </span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: GREEN, fontFamily: "'Inter Tight', sans-serif" }}>{currentFeed.metrics.totalViews.toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Hashtag tracking */}
               {currentFeed.metrics?.hashtags && (

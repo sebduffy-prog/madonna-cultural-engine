@@ -81,11 +81,13 @@ function SegmentExplorer({ data }) {
   const maxIndex = useMemo(() => Math.max(...items.map((d) => d.index), 200), [items]);
   const barH = 24;
   const gap = 4;
-  const leftW = 380;
-  const rightW = 50;
-  const barArea = 300;
-  const svgW = leftW + barArea + rightW;
-  const svgH = items.length * (barH + gap);
+  const maxLabelChars = 55;
+  const labelPad = 12;
+
+  function truncLabel(text) {
+    if (text.length <= maxLabelChars) return text;
+    return text.slice(0, maxLabelChars - 1) + "\u2026";
+  }
 
   return (
     <div>
@@ -108,49 +110,51 @@ function SegmentExplorer({ data }) {
           No statements found for this segment.
         </p>
       ) : (
-        <div style={{ overflowX: "auto", maxHeight: 600, overflowY: "auto" }}>
-          <svg width={svgW} height={svgH} style={{ display: "block" }}>
-            {items.map((d, i) => {
-              const y = i * (barH + gap);
-              const barW = (d.index / maxIndex) * barArea;
+        <div style={{ maxHeight: 600, overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: gap }}>
+            {items.map((d) => {
+              const barW = Math.max(4, (d.index / maxIndex) * 100);
               return (
-                <g key={d.name + d.question} style={{ transition: "transform 0.3s ease" }}>
-                  <text
-                    x={leftW - 8}
-                    y={y + barH / 2}
-                    textAnchor="end"
-                    dominantBaseline="central"
-                    fill={DIM}
-                    fontSize={11}
-                    fontFamily="'Inter Tight', sans-serif"
-                  >
-                    {d.name}
-                  </text>
-                  <rect
-                    x={leftW}
-                    y={y + 2}
-                    width={barW}
-                    height={barH - 4}
-                    rx={3}
-                    fill={seg.color}
-                    opacity={0.85}
-                    style={{ transition: "width 0.5s ease, fill 0.3s ease" }}
-                  />
-                  <text
-                    x={leftW + barW + 8}
-                    y={y + barH / 2}
-                    dominantBaseline="central"
-                    fill={WHITE}
-                    fontSize={11}
-                    fontWeight={700}
-                    fontFamily="'Inter Tight', sans-serif"
-                  >
-                    {d.index}
-                  </text>
-                </g>
+                <div key={d.name + d.question} style={{ display: "flex", alignItems: "center", gap: 8, height: barH }}>
+                  <div style={{
+                    flex: "0 0 auto",
+                    width: 340,
+                    minWidth: 0,
+                    fontSize: 11,
+                    color: DIM,
+                    fontFamily: "'Inter Tight', sans-serif",
+                    textAlign: "right",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    paddingRight: labelPad,
+                  }} title={d.name}>
+                    {truncLabel(d.name)}
+                  </div>
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{
+                      width: `${barW}%`,
+                      height: barH - 4,
+                      borderRadius: 3,
+                      background: seg.color,
+                      opacity: 0.85,
+                      transition: "width 0.5s ease, background 0.3s ease",
+                      minWidth: 4,
+                    }} />
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: WHITE,
+                      fontFamily: "'Inter Tight', sans-serif",
+                      flexShrink: 0,
+                    }}>
+                      {d.index}
+                    </span>
+                  </div>
+                </div>
               );
             })}
-          </svg>
+          </div>
         </div>
       )}
     </div>

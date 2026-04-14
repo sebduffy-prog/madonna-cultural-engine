@@ -41,15 +41,21 @@ async function getAccessToken() {
   }
 }
 
-async function spotifyFetch(endpoint, token) {
+async function spotifyFetch(endpoint, token, returnDebug = false) {
   try {
     const res = await fetch(`https://api.spotify.com/v1${endpoint}`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (returnDebug) return { _error: true, status: res.status, statusText: res.statusText };
+      return null;
+    }
     return res.json();
-  } catch { return null; }
+  } catch (err) {
+    if (returnDebug) return { _error: true, status: 0, statusText: err.message };
+    return null;
+  }
 }
 
 export default async function handler(req, res) {
@@ -82,18 +88,52 @@ export default async function handler(req, res) {
 
   // Try direct artist endpoint first (known Madonna Spotify ID), fall back to search
   const MADONNA_ID = "6tbjWDEIzxTsHi1PYOhLWV";
-  let madonnaArtist = await spotifyFetch(`/artists/${MADONNA_ID}`, token);
+  let madonnaArtist = null;
+  let debugInfo = {};
 
+  // Attempt 1: direct artist lookup
+  const artistDirect = await spotifyFetch(`/artists/${MADONNA_ID}`, token, true);
+  if (artistDirect && !artistDirect._error) {
+    madonnaArtist = artistDirect;
+    debugInfo.artistEndpoint = "OK";
+  } else {
+    debugInfo.artistEndpoint = artistDirect?._error ? `${artistDirect.status} ${artistDirect.statusText}` : "null";
+  }
+
+  // Attempt 2: search
   if (!madonnaArtist) {
-    // Fall back to search
-    const artistSearch = await spotifyFetch(`/search?q=Madonna&type=artist&limit=10`, token);
-    madonnaArtist = artistSearch?.artists?.items?.find(a =>
-      a.name.toLowerCase() === "madonna" || a.id === MADONNA_ID
-    );
+    const artistSearch = await spotifyFetch(`/search?q=Madonna&type=artist&limit=10`, token, true);
+    if (artistSearch && !artistSearch._error) {
+      madonnaArtist = artistSearch.artists?.items?.find(a =>
+        a.name.toLowerCase() === "madonna" || a.id === MADONNA_ID
+      );
+      debugInfo.searchEndpoint = madonnaArtist ? "OK" : `no match in ${artistSearch.artists?.items?.length || 0} results`;
+    } else {
+      debugInfo.searchEndpoint = artistSearch?._error ? `${artistSearch.status} ${artistSearch.statusText}` : "null";
+    }
   }
 
   if (!madonnaArtist) {
-    return res.status(200).json({ hasCredentials: true, artist: null, debug: { error: "Could not find Madonna via search", testError: "Both /artists endpoint and /search failed. Your Spotify app may need to be in Extended Quota mode or re-created in the Spotify Developer Dashboard." }, topTracks: [], albums: [], relatedArtists: [], audienceTrending: [], playlists: [], fetchedAt: new Date().toISOString(), cacheTTL: CACHE_TTL });
+    // Build actionable error message from what we learned
+    const status = artistDirect?.status || 0;
+    let advice = "Check your Spotify Developer Dashboard at developer.spotify.com/dashboard.";
+    if (status === 401) advice = "Your Client ID or Secret is invalid. Regenerate the secret in your Spotify app settings.";
+    else if (status === 403) advice = "Your Spotify app may need Extended Quota Mode. Go to developer.spotify.com/dashboard, select your app, and request Extended Quota.";
+    else if (status === 429) advice = "Rate limited by Spotify. Wait a few minutes and retry.";
+
+    return res.status(200).json({
+      hasCredentials: true, artist: null,
+      debug: {
+        error: "Could not connect to Spotify API",
+        testError: advice,
+        testStatus: status,
+        ...debugInfo,
+        tokenObtained: !!token,
+        clientIdPrefix: clientId.slice(0, 8) + "...",
+      },
+      topTracks: [], albums: [], relatedArtists: [], audienceTrending: [], playlists: [],
+      fetchedAt: new Date().toISOString(), cacheTTL: CACHE_TTL,
+    });
   }
 
   const ARTIST_ID = madonnaArtist.id;
