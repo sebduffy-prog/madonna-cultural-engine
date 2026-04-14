@@ -45,17 +45,32 @@ export default function DashboardSummary() {
   useEffect(() => {
     async function load() {
       // Load fast sources first — don't wait for Spotify
-      const [m, s, a] = await Promise.all([
+      let [m, s, a] = await Promise.all([
         fetch("/api/news?category=madonna").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/social").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/ai-strategy").then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
+
+      // Auto-refresh empty results (without blocking)
+      const refreshes = [];
+      if (!m?.items?.length) refreshes.push(fetch("/api/news?category=madonna&refresh=1").then(r => r.ok ? r.json() : null).then(d => { m = d || m; setMedia(m); }).catch(() => {}));
+      if (!s?.platforms?.length || s.metrics?.mentionsFound === 0) refreshes.push(fetch("/api/social?refresh=1").then(r => r.ok ? r.json() : null).then(d => { s = d || s; setSocial(s); }).catch(() => {}));
+
       setMedia(m); setSocial(s); setAi(a);
       setLoading(false); // Show dashboard immediately
 
-      // Load Spotify separately — it's slow and can fail
+      // Finish any refreshes in background
+      if (refreshes.length > 0) Promise.all(refreshes).catch(() => {});
+
+      // Load Spotify separately — slow and can fail
       fetch("/api/spotify").then(r => r.ok ? r.json() : null).then(sp => {
         if (sp) setSpotify(sp);
+        // If empty, try one refresh
+        if (!sp?.topTracks?.length) {
+          fetch("/api/spotify?refresh=1").then(r => r.ok ? r.json() : null).then(sp2 => {
+            if (sp2) setSpotify(sp2);
+          }).catch(() => {});
+        }
       }).catch(() => {});
     }
     load();
@@ -66,7 +81,7 @@ export default function DashboardSummary() {
   }
 
   const madonnaArticles = (media?.items || []).filter((i) => /madonna/i.test(i.title));
-  const totalSocialMentions = social?.metrics?.totalMentions || 0;
+  const totalSocialMentions = social?.metrics?.mentionsFound || social?.metrics?.totalMentions || 0;
   const sentiment = social?.sentiment;
   const spotifyTracks = spotify?.topTracks?.length || 0;
   const topTrack = spotify?.topTracks?.[0];
@@ -127,7 +142,7 @@ export default function DashboardSummary() {
             series={[{
               label: "Total Mentions",
               color: PURPLE,
-              data: social.history.slice().reverse().map(s => ({ date: s.date, value: s.totalMentions || 0 })),
+              data: social.history.slice().reverse().map(s => ({ date: s.date, value: s.mentionsFound || s.totalMentions || 0 })),
             }]}
           />
         </div>

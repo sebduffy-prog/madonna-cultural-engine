@@ -206,7 +206,7 @@ const PLATFORM_COLORS = {
   twitter: WHITE,
   tiktok: "#00F2EA",
   youtube: "#FF0000",
-  instagram: "#E1306C",
+  web: "#A78BFA",
 };
 
 export default function CulturalFeed() {

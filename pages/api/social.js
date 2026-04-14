@@ -35,11 +35,6 @@ const PLATFORMS = [
     { q: 'madonna reaction OR performance OR interview site:youtube.com', freshness: "pw" },
     { q: 'madonna music video OR concert OR documentary site:youtube.com', freshness: "pw" },
   ]},
-  { id: "instagram", label: "Instagram", icon: "I", queries: [
-    // Instagram blocks crawlers — search for coverage OF Instagram activity instead
-    { q: 'madonna instagram post OR story OR reel', freshness: "pw" },
-    { q: '"madonna" "instagram" fan OR fashion OR photo', freshness: "pw" },
-  ]},
   { id: "web", label: "News / Web", icon: "W", queries: [
     { q: '"madonna" news OR interview OR feature', freshness: "pw" },
     { q: 'madonna 2026 profile OR cover OR exclusive', freshness: "pw" },
@@ -48,7 +43,6 @@ const PLATFORMS = [
 
 // ── Madonna's own accounts ──
 const OWN_ACCOUNT_QUERIES = [
-  { platform: "instagram", label: "Instagram", q: 'madonna site:instagram.com/madonna OR "instagram.com/p/" madonna official' },
   { platform: "twitter", label: "Twitter / X", q: 'from:madonna OR "x.com/madonna/status" OR "twitter.com/madonna/status"' },
   { platform: "tiktok", label: "TikTok", q: 'site:tiktok.com/@madonna' },
   { platform: "youtube", label: "YouTube", q: 'site:youtube.com/@madonna OR "youtube.com/watch" madonna official channel' },
@@ -140,13 +134,15 @@ export default async function handler(req, res) {
 
   if (!refresh) {
     const cached = await kvGet(CACHE_KEY);
-    if (cached) {
+    // Only serve cache if it has real data (not a stale 0-mention run)
+    if (cached && cached.metrics?.mentionsFound > 0) {
       const history = await kvListGet("social:history", 0, 364);
       cached.history = history;
       cached.metrics.cumulativeMentions = (history || []).reduce((sum, s) => sum + (s.mentionsFound || 0), 0);
       cached.metrics.cumulativeEngagement = (history || []).reduce((sum, s) => sum + (s.totalEngagement || 0), 0);
       return res.status(200).json(cached);
     }
+    // Stale/empty cache — fall through to re-fetch
   }
 
   if (!apiKey) {
