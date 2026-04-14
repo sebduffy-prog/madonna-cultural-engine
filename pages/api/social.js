@@ -132,12 +132,15 @@ export default async function handler(req, res) {
   );
 
   // ── Build per-query scores ──
-  const baseline = await kvGet(BASELINE_KEY);
-  const isFirstRun = !baseline;
+  const baselineRaw = await kvGet(BASELINE_KEY);
+  // Handle both formats: old (plain array) and new (object with date + counts)
+  const baselineCounts = baselineRaw ? (Array.isArray(baselineRaw) ? baselineRaw : baselineRaw.counts) : null;
+  const baselineDate = baselineRaw?.date || "2026-04-14T09:00:00.000Z";
+  const isFirstRun = !baselineCounts;
 
   const queryScores = QUERIES.map((q, i) => {
     const count = results[i].count;
-    const baseCount = baseline ? (baseline[i] || 0) : count;
+    const baseCount = baselineCounts ? (baselineCounts[i] || 0) : count;
     const pctChange = baseCount > 0 ? ((count - baseCount) / baseCount) * 100 : 0;
     return {
       platform: q.platform,
@@ -148,9 +151,12 @@ export default async function handler(req, res) {
     };
   });
 
-  // Set baseline on first run
+  // Set baseline on first run — persists via Vercel Blob
   if (isFirstRun) {
-    await kvSet(BASELINE_KEY, QUERIES.map((_, i) => results[i].count));
+    await kvSet(BASELINE_KEY, {
+      date: new Date().toISOString(),
+      counts: QUERIES.map((_, i) => results[i].count),
+    });
   }
 
   // ── Aggregate by platform ──
@@ -251,6 +257,7 @@ export default async function handler(req, res) {
     hasBraveKey: true,
     fetchedAt: new Date().toISOString(),
     isFirstRun,
+    baselineDate,
     index: overallIndex,
     platforms: platformList,
     queryScores,

@@ -81,10 +81,10 @@ export default function DashboardSummary() {
   }
 
   const madonnaArticles = (media?.items || []).filter((i) => /madonna/i.test(i.title));
-  const totalSocialMentions = social?.totalSources || social?.metrics?.mentionsFound || 0;
+  const socialIndex = social?.index || 0;
+  const isBaseline = social?.isFirstRun;
   const sentiment = social?.sentiment;
   const spotifyTracks = spotify?.topTracks?.length || 0;
-  const topTrack = spotify?.topTracks?.[0];
   const aiRecs = ai?.recommendations?.madonna || [];
 
   return (
@@ -106,14 +106,16 @@ export default function DashboardSummary() {
           <div style={{ fontSize: 9, color: DIM }}>articles mentioning Madonna</div>
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
-          <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Social mentions</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: PURPLE, fontFamily: "'Inter Tight', sans-serif" }}>{totalSocialMentions}</div>
-          <div style={{ fontSize: 9, color: DIM }}>across all platforms</div>
+          <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Trend Index</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: isBaseline ? MUTED : socialIndex > 0 ? GREEN : socialIndex < 0 ? RED : WHITE, fontFamily: "'Inter Tight', sans-serif" }}>
+            {isBaseline ? "BASELINE" : `${socialIndex > 0 ? "+" : ""}${socialIndex}%`}
+          </div>
+          <div style={{ fontSize: 9, color: DIM }}>{isBaseline ? "tracking starts tomorrow" : "vs baseline"}</div>
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
-          <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Spotify catalogue</div>
+          <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Spotify</div>
           <div style={{ fontSize: 24, fontWeight: 800, color: GREEN, fontFamily: "'Inter Tight', sans-serif" }}>{spotifyTracks || "---"}</div>
-          <div style={{ fontSize: 9, color: DIM }}>tracks found</div>
+          <div style={{ fontSize: 9, color: DIM }}>{spotify?.artist ? `${spotify.artist.popularity}/100 popularity` : "connecting..."}</div>
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
           <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Sentiment</div>
@@ -130,17 +132,17 @@ export default function DashboardSummary() {
         </div>
       </div>
 
-      {/* Mentions trend line chart */}
-      {social?.history && social.history.length > 0 && (
+      {/* Trend index chart */}
+      {social?.history && social.history.length > 1 && (
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", marginBottom: 16 }}>
           <div style={{ fontSize: 10, color: PURPLE, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>
-            Daily Mentions Trend
+            Trend Index Over Time
           </div>
           <LineChart
             height={130}
             showLegend={false}
             series={[{
-              label: "Total Mentions",
+              label: "Index",
               color: PURPLE,
               data: social.history.slice().reverse().map(s => ({ date: s.date, value: s.index || 0 })),
             }]}
@@ -171,8 +173,8 @@ export default function DashboardSummary() {
         </Panel>
 
         {/* Social snapshot */}
-        <Panel title="Social listening snapshot" color={PURPLE}>
-          {!social || totalSocialMentions === 0 ? (
+        <Panel title="Social trend snapshot" color={PURPLE}>
+          {!social?.platforms ? (
             <p style={{ fontSize: 12, color: MUTED }}>No social data yet. Run a scan in the Social Listening tab.</p>
           ) : (
             <>
@@ -184,25 +186,29 @@ export default function DashboardSummary() {
                     <div style={{ width: `${sentiment.negative}%`, background: RED }} />
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, fontFamily: "'Inter Tight', sans-serif" }}>
-                    <span style={{ color: GREEN }}>{sentiment.positiveCount} positive</span>
-                    <span style={{ color: MUTED }}>{sentiment.neutralCount} neutral</span>
-                    <span style={{ color: RED }}>{sentiment.negativeCount} negative</span>
+                    <span style={{ color: GREEN }}>{sentiment.positive}% positive</span>
+                    <span style={{ color: MUTED }}>{sentiment.neutral}% neutral</span>
+                    <span style={{ color: RED }}>{sentiment.negative}% negative</span>
                   </div>
                 </div>
               )}
-              {social.metrics?.platformBreakdown && (
-                <div>
-                  {Object.entries(social.metrics.platformBreakdown).map(([p, count]) => (
-                    <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                      <span style={{ fontSize: 9, color: DIM, width: 55, fontFamily: "'Inter Tight', sans-serif" }}>{p}</span>
+              <div>
+                {(social.platforms || []).map((p) => {
+                  const change = p.avgChange || 0;
+                  const c = isBaseline ? MUTED : change > 0 ? GREEN : change < 0 ? RED : WHITE;
+                  return (
+                    <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                      <span style={{ fontSize: 9, color: DIM, width: 60, fontFamily: "'Inter Tight', sans-serif" }}>{p.label}</span>
                       <div style={{ flex: 1, height: 4, background: BORDER, borderRadius: 2, overflow: "hidden" }}>
-                        <div style={{ width: `${(count / Math.max(...Object.values(social.metrics.platformBreakdown), 1)) * 100}%`, height: "100%", background: PURPLE, borderRadius: 2 }} />
+                        <div style={{ width: `${Math.min(100, Math.abs(change) + 10)}%`, height: "100%", background: c, borderRadius: 2, transition: "width 0.3s" }} />
                       </div>
-                      <span style={{ fontSize: 10, color: WHITE, fontWeight: 600, width: 20, textAlign: "right", fontFamily: "'Inter Tight', sans-serif" }}>{count}</span>
+                      <span style={{ fontSize: 10, color: c, fontWeight: 600, width: 40, textAlign: "right", fontFamily: "'Inter Tight', sans-serif" }}>
+                        {isBaseline ? "—" : `${change > 0 ? "+" : ""}${change}%`}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              )}
+                  );
+                })}
+              </div>
             </>
           )}
         </Panel>
@@ -217,7 +223,7 @@ export default function DashboardSummary() {
                 {spotify.artist.image && <img src={spotify.artist.imageSmall || spotify.artist.image} alt="" style={{ width: 40, height: 40, borderRadius: "50%" }} />}
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: WHITE }}>{spotify.artist.name}</div>
-                  <div style={{ fontSize: 10, color: DIM }}>{spotify.topTracks?.length || 0} tracks \u00B7 {spotify.relatedArtists?.length || 0} connected artists</div>
+                  <div style={{ fontSize: 10, color: DIM }}>{spotify.topTracks?.length || 0} tracks \u00B7 {spotify.albums?.length || 0} albums</div>
                 </div>
               </div>
               {spotify.topTracks?.length > 0 && (

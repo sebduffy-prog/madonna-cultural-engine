@@ -311,7 +311,7 @@ export default function SpotifyTracker() {
           Data from Spotify Web API \u00B7 Cache: {data.cacheTTL}s \u00B7 {data.fetchedAt ? new Date(data.fetchedAt).toLocaleString("en-GB") : ""}
         </span>
         <span style={{ fontSize: 9, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
-          {data.topTracks?.length || 0} tracks \u00B7 {data.albums?.length || 0} releases \u00B7 {data.relatedArtists?.length || 0} connected artists
+          {data.topTracks?.length || 0} tracks \u00B7 {data.albums?.length || 0} releases \u00B7 {data.playlists?.length || 0} playlists
         </span>
       </div>
 
