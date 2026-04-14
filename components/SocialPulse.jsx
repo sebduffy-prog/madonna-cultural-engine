@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import LineChart from "./LineChart";
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
@@ -218,21 +219,48 @@ export default function SocialPulse() {
         <SentimentBar sentiment={data.sentiment} />
       </div>
 
+      {/* Trend line charts */}
+      {data.history && data.history.length > 0 && activePlatform === "all" && (
+        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", marginBottom: 16 }}>
+          <div style={{ fontSize: 10, color: PURPLE, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>
+            Mentions by Platform Over Time
+          </div>
+          <LineChart
+            height={140}
+            series={[
+              // Total line
+              { label: "Total", color: WHITE, data: data.history.slice().reverse().map(s => ({ date: s.date, value: s.totalMentions || 0 })) },
+              // Per-platform lines
+              ...Object.entries(PLATFORMS).map(([id, def]) => ({
+                label: def.label,
+                color: def.color,
+                data: data.history.slice().reverse().map(s => ({ date: s.date, value: s.platformBreakdown?.[id] || 0 })),
+              })),
+            ]}
+          />
+        </div>
+      )}
+
       {/* Hashtag tracking */}
       {data.metrics?.hashtags && (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 10, color: PURPLE, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>
-            Hashtag & Sound Tracking
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: PURPLE, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>
+              Hashtag & Sound Tracking
+            </div>
+            <span style={{ fontSize: 9, color: DIM }}>Articles found per hashtag via search</span>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-            {Object.entries(data.metrics.hashtags).map(([tag, count]) => (
+            {Object.entries(data.metrics.hashtags)
+              .sort(([, a], [, b]) => b - a)
+              .map(([tag, count]) => (
               <div key={tag} style={{
                 padding: "4px 10px", borderRadius: 999, fontSize: 10, fontWeight: 600,
                 background: count > 0 ? PURPLE + "22" : BORDER + "44",
                 border: `1px solid ${count > 0 ? PURPLE + "44" : BORDER}`,
                 color: count > 0 ? PURPLE : MUTED, fontFamily: "'Inter Tight', sans-serif",
               }}>
-                {tag} <span style={{ color: count > 0 ? WHITE : MUTED, marginLeft: 3 }}>{count}</span>
+                {tag} <span style={{ color: count > 0 ? WHITE : MUTED, marginLeft: 3 }}>{count >= 10 ? "10+" : count}</span>
               </div>
             ))}
           </div>
@@ -275,6 +303,26 @@ export default function SocialPulse() {
             <span style={{ fontSize: 11, color: MUTED }}>{activeItems.length} mentions</span>
           </div>
           <SentimentBar sentiment={platformSentiment[activePlatform]} />
+          {/* Per-platform trend line */}
+          {data.history && data.history.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 9, color: activePlatDef.color, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>
+                {activePlatDef.label} mentions over time
+              </div>
+              <LineChart
+                height={100}
+                showLegend={false}
+                series={[{
+                  label: activePlatDef.label,
+                  color: activePlatDef.color === WHITE ? PURPLE : activePlatDef.color,
+                  data: data.history.slice().reverse().map(s => ({
+                    date: s.date,
+                    value: s.platformBreakdown?.[activePlatform] || 0,
+                  })),
+                }]}
+              />
+            </div>
+          )}
           {activePlatform === "tiktok" && (
             <div style={{ marginTop: 10, padding: "8px 12px", background: BG, borderRadius: 6 }}>
               <div style={{ fontSize: 10, color: TEAL, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import LineChart from "./LineChart";
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
@@ -109,6 +110,24 @@ export default function DashboardSummary() {
           )}
         </div>
       </div>
+
+      {/* Mentions trend line chart */}
+      {social?.history && social.history.length > 0 && (
+        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", marginBottom: 16 }}>
+          <div style={{ fontSize: 10, color: PURPLE, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>
+            Daily Mentions Trend
+          </div>
+          <LineChart
+            height={130}
+            showLegend={false}
+            series={[{
+              label: "Total Mentions",
+              color: PURPLE,
+              data: social.history.slice().reverse().map(s => ({ date: s.date, value: s.totalMentions || 0 })),
+            }]}
+          />
+        </div>
+      )}
 
       {/* Two column layout */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

@@ -5,7 +5,8 @@
 import { kvGet, kvSet } from "../../lib/kv";
 
 const CACHE_KEY = "social:pulse";
-const CACHE_TTL = 21600; // 6 hours
+const IS_DEV = process.env.NODE_ENV === "development";
+const CACHE_TTL = IS_DEV ? 300 : 86400; // 5 min dev, 24 hours prod (daily update)
 
 // Search aliases -- album names, tour names, things people call her
 const MADONNA_ALIASES = ["Madonna", "Confessions II", "Queen of Pop", "Material Girl"];
@@ -187,5 +188,20 @@ export default async function handler(req, res) {
   };
 
   await kvSet(CACHE_KEY, result, CACHE_TTL);
+
+  // Store weekly snapshot for trend tracking
+  if (refresh) {
+    await kvListPush("social:history", {
+      date: result.fetchedAt,
+      totalMentions: result.metrics.totalMentions,
+      sentiment: result.sentiment,
+      platformBreakdown: result.metrics.platformBreakdown,
+    });
+  }
+
+  // Attach history
+  const history = await kvListGet("social:history", 0, 11);
+  result.history = history;
+
   res.status(200).json(result);
 }
