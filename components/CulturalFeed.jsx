@@ -202,8 +202,17 @@ function RecommendationCard({ rec }) {
   );
 }
 
+const PLATFORM_COLORS = {
+  reddit: "#FF4500",
+  twitter: WHITE,
+  tiktok: "#00F2EA",
+  youtube: "#FF0000",
+  instagram: "#E1306C",
+};
+
 export default function CulturalFeed() {
   const [activeTab, setActiveTab] = useState("madonna");
+  const [socialPlatform, setSocialPlatform] = useState("all");
   const [feeds, setFeeds] = useState({});
   const [loading, setLoading] = useState({});
   const [errors, setErrors] = useState({});
@@ -391,46 +400,114 @@ export default function CulturalFeed() {
           </div>
         )}
 
-        {currentFeed && !isLoading && activeTab === "social" && (
-          <>
-            {/* Sentiment bar */}
-            {currentFeed.sentiment && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ display: "flex", gap: 12, marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, color: GREEN, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>Positive {currentFeed.sentiment.positive}%</span>
-                  <span style={{ fontSize: 11, color: MUTED, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>Neutral {currentFeed.sentiment.neutral}%</span>
-                  <span style={{ fontSize: 11, color: "#EF4444", fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>Negative {currentFeed.sentiment.negative}%</span>
+        {currentFeed && !isLoading && activeTab === "social" && (() => {
+          const platforms = currentFeed.platforms || [];
+          const activePlatform = socialPlatform === "all" ? null : platforms.find((p) => p.id === socialPlatform);
+          const displayItems = activePlatform ? activePlatform.items : platforms.flatMap((p) => p.items);
+
+          return (
+            <>
+              {/* Metrics row */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+                {currentFeed.sentiment && (
+                  <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, fontFamily: "'Inter Tight', sans-serif" }}>Sentiment</div>
+                    <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
+                      <div style={{ width: `${currentFeed.sentiment.positive}%`, background: GREEN }} />
+                      <div style={{ width: `${currentFeed.sentiment.neutral}%`, background: MUTED }} />
+                      <div style={{ width: `${currentFeed.sentiment.negative}%`, background: "#EF4444" }} />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontFamily: "'Inter Tight', sans-serif" }}>
+                      <span style={{ color: GREEN, fontWeight: 600 }}>{currentFeed.sentiment.positiveCount} pos</span>
+                      <span style={{ color: MUTED }}>{currentFeed.sentiment.neutralCount} neu</span>
+                      <span style={{ color: "#EF4444", fontWeight: 600 }}>{currentFeed.sentiment.negativeCount} neg</span>
+                    </div>
+                  </div>
+                )}
+                <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>Total Mentions</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{currentFeed.metrics?.totalMentions || 0}</div>
                 </div>
-                <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden" }}>
-                  <div style={{ width: `${currentFeed.sentiment.positive}%`, background: GREEN }} />
-                  <div style={{ width: `${currentFeed.sentiment.neutral}%`, background: MUTED }} />
-                  <div style={{ width: `${currentFeed.sentiment.negative}%`, background: "#EF4444" }} />
-                </div>
+                {currentFeed.metrics?.platformBreakdown && (
+                  <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>By Platform</div>
+                    {Object.entries(currentFeed.metrics.platformBreakdown).map(([p, count]) => {
+                      const max = Math.max(...Object.values(currentFeed.metrics.platformBreakdown), 1);
+                      return (
+                        <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                          <span style={{ fontSize: 9, color: PLATFORM_COLORS[p] || DIM, width: 55, fontFamily: "'Inter Tight', sans-serif", fontWeight: 600 }}>{p}</span>
+                          <div style={{ flex: 1, height: 4, background: BORDER, borderRadius: 2, overflow: "hidden" }}>
+                            <div style={{ width: `${(count / max) * 100}%`, height: "100%", background: PLATFORM_COLORS[p] || PURPLE, borderRadius: 2 }} />
+                          </div>
+                          <span style={{ fontSize: 10, color: WHITE, fontWeight: 600, width: 18, textAlign: "right", fontFamily: "'Inter Tight', sans-serif" }}>{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-            {/* Platform sections */}
-            {(currentFeed.platforms || []).map((platform) => (
-              <div key={platform.id} style={{ marginBottom: 20 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                  <span style={{
-                    display: "inline-flex", alignItems: "center", justifyContent: "center",
-                    width: 20, height: 20, borderRadius: 4, background: PURPLE, color: BG,
-                    fontSize: 10, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif",
-                  }}>{platform.icon}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{platform.label}</span>
-                  <span style={{ fontSize: 10, color: MUTED }}>{platform.items.length} mentions</span>
+
+              {/* Hashtag tracking */}
+              {currentFeed.metrics?.hashtags && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, color: PURPLE, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>Hashtag Tracking</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                    {Object.entries(currentFeed.metrics.hashtags).map(([tag, count]) => (
+                      <div key={tag} style={{
+                        padding: "3px 9px", borderRadius: 999, fontSize: 10, fontWeight: 600,
+                        background: count > 0 ? PURPLE + "22" : BORDER + "44",
+                        border: `1px solid ${count > 0 ? PURPLE + "44" : BORDER}`,
+                        color: count > 0 ? PURPLE : MUTED, fontFamily: "'Inter Tight', sans-serif",
+                      }}>
+                        {tag} <span style={{ color: count > 0 ? WHITE : MUTED, marginLeft: 3 }}>{count}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 300, overflowY: "auto" }}>
-                  {platform.items.length === 0 ? (
-                    <p style={{ color: MUTED, fontSize: 12, padding: "8px 0" }}>No recent mentions found.</p>
-                  ) : (
-                    platform.items.map((item, i) => <FeedCard key={item.url || i} item={item} />)
-                  )}
-                </div>
+              )}
+
+              {/* Platform sub-tabs */}
+              <div style={{ display: "flex", gap: 5, marginBottom: 12 }}>
+                <button onClick={() => setSocialPlatform("all")} style={{
+                  padding: "5px 12px", fontSize: 10, fontWeight: socialPlatform === "all" ? 700 : 400,
+                  color: socialPlatform === "all" ? BG : DIM, background: socialPlatform === "all" ? PURPLE : "transparent",
+                  border: socialPlatform === "all" ? "none" : `1px solid ${BORDER}`,
+                  borderRadius: 5, cursor: "pointer", fontFamily: "'Inter Tight', sans-serif",
+                }}>All ({displayItems.length})</button>
+                {platforms.map((p) => (
+                  <button key={p.id} onClick={() => setSocialPlatform(p.id)} style={{
+                    padding: "5px 12px", fontSize: 10, fontWeight: socialPlatform === p.id ? 700 : 400,
+                    color: socialPlatform === p.id ? BG : DIM,
+                    background: socialPlatform === p.id ? (PLATFORM_COLORS[p.id] || PURPLE) : "transparent",
+                    border: socialPlatform === p.id ? "none" : `1px solid ${BORDER}`,
+                    borderRadius: 5, cursor: "pointer", fontFamily: "'Inter Tight', sans-serif",
+                  }}>
+                    {p.icon} {p.label} ({p.items.length})
+                  </button>
+                ))}
               </div>
-            ))}
-          </>
-        )}
+
+              {/* Feed for selected platform */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 500, overflowY: "auto" }}>
+                {displayItems.length === 0 ? (
+                  <p style={{ color: MUTED, fontSize: 12, padding: "16px 0" }}>No mentions found for this platform.</p>
+                ) : (
+                  displayItems.map((item, i) => <FeedCard key={item.url || i} item={item} />)
+                )}
+              </div>
+
+              {/* Hashtag coverage */}
+              {currentFeed.metrics?.hashtagArticles?.length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontSize: 10, color: AMBER, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>Hashtag Coverage</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 250, overflowY: "auto" }}>
+                    {currentFeed.metrics.hashtagArticles.map((item, i) => <FeedCard key={item.url || i} item={item} />)}
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {currentFeed && !isLoading && activeTab !== "social" && (
           <>

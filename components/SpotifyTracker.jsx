@@ -143,8 +143,18 @@ export default function SpotifyTracker() {
   if (data.hasCredentials && !data.artist && data.debug) {
     return (
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "24px", textAlign: "center" }}>
-        <p style={{ fontSize: 14, color: WHITE, margin: "0 0 8px", fontFamily: "'Inter Tight', sans-serif", fontWeight: 700 }}>Spotify connected but no data returned</p>
-        <p style={{ fontSize: 12, color: MUTED, margin: "0 0 12px" }}>Check the browser console and terminal for errors.</p>
+        <p style={{ fontSize: 14, color: WHITE, margin: "0 0 8px", fontFamily: "'Inter Tight', sans-serif", fontWeight: 700 }}>Spotify connected but API calls failing</p>
+        <p style={{ fontSize: 12, color: MUTED, margin: "0 0 4px" }}>
+          {data.debug?.testStatus === 401 && "Token is invalid or expired. Check your Client ID and Secret."}
+          {data.debug?.testStatus === 403 && "Access forbidden. Your Spotify app may need Web API access enabled in the dashboard."}
+          {data.debug?.testStatus === 429 && "Rate limited. Wait a minute and try again."}
+          {!data.debug?.testStatus && "Check the terminal for errors."}
+        </p>
+        {data.debug?.testError && (
+          <p style={{ fontSize: 11, color: RED, margin: "0 0 12px", fontFamily: "monospace", wordBreak: "break-all" }}>
+            {data.debug.testError.slice(0, 300)}
+          </p>
+        )}
         <div style={{ fontSize: 11, color: DIM, textAlign: "left", background: BG, padding: 12, borderRadius: 6, fontFamily: "monospace" }}>
           {Object.entries(data.debug).map(([k, v]) => (
             <div key={k}><span style={{ color: MUTED }}>{k}:</span> <span style={{ color: v === true ? GREEN : v === false ? RED : WHITE }}>{String(v)}</span></div>

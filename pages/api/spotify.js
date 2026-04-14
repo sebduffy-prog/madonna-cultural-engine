@@ -13,24 +13,38 @@ const CACHE_TTL = IS_DEV ? 120 : 1800; // 2 min dev, 30 min prod
 
 let tokenCache = { token: null, expires: 0 };
 
+let tokenError = null;
+
 async function getAccessToken() {
   if (tokenCache.token && Date.now() < tokenCache.expires) return tokenCache.token;
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
   if (!clientId || !clientSecret) return null;
 
-  const res = await fetch("https://accounts.spotify.com/api/token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Authorization: "Basic " + Buffer.from(`${clientId}:${clientSecret}`).toString("base64"),
-    },
-    body: "grant_type=client_credentials",
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  tokenCache = { token: data.access_token, expires: Date.now() + (data.expires_in - 60) * 1000 };
-  return data.access_token;
+  try {
+    const res = await fetch("https://accounts.spotify.com/api/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: "Basic " + Buffer.from(`${clientId}:${clientSecret}`).toString("base64"),
+      },
+      body: "grant_type=client_credentials",
+    });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      tokenError = `Token request failed: ${res.status} ${errBody.slice(0, 200)}`;
+      console.error(tokenError);
+      return null;
+    }
+    const data = await res.json();
+    tokenCache = { token: data.access_token, expires: Date.now() + (data.expires_in - 60) * 1000 };
+    tokenError = null;
+    return data.access_token;
+  } catch (err) {
+    tokenError = `Token request error: ${err.message}`;
+    console.error(tokenError);
+    return null;
+  }
 }
 
 async function spotifyFetch(endpoint, token) {
@@ -78,8 +92,30 @@ export default async function handler(req, res) {
   if (!token) {
     return res.status(200).json({
       hasCredentials: false,
-      error: "Spotify credentials found but authentication failed. Check that your Client ID and Client Secret are correct.",
-      debugClientId: clientId ? clientId.slice(0, 6) + "..." : "missing",
+      error: `Spotify credentials found but authentication failed.\n\n${tokenError || "Unknown error"}\n\nCheck your Client ID and Secret are correct.`,
+      debugClientId: clientId ? clientId.slice(0, 8) + "..." : "missing",
+    });
+  }
+
+  // Quick test: try a single fetch first and return raw error if it fails
+  const testRes = await fetch(`https://api.spotify.com/v1/artists/${MADONNA_ID}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!testRes.ok) {
+    const errBody = await testRes.text().catch(() => "");
+    return res.status(200).json({
+      hasCredentials: true,
+      artist: null,
+      debug: {
+        tokenOk: true,
+        tokenLength: token.length,
+        testStatus: testRes.status,
+        testError: errBody.slice(0, 500),
+        artistOk: false, topTracksOk: false, albumsOk: false,
+        relatedOk: false, playlistsOk: false, relatedCount: 0, audienceTrendingCount: 0,
+      },
+      topTracks: [], albums: [], relatedArtists: [], audienceTrending: [], playlists: [],
+      fetchedAt: new Date().toISOString(), cacheTTL: CACHE_TTL,
     });
   }
 
@@ -119,6 +155,8 @@ export default async function handler(req, res) {
 
   // Debug: track which fetches failed
   const debug = {
+    tokenOk: !!token,
+    tokenLength: token ? token.length : 0,
     artistOk: !!artist,
     topTracksOk: !!topTracks,
     albumsOk: !!albumsPage1,
