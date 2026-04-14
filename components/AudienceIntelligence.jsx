@@ -417,38 +417,31 @@ export default function AudienceIntelligence({ gwiData }) {
       </div>
 
       {/* category filter */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>
-          Filter by Category
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 11, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Inter Tight', sans-serif" }}>
+          Category
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          <button
-            onClick={() => setCategoryFilter("all")}
-            style={{
-              ...tabStyle(categoryFilter === "all"),
-              fontSize: 11,
-              padding: "4px 10px",
-            }}
-          >
-            All ({allData.length})
-          </button>
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          style={{ ...selectStyle, minWidth: 240 }}
+        >
+          <option value="all">All Categories ({allData.length} statements)</option>
           {categories.map((cat) => {
             const count = allData.filter((r) => r.question === cat).length;
             return (
-              <button
-                key={cat}
-                onClick={() => setCategoryFilter(cat)}
-                style={{
-                  ...tabStyle(categoryFilter === cat),
-                  fontSize: 11,
-                  padding: "4px 10px",
-                }}
-              >
-                {cat} ({count})
-              </button>
+              <option key={cat} value={cat}>{cat} ({count})</option>
             );
           })}
-        </div>
+        </select>
+        {categoryFilter !== "all" && (
+          <button
+            onClick={() => setCategoryFilter("all")}
+            style={{ ...tabStyle(false), fontSize: 11, padding: "4px 10px" }}
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {/* view tabs */}

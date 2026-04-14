@@ -128,28 +128,57 @@ export async function getStaticProps() {
         const theme = classifyComment(c.content);
         fullThemeCounts[theme] = (fullThemeCounts[theme] || 0) + 1;
       });
-      // Sample ~2000 per file for visualization
-      const sample = data.sort(() => Math.random() - 0.5).slice(0, 2000);
+      // Sample ~4000 per file for visualization (20K total across 5 files)
+      const sample = data.sort(() => Math.random() - 0.5).slice(0, 4000);
       allComments = allComments.concat(sample);
     } catch(e) {}
   }
 
   // GWI data - extract Index rows
+  // CSV has two column layouts:
+  //   Location data (r[0] filled):    r[0]=category, r[1]=entity, r[2]=metric, r[3]=totals, r[4-10]=segments
+  //   Non-location data (r[0] empty): r[0]="", r[1]=category, r[2]=entity, r[3]=metric, r[4]=totals, r[5-11]=segments
   let gwiData = [];
   try {
     const gwiText = fs.readFileSync(path.join(dir, "Project_Sweet_Tooth_Master - All Internet Users (Audience....csv"), "utf-8");
     const rows = parseCSV(gwiText);
     let lastQuestion = "";
     let lastEntityName = "";
-    for (let i = 7; i < rows.length; i++) {
+    let isShifted = false; // tracks whether current section uses shifted layout
+    for (let i = 2; i < rows.length; i++) {
       const r = rows[i];
-      if (!r || r.length < 11) continue;
-      if (r[0]) lastQuestion = r[0];
-      if (r[1]) lastEntityName = r[1];
-      if (r[2] === "Index" && lastEntityName) {
-        const vals = [r[4],r[5],r[6],r[7],r[8],r[9],r[10]].map(v => parseInt(v?.replace(/,/g, "")) || 0);
-        if (vals.some(v => v > 0 && v !== 100)) {
-          gwiData.push({ question: lastQuestion, name: lastEntityName, genJones: vals[0], millennial: vals[1], genX: vals[2], genZ: vals[3], disco: vals[4], fashion: vals[5], nightlife: vals[6] });
+      if (!r || r.length < 8) continue;
+      // Skip fully empty rows
+      if (r.every(c => !c || c.trim() === "")) continue;
+
+      // Detect layout: if r[0] has a known category, it's location format
+      // If r[0] is empty and r[1] has a non-city value, it's shifted format
+      if (r[0] && r[0].trim()) {
+        lastQuestion = r[0].trim();
+        isShifted = false;
+      } else if (r[1] && r[1].trim() && r[2] && r[2].trim() && (r[3] === "Universe" || r[3] === "Responses" || r[3] === "Column %" || r[3] === "Row %" || r[3] === "Index")) {
+        // This is a shifted-format data row with category in r[1], entity in r[2], metric in r[3]
+        lastQuestion = r[1].trim();
+        isShifted = true;
+      }
+
+      if (!isShifted) {
+        // Standard layout: r[1]=entity, r[2]=metric, r[4-10]=segments
+        if (r[1] && r[1].trim()) lastEntityName = r[1].trim();
+        if (r[2] === "Index" && lastEntityName) {
+          const vals = [r[4],r[5],r[6],r[7],r[8],r[9],r[10]].map(v => parseInt(v?.replace(/,/g, "")) || 0);
+          if (vals.some(v => v > 0 && v !== 100)) {
+            gwiData.push({ question: lastQuestion, name: lastEntityName, genJones: vals[0], millennial: vals[1], genX: vals[2], genZ: vals[3], disco: vals[4], fashion: vals[5], nightlife: vals[6] });
+          }
+        }
+      } else {
+        // Shifted layout: r[2]=entity, r[3]=metric, r[5-11]=segments
+        if (r[2] && r[2].trim()) lastEntityName = r[2].trim();
+        if (r[3] === "Index" && lastEntityName) {
+          const vals = [r[5],r[6],r[7],r[8],r[9],r[10],r[11]].map(v => parseInt(v?.replace(/,/g, "")) || 0);
+          if (vals.some(v => v > 0 && v !== 100)) {
+            gwiData.push({ question: lastQuestion, name: lastEntityName, genJones: vals[0], millennial: vals[1], genX: vals[2], genZ: vals[3], disco: vals[4], fashion: vals[5], nightlife: vals[6] });
+          }
         }
       }
     }
