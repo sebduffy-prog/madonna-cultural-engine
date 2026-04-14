@@ -80,22 +80,31 @@ export default async function handler(req, res) {
     return res.status(200).json({ hasCredentials: false, error: tokenError || "Auth failed" });
   }
 
-  // Use search to find Madonna and get her profile
-  const artistSearch = await spotifyFetch(`/search?q=Madonna&type=artist&limit=5`, token);
-  const madonnaArtist = artistSearch?.artists?.items?.find(a => a.name.toLowerCase() === "madonna");
+  // Try direct artist endpoint first (known Madonna Spotify ID), fall back to search
+  const MADONNA_ID = "6tbjWDEIzxTsHi1PYOhLWV";
+  let madonnaArtist = await spotifyFetch(`/artists/${MADONNA_ID}`, token);
 
   if (!madonnaArtist) {
-    return res.status(200).json({ hasCredentials: true, artist: null, debug: { error: "Could not find Madonna via search" }, topTracks: [], albums: [], relatedArtists: [], audienceTrending: [], playlists: [], fetchedAt: new Date().toISOString(), cacheTTL: CACHE_TTL });
+    // Fall back to search
+    const artistSearch = await spotifyFetch(`/search?q=Madonna&type=artist&limit=10`, token);
+    madonnaArtist = artistSearch?.artists?.items?.find(a =>
+      a.name.toLowerCase() === "madonna" || a.id === MADONNA_ID
+    );
+  }
+
+  if (!madonnaArtist) {
+    return res.status(200).json({ hasCredentials: true, artist: null, debug: { error: "Could not find Madonna via search", testError: "Both /artists endpoint and /search failed. Your Spotify app may need to be in Extended Quota mode or re-created in the Spotify Developer Dashboard." }, topTracks: [], albums: [], relatedArtists: [], audienceTrending: [], playlists: [], fetchedAt: new Date().toISOString(), cacheTTL: CACHE_TTL });
   }
 
   const ARTIST_ID = madonnaArtist.id;
 
-  // All fetches use search-based approach (direct artist endpoints return 403)
+  // Try direct endpoints first, fall back to search-based approach
   const [
     trackSearch1,
     trackSearch2,
     trackSearch3,
     trackSearch4,
+    albumsDirect,
     albumSearch,
     playlistSearch,
     relatedSearch1,
@@ -105,13 +114,15 @@ export default async function handler(req, res) {
     spotifyFetch(`/search?q=Madonna+Hung+Up+Like+A+Prayer+Vogue&type=track&limit=20`, token),
     spotifyFetch(`/search?q=Madonna+Material+Girl+Ray+Of+Light+Frozen&type=track&limit=20`, token),
     spotifyFetch(`/search?q=Madonna+Music+Holiday+Express+Yourself+Into+Groove&type=track&limit=20`, token),
+    spotifyFetch(`/artists/${ARTIST_ID}/albums?limit=50&include_groups=album,single,compilation`, token),
     spotifyFetch(`/search?q=artist:Madonna&type=album&limit=20`, token),
     spotifyFetch(`/search?q=Madonna&type=playlist&limit=20`, token),
     spotifyFetch(`/search?q=genre:dance-pop+genre:pop&type=artist&limit=20`, token),
     spotifyFetch(`/search?q=Kylie+Minogue+OR+Cher+OR+Janet+Jackson+OR+Dua+Lipa+OR+Lady+Gaga&type=artist&limit=10`, token),
   ]);
 
-  const albumsData = albumSearch;
+  // Prefer direct albums endpoint, fall back to search
+  const albumsData = albumsDirect || albumSearch;
 
   // Merge and deduplicate tracks, keep only Madonna's
   const allTrackResults = [

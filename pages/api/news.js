@@ -139,25 +139,62 @@ function decodeEntities(str) {
     });
 }
 
+function parseRSSItem(item) {
+  const title = (item.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "";
+  const link = (item.match(/<link[^>]*>([\s\S]*?)<\/link>/i) || [])[1] || "";
+  const desc = (item.match(/<description[^>]*>([\s\S]*?)<\/description>/i) || [])[1] ||
+    (item.match(/<summary[^>]*>([\s\S]*?)<\/summary>/i) || [])[1] || "";
+  const pubDate = (item.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i) || [])[1] ||
+    (item.match(/<updated[^>]*>([\s\S]*?)<\/updated>/i) || [])[1] ||
+    (item.match(/<published[^>]*>([\s\S]*?)<\/published>/i) || [])[1] || "";
+  const cleanTitle = decodeEntities(title.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]+>/g, "").trim());
+  const cleanDesc = decodeEntities(desc.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]+>/g, "").trim());
+  let cleanLink = link.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
+  return { title: cleanTitle, url: cleanLink, description: cleanDesc, date: pubDate };
+}
+
+function parseAtomEntry(entry) {
+  const title = (entry.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "";
+  // Atom uses <link href="..." /> (self-closing) or <link rel="alternate" href="..." />
+  const linkHref = (entry.match(/<link[^>]*href=["']([^"']+)["'][^>]*\/?>/i) || [])[1] || "";
+  const linkBody = (entry.match(/<link[^>]*>([\s\S]*?)<\/link>/i) || [])[1] || "";
+  const desc = (entry.match(/<summary[^>]*>([\s\S]*?)<\/summary>/i) || [])[1] ||
+    (entry.match(/<content[^>]*>([\s\S]*?)<\/content>/i) || [])[1] || "";
+  const pubDate = (entry.match(/<published[^>]*>([\s\S]*?)<\/published>/i) || [])[1] ||
+    (entry.match(/<updated[^>]*>([\s\S]*?)<\/updated>/i) || [])[1] || "";
+  const cleanTitle = decodeEntities(title.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]+>/g, "").trim());
+  const cleanDesc = decodeEntities(desc.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]+>/g, "").trim());
+  const cleanLink = (linkHref || linkBody).replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
+  return { title: cleanTitle, url: cleanLink, description: cleanDesc, date: pubDate };
+}
+
 async function fetchRSS(url, sourceName, maxItems = 5) {
   try {
     const res = await fetch(url, { headers: { "User-Agent": "MadonnaCulturalEngine/1.0" }, signal: AbortSignal.timeout(8000) });
     if (!res.ok) return [];
     const text = await res.text();
     const items = [];
-    const itemMatches = text.match(/<item[\s>][\s\S]*?<\/item>/gi) || [];
-    for (const item of itemMatches.slice(0, maxItems)) {
-      const title = (item.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "";
-      const link = (item.match(/<link[^>]*>([\s\S]*?)<\/link>/i) || [])[1] || "";
-      const desc = (item.match(/<description[^>]*>([\s\S]*?)<\/description>/i) || [])[1] || "";
-      const pubDate = (item.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i) || [])[1] || "";
-      const cleanTitle = decodeEntities(title.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]+>/g, "").trim());
-      const cleanDesc = decodeEntities(desc.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]+>/g, "").trim());
-      const cleanLink = link.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
-      if (cleanTitle) {
-        items.push({ title: cleanTitle, url: cleanLink, description: cleanDesc.slice(0, 300), date: pubDate, source: sourceName, type: "rss" });
+
+    // Try RSS <item> format first
+    const rssMatches = text.match(/<item[\s>][\s\S]*?<\/item>/gi) || [];
+    for (const raw of rssMatches.slice(0, maxItems)) {
+      const parsed = parseRSSItem(raw);
+      if (parsed.title) {
+        items.push({ ...parsed, description: parsed.description.slice(0, 300), source: sourceName, type: "rss" });
       }
     }
+
+    // Also try Atom <entry> format (many feeds use this)
+    if (items.length === 0) {
+      const atomMatches = text.match(/<entry[\s>][\s\S]*?<\/entry>/gi) || [];
+      for (const raw of atomMatches.slice(0, maxItems)) {
+        const parsed = parseAtomEntry(raw);
+        if (parsed.title) {
+          items.push({ ...parsed, description: parsed.description.slice(0, 300), source: sourceName, type: "rss" });
+        }
+      }
+    }
+
     return items;
   } catch {
     return [];
@@ -222,13 +259,17 @@ export default async function handler(req, res) {
   let allRss = rssResults.flat();
   const allBrave = braveResults.flat();
 
-  // Madonna tab: only keep articles that actually mention Madonna
+  // Madonna tab: prioritise articles mentioning Madonna, but include others if few found
+  let madonnaRss = allRss;
   if (category === "madonna") {
-    allRss = allRss.filter((item) => {
+    const matched = allRss.filter((item) => {
       const text = `${item.title} ${item.description}`.toLowerCase();
       return text.includes("madonna");
     });
+    // If we found enough Madonna-specific articles, use those; otherwise include all
+    madonnaRss = matched.length >= 3 ? matched : [...matched, ...allRss.filter(item => !matched.includes(item))];
   }
+  allRss = category === "madonna" ? madonnaRss : allRss;
 
   // Deduplicate by URL
   const seen = new Set();
