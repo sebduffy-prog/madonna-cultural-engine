@@ -19,7 +19,7 @@ const SEGMENTS = [
   { key: "millennial", label: "Millennial", color: PINK },
   { key: "genX", label: "Gen X", color: CORAL },
   { key: "genZ", label: "Gen Z", color: TEAL },
-  { key: "disco", label: "Disco Scene", color: Y },
+  { key: "disco", label: "Gay Community", color: Y },
   { key: "fashion", label: "Fashion", color: AMBER },
   { key: "nightlife", label: "General Nightlife", color: GREEN },
 ];

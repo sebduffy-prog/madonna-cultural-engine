@@ -6,6 +6,7 @@ import path from "path";
 const StreetArtMap = dynamic(() => import("../components/StreetArtMap"), { ssr: false });
 const AudienceCommentsGraph = dynamic(() => import("../components/AudienceCommentsGraph"), { ssr: false });
 const AudienceIntelligence = dynamic(() => import("../components/AudienceIntelligence"), { ssr: false });
+const CulturalFeed = dynamic(() => import("../components/CulturalFeed"), { ssr: false });
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
@@ -271,7 +272,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Newsreader', 'Georgia', serif", color: WHITE }}>
-      <div style={{ maxWidth: ["comments","gwi","streetmap"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
+      <div style={{ maxWidth: ["comments","gwi","streetmap","culturalfeed"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCPm cultural intelligence</span>
@@ -292,6 +293,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "comments", label: "Audience comments" },
             { id: "gwi", label: "Audience intelligence" },
             { id: "streetmap", label: "Street art map" },
+            { id: "culturalfeed", label: "Cultural feed" },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 400,
@@ -847,6 +849,8 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         {tab === "gwi" && <AudienceIntelligence gwiData={gwiData} />}
 
         {tab === "streetmap" && <StreetArtMap murals={murals} venues={venues} />}
+
+        {tab === "culturalfeed" && <CulturalFeed />}
 
         <div style={{ marginTop: 48, paddingTop: 16, borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media × Cultural intelligence</span>

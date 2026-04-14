@@ -148,6 +148,7 @@ export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, 
   const [selectedComment, setSelectedComment] = useState(null);
   const [expandedThemes, setExpandedThemes] = useState(new Set());
   const [expandedSubThemes, setExpandedSubThemes] = useState(new Set());
+  const [focusTarget, setFocusTarget] = useState(null); // id of last-clicked theme/subtheme to pan to
 
   const classified = useMemo(() => {
     if (!comments || comments.length === 0) return [];
@@ -207,8 +208,10 @@ export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, 
             return ns;
           });
         }
+        setFocusTarget(null);
       } else {
         next.add(id);
+        setFocusTarget(id);
       }
       return next;
     });
@@ -217,8 +220,13 @@ export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, 
   const toggleSubTheme = useCallback((id) => {
     setExpandedSubThemes((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+        setFocusTarget(null);
+      } else {
+        next.add(id);
+        setFocusTarget(id);
+      }
       return next;
     });
   }, []);
@@ -276,60 +284,83 @@ export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, 
       const nodes = [];
       const links = [];
 
-      THEMES.forEach((theme) => {
+      // Build theme index for positioning children near parents
+      const themeIndex = {};
+      let ti = 0;
+      const activeThemes = THEMES.filter((t) => (themeCounts[t.id] || 0) > 0);
+      const angleStep = (2 * Math.PI) / Math.max(activeThemes.length, 1);
+
+      activeThemes.forEach((theme) => {
         const count = themeCounts[theme.id] || 0;
-        if (count === 0) return;
         const maxCount = Math.max(...Object.values(themeCounts), 1);
         const radius = 38 + (count / maxCount) * 28;
-        nodes.push({ id: theme.id, type: "theme", label: theme.label, color: theme.color, radius, count });
+        // Place themes in a circle so they start stable
+        const angle = ti * angleStep;
+        const cx = width / 2 + Math.cos(angle) * 180;
+        const cy = height / 2 + Math.sin(angle) * 180;
+        themeIndex[theme.id] = { x: cx, y: cy };
+        nodes.push({ id: theme.id, type: "theme", label: theme.label, color: theme.color, radius, count, x: cx, y: cy });
+        ti++;
 
         const isExpanded = expandedThemes.has(theme.id);
         if (!isExpanded) return;
 
         if (theme.subThemes && theme.subThemes.length > 0) {
-          theme.subThemes.forEach((sub) => {
+          const subStep = (2 * Math.PI) / Math.max(theme.subThemes.length, 1);
+          theme.subThemes.forEach((sub, si) => {
             const subCount = subThemeCounts[sub.id] || 0;
             if (subCount === 0) return;
             const subRadius = 18 + Math.min(14, Math.sqrt(subCount) * 1.8);
-            nodes.push({ id: sub.id, type: "subtheme", label: sub.label, color: sub.color, parentColor: theme.color, radius: subRadius, count: subCount, themeId: theme.id });
+            // Position sub-themes near parent
+            const sa = si * subStep;
+            const sx = cx + Math.cos(sa) * 65;
+            const sy = cy + Math.sin(sa) * 65;
+            nodes.push({ id: sub.id, type: "subtheme", label: sub.label, color: sub.color, parentColor: theme.color, radius: subRadius, count: subCount, themeId: theme.id, x: sx, y: sy });
             links.push({ source: theme.id, target: sub.id });
 
             if (expandedSubThemes.has(sub.id)) {
               const subComments = groupedBySubTheme[sub.id] || [];
-              // Show as many comments as possible - up to 150 per sub-theme
               const sampled = sampleArray(subComments, 150);
-              sampled.forEach((c) => {
-                nodes.push({ id: c._id, type: "comment", data: c, color: sub.color, radius: 3.5 + Math.min(2.5, (c.content || "").length / 150), themeId: theme.id, subThemeId: sub.id });
+              sampled.forEach((c, ci) => {
+                // Scatter comments in a small cluster near sub-theme
+                const ca = (ci / sampled.length) * 2 * Math.PI;
+                const cr = 15 + Math.random() * 25;
+                nodes.push({ id: c._id, type: "comment", data: c, color: sub.color, radius: 3.5 + Math.min(2.5, (c.content || "").length / 150), themeId: theme.id, subThemeId: sub.id, x: sx + Math.cos(ca) * cr, y: sy + Math.sin(ca) * cr });
                 links.push({ source: sub.id, target: c._id });
               });
             }
           });
         } else {
-          // General theme - show comments directly
-          const sampled = sampleArray(groupedByTheme[theme.id] || [], 150);
-          sampled.forEach((c) => {
-            nodes.push({ id: c._id, type: "comment", data: c, color: theme.color, radius: 3.5, themeId: theme.id });
+          const themeComments = groupedByTheme[theme.id] || [];
+          const sampled = sampleArray(themeComments, 150);
+          sampled.forEach((c, ci) => {
+            const ca = (ci / sampled.length) * 2 * Math.PI;
+            const cr = 15 + Math.random() * 25;
+            nodes.push({ id: c._id, type: "comment", data: c, color: theme.color, radius: 3.5, themeId: theme.id, x: cx + Math.cos(ca) * cr, y: cy + Math.sin(ca) * cr });
             links.push({ source: theme.id, target: c._id });
           });
         }
       });
 
       const simulation = d3.forceSimulation(nodes)
-        .force("center", d3.forceCenter(width / 2, height / 2))
-        .force("collide", d3.forceCollide().radius((d) => d.radius + 2.5).strength(0.7).iterations(2))
+        .force("center", d3.forceCenter(width / 2, height / 2).strength(0.03))
+        .force("collide", d3.forceCollide().radius((d) => d.radius + 1.5).strength(0.5).iterations(2))
         .force("link", d3.forceLink(links).id((d) => d.id).distance((d) => {
-          if (d.target.type === "comment") return 30;
-          if (d.target.type === "subtheme") return 70;
+          if (d.target.type === "comment") return 20;
+          if (d.target.type === "subtheme") return 55;
           return 60;
-        }).strength(0.6))
-        .force("charge", d3.forceManyBody().strength((d) => {
-          if (d.type === "theme") return -250;
-          if (d.type === "subtheme") return -80;
-          return -4;
+        }).strength((d) => {
+          if (d.target.type === "comment") return 0.8;
+          return 0.5;
         }))
-        .alpha(0.8)
-        .alphaDecay(0.015)
-        .velocityDecay(0.35);
+        .force("charge", d3.forceManyBody().strength((d) => {
+          if (d.type === "theme") return -120;
+          if (d.type === "subtheme") return -30;
+          return -1;
+        }))
+        .alpha(0.3)
+        .alphaDecay(0.03)
+        .velocityDecay(0.55);
 
       simulationRef.current = simulation;
 
@@ -422,12 +453,26 @@ export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, 
         .attr("text-anchor", "middle").attr("dy", (d) => d.radius + 15)
         .attr("fill", MUTED).attr("font-size", 13).attr("font-weight", 700).attr("pointer-events", "none");
 
+      let hasFocused = false;
       simulation.on("tick", () => {
         link.attr("x1", (d) => d.source.x).attr("y1", (d) => d.source.y)
           .attr("x2", (d) => d.target.x).attr("y2", (d) => d.target.y);
         commentNodes.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
         subThemeGroup.attr("transform", (d) => `translate(${d.x},${d.y})`);
         themeGroup.attr("transform", (d) => `translate(${d.x},${d.y})`);
+
+        // Once simulation has mostly settled, pan to the focus target
+        if (!hasFocused && focusTarget && simulation.alpha() < 0.15) {
+          hasFocused = true;
+          const target = nodes.find((n) => n.id === focusTarget);
+          if (target && target.x != null && target.y != null) {
+            const scale = target.type === "subtheme" ? 1.8 : 1.2;
+            const tx = width / 2 - target.x * scale;
+            const ty = height / 2 - target.y * scale;
+            svg.transition().duration(600).ease(d3.easeCubicInOut)
+              .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+          }
+        }
       });
 
       const drag = d3.drag()
@@ -451,7 +496,7 @@ export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, 
     return () => {
       if (simulationRef.current) { simulationRef.current.stop(); simulationRef.current = null; }
     };
-  }, [themeCounts, expandedThemes, expandedSubThemes, groupedByTheme, groupedBySubTheme, subThemeCounts, toggleTheme, toggleSubTheme]);
+  }, [themeCounts, expandedThemes, expandedSubThemes, groupedByTheme, groupedBySubTheme, subThemeCounts, toggleTheme, toggleSubTheme, focusTarget]);
 
   if (!comments || comments.length === 0) {
     return <div style={{ color: MUTED, padding: 20 }}>No comments to display.</div>;
