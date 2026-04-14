@@ -1,13 +1,13 @@
 // Spotify Streaming Tracker -- Madonna
-// Client Credentials flow -- uses only endpoints available without Extended Quota
-// Some endpoints (top-tracks, related-artists) are restricted since late 2024
-// We use search-based workarounds to get equivalent data
+// Client Credentials flow (no user auth needed)
+// Staggered API calls to respect Development mode rate limits
+// Caches for 12 hours — daily cron refreshes
 
-import { kvGet, kvSet, kvIsFresh, kvListPush, kvListGet } from "../../lib/kv";
+import { kvGet, kvSet, kvListPush, kvListGet } from "../../lib/kv";
 
 const CACHE_KEY = "spotify:snapshot";
 const IS_DEV = process.env.NODE_ENV === "development";
-const CACHE_TTL = IS_DEV ? 120 : 1800;
+const CACHE_TTL = IS_DEV ? 300 : 43200; // 5 min dev, 12 hours prod
 
 let tokenCache = { token: null, expires: 0 };
 let tokenError = null;
@@ -28,7 +28,7 @@ async function getAccessToken() {
       body: "grant_type=client_credentials",
     });
     if (!res.ok) {
-      tokenError = `Token failed: ${res.status}`;
+      tokenError = `Token request failed: ${res.status}`;
       return null;
     }
     const data = await res.json();
@@ -41,35 +41,43 @@ async function getAccessToken() {
   }
 }
 
-async function spotifyFetch(endpoint, token, returnDebug = false) {
+// Small delay between API calls to avoid 429
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function spotifyFetch(endpoint, token) {
   try {
     const res = await fetch(`https://api.spotify.com/v1${endpoint}`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) {
-      if (returnDebug) return { _error: true, status: res.status, statusText: res.statusText };
-      return null;
+    if (res.status === 429) {
+      // Read Retry-After header if present
+      const retryAfter = parseInt(res.headers.get("retry-after") || "5", 10);
+      await delay(retryAfter * 1000);
+      // One retry after waiting
+      const retry = await fetch(`https://api.spotify.com/v1${endpoint}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!retry.ok) return null;
+      return retry.json();
     }
+    if (!res.ok) return null;
     return res.json();
-  } catch (err) {
-    if (returnDebug) return { _error: true, status: 0, statusText: err.message };
-    return null;
-  }
+  } catch { return null; }
 }
 
 export default async function handler(req, res) {
   const { refresh, snapshot } = req.query;
 
-  // Return cached data if it has real content and not force-refreshing
+  // Return cached data if available and not force-refreshing
   if (!refresh) {
     const cached = await kvGet(CACHE_KEY);
-    if (cached && cached.artist && cached.topTracks?.length > 0) {
+    if (cached && cached.artist) {
       const history = await kvListGet("spotify:history", 0, 11);
       cached.history = history;
       return res.status(200).json(cached);
     }
-    // Bad/empty cache -- fall through to re-fetch
   }
 
   const clientId = process.env.SPOTIFY_CLIENT_ID;
@@ -86,63 +94,31 @@ export default async function handler(req, res) {
     return res.status(200).json({ hasCredentials: false, error: tokenError || "Auth failed" });
   }
 
-  // Find Madonna via search (with retry for 429 rate limits)
-  let madonnaArtist = null;
-  let debugInfo = {};
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await new Promise((r) => setTimeout(r, 2000 * attempt)); // back off on retry
-
-    const artistSearch = await spotifyFetch(`/search?q=Madonna&type=artist&limit=10`, token, true);
-    if (artistSearch && !artistSearch._error) {
-      madonnaArtist = artistSearch.artists?.items?.find(a =>
-        a.name.toLowerCase() === "madonna"
-      );
-      if (madonnaArtist) {
-        debugInfo.searchEndpoint = "OK";
-        debugInfo.artistId = madonnaArtist.id;
-        debugInfo.attempt = attempt + 1;
-        break;
-      }
-      debugInfo.searchEndpoint = `no match in ${artistSearch.artists?.items?.length || 0} results`;
-      break; // search worked but no match — don't retry
-    } else if (artistSearch?.status === 429) {
-      debugInfo.searchEndpoint = `429 rate limited (attempt ${attempt + 1}/3)`;
-      continue; // retry after backoff
-    } else {
-      debugInfo.searchEndpoint = artistSearch?._error ? `${artistSearch.status} ${artistSearch.statusText}` : "null";
-      break; // non-retryable error
-    }
-  }
-
-  // If search failed, try direct artist lookup with known ID
-  if (!madonnaArtist) {
-    const KNOWN_IDS = ["6tbjWDEIzxTsHi1PYOhLWV", "25u4wHJWxCA9vO0CzxMzNm", "058LBJlQF2fSoJKJuFpcaO"];
-    for (const id of KNOWN_IDS) {
-      const direct = await spotifyFetch(`/artists/${id}`, token, true);
-      if (direct && !direct._error && direct.name?.toLowerCase() === "madonna") {
-        madonnaArtist = direct;
-        debugInfo.artistEndpoint = `OK (${id})`;
-        break;
-      }
-    }
-    if (!madonnaArtist) debugInfo.artistEndpoint = "all known IDs failed";
-  }
+  // ── Step 1: Find Madonna (single search, no retry spam) ──
+  const artistSearch = await spotifyFetch("/search?q=Madonna&type=artist&limit=5", token);
+  const madonnaArtist = artistSearch?.artists?.items?.find(a =>
+    a.name.toLowerCase() === "madonna"
+  );
 
   if (!madonnaArtist) {
-    const searchStatus = parseInt(debugInfo.searchEndpoint) || 0;
-    let advice = "Check your Spotify Developer Dashboard at developer.spotify.com/dashboard.";
-    if (searchStatus === 401) advice = "Your Client ID or Secret is invalid. Regenerate the secret in your Spotify app settings.";
-    else if (searchStatus === 403) advice = "Your Spotify app needs Web API access. Go to developer.spotify.com/dashboard, select your app, check Settings > Web API is enabled.";
-    else if (searchStatus === 429) advice = "Rate limited by Spotify after 3 retries. Wait a few minutes and hit Retry.";
+    // If rate limited, try to serve stale cache
+    const stale = await kvGet(CACHE_KEY);
+    if (stale && stale.artist) {
+      stale.fromCache = true;
+      const history = await kvListGet("spotify:history", 0, 11);
+      stale.history = history;
+      return res.status(200).json(stale);
+    }
 
     return res.status(200).json({
       hasCredentials: true, artist: null,
       debug: {
-        error: "Could not connect to Spotify API",
-        testError: advice,
-        ...debugInfo,
-        tokenObtained: !!token,
+        error: "Could not find Madonna via Spotify search",
+        testError: artistSearch === null
+          ? "Search endpoint returned error. If rate limited, wait 30 seconds and retry. Check developer.spotify.com/dashboard — ensure Web API is enabled in your app settings."
+          : `Search returned ${artistSearch?.artists?.items?.length || 0} results but none matched 'Madonna'`,
+        tokenObtained: true,
+        searchReturned: artistSearch === null ? "null (API error or 429)" : `${artistSearch?.artists?.items?.length || 0} artists`,
         clientIdPrefix: clientId.slice(0, 8) + "...",
       },
       topTracks: [], albums: [], relatedArtists: [], audienceTrending: [], playlists: [],
@@ -152,38 +128,26 @@ export default async function handler(req, res) {
 
   const ARTIST_ID = madonnaArtist.id;
 
-  // Try direct endpoints first, fall back to search-based approach
-  const [
-    trackSearch1,
-    trackSearch2,
-    trackSearch3,
-    trackSearch4,
-    albumsDirect,
-    albumSearch,
-    playlistSearch,
-    relatedSearch1,
-    relatedSearch2,
-  ] = await Promise.all([
-    spotifyFetch(`/search?q=artist:Madonna&type=track&limit=20&market=GB`, token),
-    spotifyFetch(`/search?q=Madonna+Hung+Up+Like+A+Prayer+Vogue&type=track&limit=20`, token),
-    spotifyFetch(`/search?q=Madonna+Material+Girl+Ray+Of+Light+Frozen&type=track&limit=20`, token),
-    spotifyFetch(`/search?q=Madonna+Music+Holiday+Express+Yourself+Into+Groove&type=track&limit=20`, token),
-    spotifyFetch(`/artists/${ARTIST_ID}/albums?limit=50&include_groups=album,single,compilation`, token),
-    spotifyFetch(`/search?q=artist:Madonna&type=album&limit=20`, token),
-    spotifyFetch(`/search?q=Madonna&type=playlist&limit=20`, token),
-    spotifyFetch(`/search?q=genre:dance-pop+genre:pop&type=artist&limit=20`, token),
-    spotifyFetch(`/search?q=Kylie+Minogue+OR+Cher+OR+Janet+Jackson+OR+Dua+Lipa+OR+Lady+Gaga&type=artist&limit=10`, token),
-  ]);
+  // ── Step 2: Fetch data in staggered batches (avoid rate limit) ──
 
-  // Prefer direct albums endpoint, fall back to search
-  const albumsData = albumsDirect || albumSearch;
+  // Batch 1: tracks + albums (wait 500ms between calls)
+  await delay(300);
+  const trackSearch1 = await spotifyFetch(`/search?q=artist:Madonna&type=track&limit=50&market=GB`, token);
+  await delay(300);
+  const trackSearch2 = await spotifyFetch(`/search?q=Madonna+Hung+Up+Like+A+Prayer+Material+Girl+Vogue+Ray+Of+Light+Frozen+Music+Holiday&type=track&limit=50`, token);
+  await delay(300);
+  const albumsDirect = await spotifyFetch(`/artists/${ARTIST_ID}/albums?limit=50&include_groups=album,single,compilation`, token);
+  await delay(300);
 
-  // Merge and deduplicate tracks, keep only Madonna's
+  // Batch 2: playlists + related artists
+  const playlistSearch = await spotifyFetch(`/search?q=Madonna&type=playlist&limit=20`, token);
+  await delay(300);
+  const relatedSearch = await spotifyFetch(`/search?q=Kylie+Minogue+OR+Cher+OR+Janet+Jackson+OR+Dua+Lipa+OR+Lady+Gaga+OR+Cyndi+Lauper&type=artist&limit=15`, token);
+
+  // ── Step 3: Process tracks ──
   const allTrackResults = [
     ...(trackSearch1?.tracks?.items || []),
     ...(trackSearch2?.tracks?.items || []),
-    ...(trackSearch3?.tracks?.items || []),
-    ...(trackSearch4?.tracks?.items || []),
   ];
   const seenTracks = new Set();
   const madonnaTracksRaw = allTrackResults.filter(t => {
@@ -193,27 +157,20 @@ export default async function handler(req, res) {
   });
   madonnaTracksRaw.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
 
-  // Build related artists from search results (deduplicate, exclude Madonna)
-  const relatedRaw = [
-    ...(relatedSearch1?.artists?.items || []),
-    ...(relatedSearch2?.artists?.items || []),
-  ];
+  // ── Step 4: Process related artists ──
+  const relatedRaw = relatedSearch?.artists?.items || [];
   const seenArtists = new Set([ARTIST_ID]);
   const relatedArtists = relatedRaw.filter(a => {
     if (seenArtists.has(a.id)) return false;
     seenArtists.add(a.id);
     return true;
-  }).sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, 20);
+  }).sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, 15);
 
-  // Get top tracks from related artists for audience trending
-  const relatedTrackPromises = relatedArtists.slice(0, 8).map(a =>
-    spotifyFetch(`/search?q=artist:${encodeURIComponent(a.name)}&type=track&limit=5&market=GB`, token)
-  );
-  const relatedTrackResults = await Promise.all(relatedTrackPromises);
-
+  // Batch 3: Audience trending (staggered, fewer calls)
   const audienceTrending = [];
-  relatedTrackResults.forEach((data, i) => {
-    const art = relatedArtists[i];
+  for (const art of relatedArtists.slice(0, 5)) {
+    await delay(300);
+    const data = await spotifyFetch(`/search?q=artist:${encodeURIComponent(art.name)}&type=track&limit=5&market=GB`, token);
     (data?.tracks?.items || []).slice(0, 3).forEach(t => {
       audienceTrending.push({
         name: t.name,
@@ -226,23 +183,21 @@ export default async function handler(req, res) {
         externalUrl: t.external_urls?.spotify || "",
       });
     });
-  });
+  }
   audienceTrending.sort((a, b) => b.popularity - a.popularity);
 
-  // Artist data comes from search result (direct endpoint is 403)
-  const artist = madonnaArtist;
-
+  // ── Step 5: Build result ──
   const result = {
     hasCredentials: true,
     fetchedAt: new Date().toISOString(),
     cacheTTL: CACHE_TTL,
     artist: {
-      name: artist.name,
-      followers: artist.followers?.total || 0,
-      popularity: artist.popularity || 0,
-      genres: artist.genres || [],
-      image: artist.images?.[0]?.url || "",
-      imageSmall: artist.images?.[1]?.url || "",
+      name: madonnaArtist.name,
+      followers: madonnaArtist.followers?.total || 0,
+      popularity: madonnaArtist.popularity || 0,
+      genres: madonnaArtist.genres || [],
+      image: madonnaArtist.images?.[0]?.url || "",
+      imageSmall: madonnaArtist.images?.[1]?.url || "",
     },
     topTracks: madonnaTracksRaw.slice(0, 20).map(t => ({
       name: t.name,
@@ -254,8 +209,7 @@ export default async function handler(req, res) {
       durationMs: t.duration_ms,
       releaseDate: t.album?.release_date || "",
     })),
-    albums: (albumsData?.items || albumsData?.albums?.items || []).filter(a => {
-      // If from search, filter to only Madonna's albums
+    albums: (albumsDirect?.items || []).filter(a => {
       return !a.artists || a.artists.some(ar => ar.id === ARTIST_ID || ar.name?.toLowerCase() === "madonna");
     }).map(a => ({
       name: a.name,
@@ -285,7 +239,7 @@ export default async function handler(req, res) {
     })),
   };
 
-  // Only cache if we got real data
+  // Cache if we got anything useful
   if (result.topTracks.length > 0 || result.albums.length > 0) {
     await kvSet(CACHE_KEY, result, CACHE_TTL);
   }
