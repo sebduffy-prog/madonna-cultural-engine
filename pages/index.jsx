@@ -9,6 +9,7 @@ const AudienceIntelligence = dynamic(() => import("../components/AudienceIntelli
 const CulturalFeed = dynamic(() => import("../components/CulturalFeed"), { ssr: false });
 const SpotifyTracker = dynamic(() => import("../components/SpotifyTracker"), { ssr: false });
 const SocialPulse = dynamic(() => import("../components/SocialPulse"), { ssr: false });
+const DashboardSummary = dynamic(() => import("../components/DashboardSummary"), { ssr: false });
 const MentionsTicker = dynamic(() => import("../components/MentionsTicker"), { ssr: false });
 
 const Y = "#FFD500";
@@ -256,7 +257,7 @@ export async function getStaticProps() {
 }
 
 export default function Dashboard({ comments = [], gwiData = [], murals = [], venues = [], fullThemeCounts = {}, totalCommentCount = 0 }) {
-  const [tab, setTab] = useState("insight");
+  const [tab, setTab] = useState("dashboard");
   const [authed, setAuthed] = useState(false);
   const [pw, setPw] = useState("");
 
@@ -265,7 +266,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
       <div style={{ background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
         <div style={{ textAlign: "center" }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y }}>VCCPm cultural intelligence</span>
-          <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, margin: "8px 0 24px", letterSpacing: "-0.02em" }}>Madonna</h1>
+          <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, margin: "8px 0 24px", letterSpacing: "-0.02em" }}>Sweet Tooth</h1>
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif" }} autoFocus />
           <div style={{ marginTop: 12 }}>
             <button onClick={() => { if (pw === "Tune5") setAuthed(true); }} style={{ background: Y, color: BG, border: "none", borderRadius: 8, padding: "10px 32px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Enter</button>
@@ -278,32 +279,32 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Newsreader', 'Georgia', serif", color: WHITE }}>
-      <div style={{ maxWidth: ["comments","gwi","streetmap","culturalfeed","socialpulse","spotify"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
+      <div style={{ maxWidth: ["comments","gwi","streetmap","culturalfeed","socialpulse","spotify","dashboard"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCPm cultural intelligence</span>
         </div>
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, lineHeight: 1.1, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Madonna</h1>
-        <p style={{ fontSize: 15, color: MUTED, margin: "0 0 4px", fontStyle: "italic" }}>The original. Not the comeback.</p>
+        <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, lineHeight: 1.1, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Sweet Tooth</h1>
+        <p style={{ fontSize: 15, color: MUTED, margin: "0 0 4px", fontStyle: "italic" }}>Madonna cultural tracker</p>
         <div style={{ height: 3, background: Y, borderRadius: 2, margin: "16px 0 24px" }} />
 
         <MentionsTicker />
 
         <div style={{ display: "flex", gap: 6, marginBottom: 32, flexWrap: "wrap" }}>
           {[
-            { id: "insight", label: "The insight" },
-            { id: "audiences", label: "Who matters and why" },
-            { id: "territories", label: "Where to fight" },
-            { id: "engine", label: "The reactive engine" },
-            { id: "channels", label: "Where attention lives" },
-            { id: "britishgas", label: "Social intelligence" },
-            { id: "research", label: "Market research" },
-            { id: "comments", label: "Audience comments" },
-            { id: "gwi", label: "Audience intelligence" },
-            { id: "streetmap", label: "Street art map" },
-            { id: "culturalfeed", label: "Cultural feed" },
-            { id: "socialpulse", label: "Social pulse" },
-            { id: "spotify", label: "Streaming intelligence" },
+            { id: "dashboard", label: "Dashboard" },
+            { id: "culturalfeed", label: "Media" },
+            { id: "socialpulse", label: "Social listening" },
+            { id: "spotify", label: "Streaming" },
+            { id: "comments", label: "YouTube comments" },
+            { id: "gwi", label: "Audience" },
+            { id: "streetmap", label: "Locations" },
+            { id: "audiences", label: "Audience strategy" },
+            { id: "territories", label: "Territories" },
+            { id: "engine", label: "Reactive engine" },
+            { id: "channels", label: "Channels" },
+            { id: "britishgas", label: "Content" },
+            { id: "research", label: "Research" },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 400,
@@ -314,7 +315,9 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
           ))}
         </div>
 
-        {tab === "insight" && <>
+        {tab === "dashboard" && <DashboardSummary />}
+
+        {tab === "_old_insight" && <>
           <Sect title="The human truth">
             <Pull text="The world is busy debating whether Madonna is still relevant. The answer is in every artist they compare her to." />
             <Insight text="This isn't a positioning exercise. It's a tension that already exists inside the audience's head. They know she's the origin. They just haven't said it out loud. The cultural engine doesn't argue the case. It makes the invisible visible." color={DIM} />

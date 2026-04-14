@@ -72,7 +72,8 @@ export default async function handler(req, res) {
   // Check cache unless forced refresh
   if (!refresh) {
     const cached = await kvGet(CACHE_KEY);
-    if (cached) {
+    // Only use cache if it has actual data (not a stale empty result)
+    if (cached && cached.artist && cached.artist.popularity > 0) {
       const history = await kvListGet("spotify:history", 0, 11);
       cached.history = history;
       return res.status(200).json(cached);
@@ -99,8 +100,10 @@ export default async function handler(req, res) {
   }
 
   // Resolve Madonna's artist ID dynamically via search
-  if (!resolvedArtistId) {
+  // Re-resolve if refresh is requested or if we haven't resolved yet
+  if (!resolvedArtistId || refresh) {
     const searchResult = await spotifyFetch(`/search?q=Madonna&type=artist&limit=5`, token);
+    console.log("Spotify search result:", JSON.stringify(searchResult?.artists?.items?.map(a => ({ name: a.name, id: a.id, pop: a.popularity })) || "null"));
     const match = searchResult?.artists?.items?.find(
       (a) => a.name.toLowerCase() === "madonna"
     );
@@ -159,6 +162,7 @@ export default async function handler(req, res) {
 
   // Debug: track which fetches failed
   const debug = {
+    resolvedArtistId: ARTIST_ID,
     tokenOk: !!token,
     tokenLength: token ? token.length : 0,
     artistOk: !!artist,

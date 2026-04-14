@@ -7,12 +7,52 @@ import { kvGet, kvSet } from "../../lib/kv";
 const CACHE_KEY = "social:pulse";
 const CACHE_TTL = 21600; // 6 hours
 
+// Search aliases -- album names, tour names, things people call her
+const MADONNA_ALIASES = ["Madonna", "Confessions II", "Queen of Pop", "Material Girl"];
+
 const PLATFORMS = [
-  { id: "reddit", label: "Reddit", queries: ['"Madonna" site:reddit.com', 'Madonna subreddit popheads OR music'], icon: "R" },
-  { id: "twitter", label: "Twitter / X", queries: ['"Madonna" twitter', 'Madonna tweet trending', '#Madonna'], icon: "X" },
-  { id: "tiktok", label: "TikTok", queries: ['"Madonna" site:tiktok.com', 'Madonna TikTok trending viral', 'Madonna sound TikTok dance trend', 'Madonna Hung Up Vogue TikTok'], icon: "T" },
-  { id: "youtube", label: "YouTube", queries: ['"Madonna" site:youtube.com', 'Madonna new video reaction 2026'], icon: "Y" },
-  { id: "instagram", label: "Instagram", queries: ['Madonna instagram post story', '#Madonna instagram'], icon: "I" },
+  { id: "reddit", label: "Reddit", queries: [
+    '"Madonna" site:reddit.com',
+    'Madonna site:reddit.com/r/popheads',
+    'Madonna site:reddit.com/r/music',
+    'Madonna site:reddit.com/r/Madonna',
+    '"Confessions II" OR "Queen of Pop" site:reddit.com',
+    'Madonna album tour 2026 reddit',
+  ], icon: "R" },
+  { id: "twitter", label: "Twitter / X", queries: [
+    '"Madonna" twitter',
+    'Madonna tweet',
+    '#Madonna',
+    'Madonna trending',
+    '"Confessions II"',
+    'Madonna viral',
+    'Madonna fan',
+    'Madonna concert tour',
+  ], icon: "X" },
+  { id: "tiktok", label: "TikTok", queries: [
+    '"Madonna" site:tiktok.com',
+    'Madonna TikTok',
+    'Madonna sound TikTok',
+    'Madonna dance TikTok trend',
+    'Madonna Hung Up TikTok',
+    'Madonna Vogue TikTok',
+    'Madonna Material Girl TikTok',
+    '"Confessions II" TikTok',
+  ], icon: "T" },
+  { id: "youtube", label: "YouTube", queries: [
+    '"Madonna" site:youtube.com',
+    'Madonna reaction video',
+    'Madonna live performance',
+    'Madonna music video',
+    'Madonna interview 2026',
+    'Madonna fan compilation',
+  ], icon: "Y" },
+  { id: "instagram", label: "Instagram", queries: [
+    'Madonna instagram',
+    '#Madonna instagram',
+    'Madonna post story instagram',
+    'Madonna fan page instagram',
+  ], icon: "I" },
 ];
 
 // Hashtags and cultural metrics to track
@@ -22,8 +62,21 @@ const HASHTAG_QUERIES = [
   "#MaterialGirl",
   "#Madonnafans",
   "#CelebrationTour",
-  "Madonna trending",
-  "Madonna viral moment",
+  "#MadonnaTour",
+  "#LikeAVirgin",
+  "#LikeAPrayer",
+  "#HungUp",
+  "#Vogue Madonna",
+  "#RayOfLight",
+  "#QueenOfPop",
+  "#MadonnaForever",
+  "#MadonnaNetflix",
+  "#ConfessionsII",
+  "#MadonnaNewAlbum",
+  "#StuartPrice Madonna",
+  "#MadonnaLive",
+  "#MadonnaConcert",
+  "Madonna hashtag trending",
 ];
 
 async function braveSearch(query, apiKey, count = 10, freshness = "pw") {
@@ -64,7 +117,7 @@ export default async function handler(req, res) {
 
   // Fetch all platform queries in parallel
   const platformPromises = PLATFORMS.map(async (p) => {
-    const allResults = await Promise.all(p.queries.map((q) => braveSearch(q, apiKey, 8, period)));
+    const allResults = await Promise.all(p.queries.map((q) => braveSearch(q, apiKey, 15, period)));
     const seen = new Set();
     const items = allResults.flat().filter((item) => {
       if (!item.url || seen.has(item.url)) return false;
@@ -75,7 +128,7 @@ export default async function handler(req, res) {
   });
 
   // Fetch hashtag/metric queries
-  const hashtagPromises = HASHTAG_QUERIES.map((q) => braveSearch(q, apiKey, 5, period));
+  const hashtagPromises = HASHTAG_QUERIES.map((q) => braveSearch(q, apiKey, 10, period));
 
   const [platformResults, hashtagResults] = await Promise.all([
     Promise.all(platformPromises),

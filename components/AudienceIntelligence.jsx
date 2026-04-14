@@ -81,9 +81,9 @@ function SegmentExplorer({ data }) {
   const maxIndex = useMemo(() => Math.max(...items.map((d) => d.index), 200), [items]);
   const barH = 24;
   const gap = 4;
-  const leftW = 220;
+  const leftW = 380;
   const rightW = 50;
-  const barArea = 400;
+  const barArea = 300;
   const svgW = leftW + barArea + rightW;
   const svgH = items.length * (barH + gap);
 
@@ -124,7 +124,7 @@ function SegmentExplorer({ data }) {
                     fontSize={11}
                     fontFamily="'Inter Tight', sans-serif"
                   >
-                    {d.name.length > 32 ? d.name.slice(0, 30) + "…" : d.name}
+                    {d.name}
                   </text>
                   <rect
                     x={leftW}
@@ -182,7 +182,7 @@ function CompareSegments({ data }) {
   const barH = 26;
   const gap = 4;
   const sideW = 200;
-  const centerW = 200;
+  const centerW = 320;
   const svgW = sideW + centerW + sideW;
   const svgH = items.length * (barH + gap) + 30;
   const centerX = sideW + centerW / 2;
@@ -255,7 +255,7 @@ function CompareSegments({ data }) {
                     fontSize={10}
                     fontFamily="'Inter Tight', sans-serif"
                   >
-                    {d.name.length > 26 ? d.name.slice(0, 24) + "…" : d.name}
+                    {d.name}
                   </text>
                   {/* right bar (grows rightward from center) */}
                   <rect
