@@ -327,14 +327,19 @@ export default function CulturalFeed() {
               textTransform: "uppercase", letterSpacing: "0.04em",
               fontFamily: "'Inter Tight', sans-serif",
             }}>
-              {activeTab === "madonna" ? "All Madonna coverage" : activeTab === "social" ? "Madonna across social platforms" : `Latest from ${tabDef.label}`}
+              {activeTab === "madonna" ? "All Madonna coverage"
+                : activeTab === "social" ? "Madonna across social platforms"
+                : activeTab === "fashion" ? "What\u2019s trending in fashion"
+                : activeTab === "gay" ? "What\u2019s happening in queer culture"
+                : activeTab === "culture" ? "What\u2019s moving in club culture & music"
+                : `Latest from ${tabDef.label}`}
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {currentFeed && (
               <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
                 {activeTab === "social"
-                  ? `${(currentFeed.metrics?.textMentions || 0).toLocaleString()} mentions today \u00B7 ${(currentFeed.metrics?.cumulativeMentions || 0).toLocaleString()} cumulative`
+                  ? `${(currentFeed.metrics?.mentionsFound || 0).toLocaleString()} mentions today \u00B7 ${(currentFeed.metrics?.cumulativeMentions || 0).toLocaleString()} cumulative`
                   : `${currentFeed.items?.length || 0} results`}
                 {(currentFeed.cachedAt || currentFeed.fetchedAt) ? ` \u00B7 updated ${new Date(currentFeed.cachedAt || currentFeed.fetchedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}
               </span>
@@ -432,8 +437,8 @@ export default function CulturalFeed() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
                 {/* Text Mentions — "madonna" in actual text */}
                 <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>Text Mentions</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{(currentFeed.metrics?.textMentions || 0).toLocaleString()}</div>
+                  <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>Mentions Found</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{(currentFeed.metrics?.mentionsFound || 0).toLocaleString()}</div>
                   <div style={{ fontSize: 9, color: DIM, fontFamily: "'Inter Tight', sans-serif", marginTop: 2 }}>today (past 24h)</div>
                 </div>
 

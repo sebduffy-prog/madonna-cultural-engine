@@ -99,7 +99,9 @@ const RSS_FEEDS = {
   ],
 };
 
-// 6 queries per category — deep and specific
+// 6 queries per category
+// Madonna: news + coverage focused
+// Fashion / Gay / Culture: what's trending NOW, cultural conversations, not news headlines
 const BRAVE_QUERIES = {
   madonna: [
     "Madonna",
@@ -110,28 +112,34 @@ const BRAVE_QUERIES = {
     "Madonna legacy OR influence OR \"cultural impact\" OR tribute OR documentary",
   ],
   fashion: [
-    "Madonna fashion style designer campaign editorial",
-    "Madonna Dolce Gabbana OR Versace OR \"Jean Paul Gaultier\" OR couture",
-    "fashion trends Met Gala runway couture celebrity style 2026",
-    "luxury fashion designer collaboration editorial campaign 2026",
-    "pop star fashion icon celebrity style influence",
-    "street style fashion week emerging designer trend",
+    // Madonna's fashion relevance
+    "Madonna fashion style icon influence designer",
+    // What's actually trending in fashion right now
+    "trending fashion aesthetic \"everyone is wearing\" OR \"the look\" OR viral style 2026",
+    "emerging designer breakout brand fashion moment 2026",
+    "Met Gala OR fashion week OR runway standout OR \"best dressed\" 2026",
+    "celebrity style moment cultural fashion OR \"street style\" OR \"fashion statement\"",
+    "fashion subculture revival OR Y2K OR punk OR minimalism OR \"quiet luxury\" trending",
   ],
   gay: [
+    // Madonna's LGBTQ relevance
     "Madonna LGBTQ pride queer \"gay icon\" ballroom",
-    "Madonna pride OR drag OR \"ballroom scene\" OR \"queer community\"",
-    "LGBTQ news pride queer culture drag ballroom 2026",
-    "queer celebrities trans visibility gay rights pride month",
-    "LGBTQ music artists queer pop culture nightlife",
-    "drag race ballroom culture vogue dance queer art",
+    // What's happening in queer culture RIGHT NOW
+    "trending queer culture moment viral OR discourse OR \"everyone is talking about\"",
+    "ballroom scene vogue dance community 2026 OR rising OR emerging",
+    "drag race OR drag culture OR drag art moment OR breakout OR trending 2026",
+    "queer nightlife party scene OR collective OR underground OR community event",
+    "LGBTQ representation media OR film OR music OR art OR fashion trending 2026",
   ],
   culture: [
-    "Madonna music club culture dance electronic",
-    "Madonna \"club culture\" OR \"dance music\" OR DJ OR underground OR remix",
-    "club culture dance music house techno disco 2026",
-    "underground music scene electronic festival DJ new releases",
-    "pop culture music trends viral moment cultural impact",
-    "nightlife club scene dance floor underground party",
+    // Madonna's cultural relevance
+    "Madonna club culture dance music electronic legacy",
+    // What's moving in culture right now
+    "trending club night party underground OR warehouse OR rave scene 2026",
+    "emerging artist DJ producer breakthrough OR \"one to watch\" OR rising 2026",
+    "viral music moment song OR sound OR sample OR remix trending 2026",
+    "cultural phenomenon movement OR shift OR \"everyone is talking about\" 2026",
+    "festival lineup OR announcement OR \"sold out\" OR dance music OR electronic 2026",
   ],
 };
 

@@ -128,21 +128,22 @@ export default async function handler(req, res) {
 
   const ARTIST_ID = madonnaArtist.id;
 
-  // ── Step 2: Fetch data in staggered batches (avoid rate limit) ──
+  // ── Step 2: Fetch data in two parallel batches with a gap between ──
 
-  // Batch 1: tracks + albums (wait 500ms between calls)
-  await delay(300);
-  const trackSearch1 = await spotifyFetch(`/search?q=artist:Madonna&type=track&limit=50&market=GB`, token);
-  await delay(300);
-  const trackSearch2 = await spotifyFetch(`/search?q=Madonna+Hung+Up+Like+A+Prayer+Material+Girl+Vogue+Ray+Of+Light+Frozen+Music+Holiday&type=track&limit=50`, token);
-  await delay(300);
-  const albumsDirect = await spotifyFetch(`/artists/${ARTIST_ID}/albums?limit=50&include_groups=album,single,compilation`, token);
-  await delay(300);
+  // Batch 1: tracks + albums (parallel)
+  const [trackSearch1, trackSearch2, albumsDirect] = await Promise.all([
+    spotifyFetch(`/search?q=artist:Madonna&type=track&limit=50&market=GB`, token),
+    spotifyFetch(`/search?q=Madonna+Hung+Up+Like+A+Prayer+Material+Girl+Vogue+Ray+Of+Light+Frozen+Music+Holiday&type=track&limit=50`, token),
+    spotifyFetch(`/artists/${ARTIST_ID}/albums?limit=50&include_groups=album,single,compilation`, token),
+  ]);
 
-  // Batch 2: playlists + related artists
-  const playlistSearch = await spotifyFetch(`/search?q=Madonna&type=playlist&limit=20`, token);
-  await delay(300);
-  const relatedSearch = await spotifyFetch(`/search?q=Kylie+Minogue+OR+Cher+OR+Janet+Jackson+OR+Dua+Lipa+OR+Lady+Gaga+OR+Cyndi+Lauper&type=artist&limit=15`, token);
+  await delay(1000); // one second gap between batches
+
+  // Batch 2: playlists + related (parallel)
+  const [playlistSearch, relatedSearch] = await Promise.all([
+    spotifyFetch(`/search?q=Madonna&type=playlist&limit=20`, token),
+    spotifyFetch(`/search?q=Kylie+Minogue+OR+Cher+OR+Janet+Jackson+OR+Dua+Lipa+OR+Lady+Gaga+OR+Cyndi+Lauper&type=artist&limit=15`, token),
+  ]);
 
   // ── Step 3: Process tracks ──
   const allTrackResults = [
@@ -166,11 +167,15 @@ export default async function handler(req, res) {
     return true;
   }).sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, 15);
 
-  // Batch 3: Audience trending (staggered, fewer calls)
+  // Batch 3: Audience trending (parallel, one batch)
+  await delay(1000);
+  const topRelated = relatedArtists.slice(0, 5);
+  const relatedTrackResults = await Promise.all(
+    topRelated.map(a => spotifyFetch(`/search?q=artist:${encodeURIComponent(a.name)}&type=track&limit=5&market=GB`, token))
+  );
   const audienceTrending = [];
-  for (const art of relatedArtists.slice(0, 5)) {
-    await delay(300);
-    const data = await spotifyFetch(`/search?q=artist:${encodeURIComponent(art.name)}&type=track&limit=5&market=GB`, token);
+  relatedTrackResults.forEach((data, i) => {
+    const art = topRelated[i];
     (data?.tracks?.items || []).slice(0, 3).forEach(t => {
       audienceTrending.push({
         name: t.name,
@@ -183,7 +188,7 @@ export default async function handler(req, res) {
         externalUrl: t.external_urls?.spotify || "",
       });
     });
-  }
+  });
   audienceTrending.sort((a, b) => b.popularity - a.popularity);
 
   // ── Step 5: Build result ──
