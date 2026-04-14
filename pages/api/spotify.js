@@ -39,9 +39,16 @@ async function spotifyFetch(endpoint, token) {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.error(`Spotify ${endpoint} failed: ${res.status} ${errBody.slice(0, 200)}`);
+      return null;
+    }
     return res.json();
-  } catch { return null; }
+  } catch (err) {
+    console.error(`Spotify ${endpoint} error:`, err.message);
+    return null;
+  }
 }
 
 export default async function handler(req, res) {
@@ -57,11 +64,22 @@ export default async function handler(req, res) {
     }
   }
 
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    return res.status(200).json({
+      hasCredentials: false,
+      error: "Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to .env.local\n\n1. Go to developer.spotify.com/dashboard\n2. Create an App\n3. Copy Client ID and Client Secret",
+    });
+  }
+
   const token = await getAccessToken();
   if (!token) {
     return res.status(200).json({
       hasCredentials: false,
-      error: "Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to .env.local\n\n1. Go to developer.spotify.com/dashboard\n2. Create an App\n3. Copy Client ID and Client Secret",
+      error: "Spotify credentials found but authentication failed. Check that your Client ID and Client Secret are correct.",
+      debugClientId: clientId ? clientId.slice(0, 6) + "..." : "missing",
     });
   }
 
@@ -99,10 +117,22 @@ export default async function handler(req, res) {
   });
   audienceTrending.sort((a, b) => b.popularity - a.popularity);
 
+  // Debug: track which fetches failed
+  const debug = {
+    artistOk: !!artist,
+    topTracksOk: !!topTracks,
+    albumsOk: !!albumsPage1,
+    relatedOk: !!related,
+    playlistsOk: !!playlistSearch,
+    relatedCount: relatedArtists.length,
+    audienceTrendingCount: audienceTrending.length,
+  };
+
   const result = {
     hasCredentials: true,
     fetchedAt: new Date().toISOString(),
     cacheTTL: CACHE_TTL,
+    debug,
     artist: artist ? {
       name: artist.name,
       followers: artist.followers?.total || 0,

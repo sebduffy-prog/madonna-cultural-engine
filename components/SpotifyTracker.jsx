@@ -132,11 +132,30 @@ export default function SpotifyTracker() {
         <div style={{ fontSize: 32, marginBottom: 12 }}>{"\uD83C\uDFB5"}</div>
         <p style={{ fontSize: 16, color: WHITE, margin: "0 0 12px", fontFamily: "'Inter Tight', sans-serif", fontWeight: 700 }}>Connect Spotify</p>
         <p style={{ fontSize: 12, color: MUTED, margin: "0 0 4px", whiteSpace: "pre-line" }}>{data.error}</p>
+        {data.debugClientId && <p style={{ fontSize: 10, color: DIM, marginTop: 8 }}>Client ID: {data.debugClientId}</p>}
       </div>
     );
   }
 
   if (!data) return null;
+
+  // Show debug info if data came back but is empty
+  if (data.hasCredentials && !data.artist && data.debug) {
+    return (
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "24px", textAlign: "center" }}>
+        <p style={{ fontSize: 14, color: WHITE, margin: "0 0 8px", fontFamily: "'Inter Tight', sans-serif", fontWeight: 700 }}>Spotify connected but no data returned</p>
+        <p style={{ fontSize: 12, color: MUTED, margin: "0 0 12px" }}>Check the browser console and terminal for errors.</p>
+        <div style={{ fontSize: 11, color: DIM, textAlign: "left", background: BG, padding: 12, borderRadius: 6, fontFamily: "monospace" }}>
+          {Object.entries(data.debug).map(([k, v]) => (
+            <div key={k}><span style={{ color: MUTED }}>{k}:</span> <span style={{ color: v === true ? GREEN : v === false ? RED : WHITE }}>{String(v)}</span></div>
+          ))}
+        </div>
+        <button onClick={() => fetchData(true)} style={{ marginTop: 12, padding: "6px 16px", fontSize: 12, fontWeight: 600, color: BG, background: GREEN, border: "none", borderRadius: 5, cursor: "pointer", fontFamily: "'Inter Tight', sans-serif" }}>
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const prevSnapshot = data.history?.[1];
   const popTrend = prevSnapshot ? (data.artist?.popularity || 0) - (prevSnapshot.popularity || 0) : null;
