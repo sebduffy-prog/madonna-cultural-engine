@@ -112,9 +112,8 @@ const BRAVE_QUERIES = {
   ],
 };
 
-// In-memory cache: { key: { data, timestamp } }
-const cache = {};
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+import { kvGet, kvSet, kvIsFresh } from "../../lib/kv";
+const CACHE_TTL = 3600; // 1 hour in seconds
 
 function decodeEntities(str) {
   if (!str) return "";
@@ -191,13 +190,19 @@ async function fetchBraveSearch(query, apiKey) {
 export default async function handler(req, res) {
   const { category = "madonna", refresh } = req.query;
   const apiKey = process.env.BRAVE_API_KEY || "";
+  const cacheKey = `feeds:${category}`;
 
-  // Check cache (skip if ?refresh=1)
-  const cacheKey = `${category}_${!!apiKey}`;
-  const cached = cache[cacheKey];
-  if (!refresh && cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    res.setHeader("Cache-Control", "s-maxage=900, stale-while-revalidate=1800");
-    return res.status(200).json(cached.data);
+  // Return cached data if fresh and not force-refreshing
+  if (!refresh) {
+    const fresh = await kvIsFresh(cacheKey);
+    const cached = await kvGet(cacheKey);
+    if (fresh && cached) {
+      return res.status(200).json(cached);
+    }
+    // Return stale cached data and don't re-fetch (user must hit refresh for new data)
+    if (cached) {
+      return res.status(200).json(cached);
+    }
   }
 
   const feeds = RSS_FEEDS[category] || RSS_FEEDS.madonna;
@@ -253,8 +258,8 @@ export default async function handler(req, res) {
     cachedAt: new Date().toISOString(),
   };
 
-  // Store in cache
-  cache[cacheKey] = { data: result, timestamp: Date.now() };
+  // Store in persistent cache
+  await kvSet(cacheKey, result, CACHE_TTL);
 
   res.setHeader("Cache-Control", "s-maxage=900, stale-while-revalidate=1800");
   res.status(200).json(result);

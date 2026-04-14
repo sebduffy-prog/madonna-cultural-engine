@@ -2,7 +2,7 @@
 // Twitter/X is largely uncrawlable so we search for tweets via nitter mirrors and discussion sites
 // Also surfaces hashtag usage and engagement metrics
 
-import { kvGet, kvSet } from "../../lib/kv";
+import { kvGet, kvSet, kvIsFresh, kvListPush, kvListGet } from "../../lib/kv";
 
 const CACHE_KEY = "social:pulse";
 const IS_DEV = process.env.NODE_ENV === "development";
@@ -106,14 +106,18 @@ export default async function handler(req, res) {
   const { refresh, period = "pw" } = req.query; // pd=24h, pw=7days, pm=30days
   const apiKey = process.env.BRAVE_API_KEY || "";
 
-  if (!apiKey) {
-    return res.status(200).json({ hasBraveKey: false, platforms: [], metrics: {} });
-  }
-
-  // Check cache
+  // Always return cached data if available and not refreshing
   if (!refresh) {
     const cached = await kvGet(CACHE_KEY);
-    if (cached) return res.status(200).json(cached);
+    if (cached) {
+      const history = await kvListGet("social:history", 0, 29);
+      cached.history = history;
+      return res.status(200).json(cached);
+    }
+  }
+
+  if (!apiKey) {
+    return res.status(200).json({ hasBraveKey: false, platforms: [], metrics: {} });
   }
 
   // Fetch all platform queries in parallel

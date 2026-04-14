@@ -3,7 +3,7 @@
 // Some endpoints (top-tracks, related-artists) are restricted since late 2024
 // We use search-based workarounds to get equivalent data
 
-import { kvGet, kvSet, kvListPush, kvListGet } from "../../lib/kv";
+import { kvGet, kvSet, kvIsFresh, kvListPush, kvListGet } from "../../lib/kv";
 
 const CACHE_KEY = "spotify:snapshot";
 const IS_DEV = process.env.NODE_ENV === "development";
@@ -55,13 +55,15 @@ async function spotifyFetch(endpoint, token) {
 export default async function handler(req, res) {
   const { refresh, snapshot } = req.query;
 
+  // Return cached data if it has real content and not force-refreshing
   if (!refresh) {
     const cached = await kvGet(CACHE_KEY);
-    if (cached && cached.artist && cached.artist.popularity > 0) {
+    if (cached && cached.artist && cached.topTracks?.length > 0) {
       const history = await kvListGet("spotify:history", 0, 11);
       cached.history = history;
       return res.status(200).json(cached);
     }
+    // Bad/empty cache -- fall through to re-fetch
   }
 
   const clientId = process.env.SPOTIFY_CLIENT_ID;
@@ -88,34 +90,39 @@ export default async function handler(req, res) {
 
   const ARTIST_ID = madonnaArtist.id;
 
-  // Fetch what works with basic Client Credentials
-  // Search-based approach for tracks and playlists (these work)
+  // All fetches use search-based approach to avoid 403 on restricted endpoints
   const [
     artistProfile,
-    albumsData,
     trackSearch1,
     trackSearch2,
     trackSearch3,
+    trackSearch4,
+    albumSearch,
     playlistSearch,
     relatedSearch1,
     relatedSearch2,
   ] = await Promise.all([
-    spotifyFetch(`/artists/${ARTIST_ID}`, token),
-    spotifyFetch(`/artists/${ARTIST_ID}/albums?include_groups=album&limit=20`, token),
+    spotifyFetch(`/artists/${ARTIST_ID}`, token), // May 403, we have madonnaArtist as fallback
     spotifyFetch(`/search?q=artist:Madonna&type=track&limit=20&market=GB`, token),
     spotifyFetch(`/search?q=Madonna+Hung+Up+Like+A+Prayer+Vogue&type=track&limit=20`, token),
     spotifyFetch(`/search?q=Madonna+Material+Girl+Ray+Of+Light+Frozen&type=track&limit=20`, token),
+    spotifyFetch(`/search?q=Madonna+Music+Holiday+Express+Yourself+Into+Groove&type=track&limit=20`, token),
+    spotifyFetch(`/search?q=artist:Madonna&type=album&limit=20`, token), // Search for albums instead of direct endpoint
     spotifyFetch(`/search?q=Madonna&type=playlist&limit=20`, token),
-    // Find related artists by searching for similar genres
     spotifyFetch(`/search?q=genre:dance-pop+genre:pop&type=artist&limit=20`, token),
     spotifyFetch(`/search?q=Kylie+Minogue+OR+Cher+OR+Janet+Jackson+OR+Dua+Lipa+OR+Lady+Gaga&type=artist&limit=10`, token),
   ]);
+
+  // Also try direct albums endpoint as backup
+  const albumsDirect = await spotifyFetch(`/artists/${ARTIST_ID}/albums?include_groups=album&limit=20`, token);
+  const albumsData = albumsDirect || albumSearch;
 
   // Merge and deduplicate tracks, keep only Madonna's
   const allTrackResults = [
     ...(trackSearch1?.tracks?.items || []),
     ...(trackSearch2?.tracks?.items || []),
     ...(trackSearch3?.tracks?.items || []),
+    ...(trackSearch4?.tracks?.items || []),
   ];
   const seenTracks = new Set();
   const madonnaTracksRaw = allTrackResults.filter(t => {
@@ -185,7 +192,10 @@ export default async function handler(req, res) {
       durationMs: t.duration_ms,
       releaseDate: t.album?.release_date || "",
     })),
-    albums: (albumsData?.items || []).map(a => ({
+    albums: (albumsData?.items || albumsData?.albums?.items || []).filter(a => {
+      // If from search, filter to only Madonna's albums
+      return !a.artists || a.artists.some(ar => ar.id === ARTIST_ID || ar.name?.toLowerCase() === "madonna");
+    }).map(a => ({
       name: a.name,
       type: a.album_type,
       releaseDate: a.release_date || "",
@@ -213,7 +223,10 @@ export default async function handler(req, res) {
     })),
   };
 
-  await kvSet(CACHE_KEY, result, CACHE_TTL);
+  // Only cache if we got real data
+  if (result.topTracks.length > 0 || result.albums.length > 0) {
+    await kvSet(CACHE_KEY, result, CACHE_TTL);
+  }
 
   if (snapshot) {
     await kvListPush("spotify:history", {

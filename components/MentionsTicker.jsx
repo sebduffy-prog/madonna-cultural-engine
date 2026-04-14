@@ -23,7 +23,15 @@ export default function MentionsTicker() {
       .catch(() => {});
   }, []);
 
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return (
+      <div style={{ borderBottom: `1px solid ${BORDER}`, marginBottom: 20, padding: "8px 0" }}>
+        <span style={{ fontSize: 11, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
+          No Madonna mentions loaded yet. Run a search in the Media tab to populate the ticker.
+        </span>
+      </div>
+    );
+  }
 
   // Double the items for seamless loop
   const displayItems = [...items, ...items];
