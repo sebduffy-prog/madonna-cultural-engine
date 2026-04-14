@@ -6,7 +6,8 @@
 
 import { kvGet, kvSet, kvListPush, kvListGet } from "../../lib/kv";
 
-const MADONNA_ID = "6tbjWDEIzxTsoomw5x8S3p";
+// Resolved dynamically via search -- cached after first lookup
+let resolvedArtistId = null;
 const CACHE_KEY = "spotify:snapshot";
 const IS_DEV = process.env.NODE_ENV === "development";
 const CACHE_TTL = IS_DEV ? 120 : 1800; // 2 min dev, 30 min prod
@@ -97,34 +98,37 @@ export default async function handler(req, res) {
     });
   }
 
-  // Quick test: try a single fetch first and return raw error if it fails
-  const testRes = await fetch(`https://api.spotify.com/v1/artists/${MADONNA_ID}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!testRes.ok) {
-    const errBody = await testRes.text().catch(() => "");
+  // Resolve Madonna's artist ID dynamically via search
+  if (!resolvedArtistId) {
+    const searchResult = await spotifyFetch(`/search?q=Madonna&type=artist&limit=5`, token);
+    const match = searchResult?.artists?.items?.find(
+      (a) => a.name.toLowerCase() === "madonna"
+    );
+    if (match) {
+      resolvedArtistId = match.id;
+    } else if (searchResult?.artists?.items?.[0]) {
+      resolvedArtistId = searchResult.artists.items[0].id;
+    }
+  }
+
+  if (!resolvedArtistId) {
     return res.status(200).json({
       hasCredentials: true,
       artist: null,
-      debug: {
-        tokenOk: true,
-        tokenLength: token.length,
-        testStatus: testRes.status,
-        testError: errBody.slice(0, 500),
-        artistOk: false, topTracksOk: false, albumsOk: false,
-        relatedOk: false, playlistsOk: false, relatedCount: 0, audienceTrendingCount: 0,
-      },
+      debug: { tokenOk: true, tokenLength: token.length, error: "Could not find Madonna on Spotify via search" },
       topTracks: [], albums: [], relatedArtists: [], audienceTrending: [], playlists: [],
       fetchedAt: new Date().toISOString(), cacheTTL: CACHE_TTL,
     });
   }
 
+  const ARTIST_ID = resolvedArtistId;
+
   // Fetch everything in parallel
   const [artist, topTracks, albumsPage1, related, playlistSearch, newReleases] = await Promise.all([
-    spotifyFetch(`/artists/${MADONNA_ID}`, token),
-    spotifyFetch(`/artists/${MADONNA_ID}/top-tracks?market=GB`, token),
-    spotifyFetch(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=50&market=GB`, token),
-    spotifyFetch(`/artists/${MADONNA_ID}/related-artists`, token),
+    spotifyFetch(`/artists/${ARTIST_ID}`, token),
+    spotifyFetch(`/artists/${ARTIST_ID}/top-tracks?market=GB`, token),
+    spotifyFetch(`/artists/${ARTIST_ID}/albums?include_groups=album,single,compilation&limit=50&market=GB`, token),
+    spotifyFetch(`/artists/${ARTIST_ID}/related-artists`, token),
     spotifyFetch(`/search?q=Madonna&type=playlist&limit=30&market=GB`, token),
     spotifyFetch(`/browse/new-releases?limit=20&country=GB`, token),
   ]);

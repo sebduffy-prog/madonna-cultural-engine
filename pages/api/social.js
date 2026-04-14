@@ -10,7 +10,7 @@ const CACHE_TTL = 21600; // 6 hours
 const PLATFORMS = [
   { id: "reddit", label: "Reddit", queries: ['"Madonna" site:reddit.com', 'Madonna subreddit popheads OR music'], icon: "R" },
   { id: "twitter", label: "Twitter / X", queries: ['"Madonna" twitter', 'Madonna tweet trending', '#Madonna'], icon: "X" },
-  { id: "tiktok", label: "TikTok", queries: ['"Madonna" site:tiktok.com', 'Madonna TikTok trending viral'], icon: "T" },
+  { id: "tiktok", label: "TikTok", queries: ['"Madonna" site:tiktok.com', 'Madonna TikTok trending viral', 'Madonna sound TikTok dance trend', 'Madonna Hung Up Vogue TikTok'], icon: "T" },
   { id: "youtube", label: "YouTube", queries: ['"Madonna" site:youtube.com', 'Madonna new video reaction 2026'], icon: "Y" },
   { id: "instagram", label: "Instagram", queries: ['Madonna instagram post story', '#Madonna instagram'], icon: "I" },
 ];
@@ -26,10 +26,10 @@ const HASHTAG_QUERIES = [
   "Madonna viral moment",
 ];
 
-async function braveSearch(query, apiKey, count = 10) {
+async function braveSearch(query, apiKey, count = 10, freshness = "pw") {
   if (!apiKey) return [];
   try {
-    const params = new URLSearchParams({ q: query, count: String(count), freshness: "pw" });
+    const params = new URLSearchParams({ q: query, count: String(count), freshness });
     const res = await fetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
       headers: { "X-Subscription-Token": apiKey, Accept: "application/json" },
       signal: AbortSignal.timeout(10000),
@@ -49,7 +49,7 @@ async function braveSearch(query, apiKey, count = 10) {
 }
 
 export default async function handler(req, res) {
-  const { refresh } = req.query;
+  const { refresh, period = "pw" } = req.query; // pd=24h, pw=7days, pm=30days
   const apiKey = process.env.BRAVE_API_KEY || "";
 
   if (!apiKey) {
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
 
   // Fetch all platform queries in parallel
   const platformPromises = PLATFORMS.map(async (p) => {
-    const allResults = await Promise.all(p.queries.map((q) => braveSearch(q, apiKey, 8)));
+    const allResults = await Promise.all(p.queries.map((q) => braveSearch(q, apiKey, 8, period)));
     const seen = new Set();
     const items = allResults.flat().filter((item) => {
       if (!item.url || seen.has(item.url)) return false;
@@ -75,7 +75,7 @@ export default async function handler(req, res) {
   });
 
   // Fetch hashtag/metric queries
-  const hashtagPromises = HASHTAG_QUERIES.map((q) => braveSearch(q, apiKey, 5));
+  const hashtagPromises = HASHTAG_QUERIES.map((q) => braveSearch(q, apiKey, 5, period));
 
   const [platformResults, hashtagResults] = await Promise.all([
     Promise.all(platformPromises),

@@ -8,6 +8,7 @@ const AudienceCommentsGraph = dynamic(() => import("../components/AudienceCommen
 const AudienceIntelligence = dynamic(() => import("../components/AudienceIntelligence"), { ssr: false });
 const CulturalFeed = dynamic(() => import("../components/CulturalFeed"), { ssr: false });
 const SpotifyTracker = dynamic(() => import("../components/SpotifyTracker"), { ssr: false });
+const SocialPulse = dynamic(() => import("../components/SocialPulse"), { ssr: false });
 const MentionsTicker = dynamic(() => import("../components/MentionsTicker"), { ssr: false });
 
 const Y = "#FFD500";
@@ -277,7 +278,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Newsreader', 'Georgia', serif", color: WHITE }}>
-      <div style={{ maxWidth: ["comments","gwi","streetmap","culturalfeed","spotify"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
+      <div style={{ maxWidth: ["comments","gwi","streetmap","culturalfeed","socialpulse","spotify"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCPm cultural intelligence</span>
@@ -301,6 +302,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "gwi", label: "Audience intelligence" },
             { id: "streetmap", label: "Street art map" },
             { id: "culturalfeed", label: "Cultural feed" },
+            { id: "socialpulse", label: "Social pulse" },
             { id: "spotify", label: "Streaming intelligence" },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
@@ -859,6 +861,8 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         {tab === "streetmap" && <StreetArtMap murals={murals} venues={venues} />}
 
         {tab === "culturalfeed" && <CulturalFeed />}
+
+        {tab === "socialpulse" && <SocialPulse />}
 
         {tab === "spotify" && <SpotifyTracker />}
 

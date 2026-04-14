@@ -16,7 +16,6 @@ const CORAL = "#FB923C";
 
 const TABS = [
   { id: "madonna", label: "Madonna", color: Y, icon: "\u2605" },
-  { id: "social", label: "Social Pulse", color: PURPLE, icon: "\u25CF" },
   { id: "fashion", label: "Fashion", color: PINK, icon: "\u2666" },
   { id: "gay", label: "Gay Community", color: TEAL, icon: "\u2665" },
   { id: "culture", label: "General Cultural", color: AMBER, icon: "\u266B" },
