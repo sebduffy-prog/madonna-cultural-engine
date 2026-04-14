@@ -97,7 +97,10 @@ export async function getStaticProps() {
     { id: "musical", keywords: ["voice", "song", "music", "album", "production", "beat", "melody", "dance", "sound", "sing", "vocal", "masterpiece", "genius"] },
     { id: "icon", keywords: ["queen", "icon", "legend", "goat", "greatest", "best", "pioneer", "original", "influence", "impact"] },
     { id: "emotional", keywords: ["love", "heart", "cry", "feel", "soul", "beautiful", "amazing", "perfect", "tears", "moved", "emotion"] },
+    { id: "empowerment", keywords: ["feminist", "feminism", "empowered", "strong woman", "powerful woman", "independent", "boss", "trailblazer", "barrier", "broke the mold"] },
+    { id: "sexuality", keywords: ["sexy", "sex", "provocative", "controversial", "bold", "daring", "scandalous", "shock", "erotica", "book", "naked"] },
     { id: "discovery", keywords: ["first time", "just found", "discovered", "never heard", "didn't know", "wow", "omg", "wait"] },
+    { id: "humour", keywords: ["lol", "lmao", "haha", "funny", "hilarious", "dead", "joke", "slay", "ate", "serve", "camp", "iconic moment"] },
     { id: "cultural", keywords: ["era", "generation", "culture", "society", "fashion", "style", "trend", "relevant", "today"] },
     { id: "criticism", keywords: ["overrated", "hate", "bad", "worst", "old", "surgery", "cringe", "fake"] },
   ];

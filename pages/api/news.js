@@ -140,14 +140,14 @@ function decodeEntities(str) {
     });
 }
 
-async function fetchRSS(url, sourceName) {
+async function fetchRSS(url, sourceName, maxItems = 5) {
   try {
     const res = await fetch(url, { headers: { "User-Agent": "MadonnaCulturalEngine/1.0" }, signal: AbortSignal.timeout(8000) });
     if (!res.ok) return [];
     const text = await res.text();
     const items = [];
     const itemMatches = text.match(/<item[\s>][\s\S]*?<\/item>/gi) || [];
-    for (const item of itemMatches.slice(0, 5)) {
+    for (const item of itemMatches.slice(0, maxItems)) {
       const title = (item.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "";
       const link = (item.match(/<link[^>]*>([\s\S]*?)<\/link>/i) || [])[1] || "";
       const desc = (item.match(/<description[^>]*>([\s\S]*?)<\/description>/i) || [])[1] || "";
@@ -189,13 +189,13 @@ async function fetchBraveSearch(query, apiKey) {
 }
 
 export default async function handler(req, res) {
-  const { category = "madonna" } = req.query;
+  const { category = "madonna", refresh } = req.query;
   const apiKey = process.env.BRAVE_API_KEY || "";
 
-  // Check cache
+  // Check cache (skip if ?refresh=1)
   const cacheKey = `${category}_${!!apiKey}`;
   const cached = cache[cacheKey];
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+  if (!refresh && cached && Date.now() - cached.timestamp < CACHE_TTL) {
     res.setHeader("Cache-Control", "s-maxage=900, stale-while-revalidate=1800");
     return res.status(200).json(cached.data);
   }
@@ -204,7 +204,9 @@ export default async function handler(req, res) {
   const queries = BRAVE_QUERIES[category] || BRAVE_QUERIES.madonna;
 
   // Fetch all sources in parallel
-  const rssPromises = feeds.map((f) => fetchRSS(f.url, f.name));
+  // Madonna tab: scan more RSS items per feed to find mentions
+  const rssDepth = category === "madonna" ? 20 : 5;
+  const rssPromises = feeds.map((f) => fetchRSS(f.url, f.name, rssDepth));
   const bravePromises = queries.map((q) => fetchBraveSearch(q, apiKey));
 
   const [rssResults, braveResults] = await Promise.all([
@@ -212,8 +214,16 @@ export default async function handler(req, res) {
     Promise.all(bravePromises),
   ]);
 
-  const allRss = rssResults.flat();
+  let allRss = rssResults.flat();
   const allBrave = braveResults.flat();
+
+  // Madonna tab: only keep articles that actually mention Madonna
+  if (category === "madonna") {
+    allRss = allRss.filter((item) => {
+      const text = `${item.title} ${item.description}`.toLowerCase();
+      return text.includes("madonna");
+    });
+  }
 
   // Deduplicate by URL
   const seen = new Set();
@@ -233,7 +243,7 @@ export default async function handler(req, res) {
     return 0;
   });
 
-  // Madonna tab: show everything. Other tabs: cap at 50.
+  // Madonna tab: show everything found. Other tabs: cap at 50.
   const maxItems = category === "madonna" ? 80 : 50;
 
   const result = {

@@ -21,10 +21,11 @@ const THEMES = [
     color: PURPLE,
     keywords: ["remember", "nostalgia", "childhood", "grew up", "memories", "miss", "classic", "timeless", "old", "back in the day", "years ago"],
     subThemes: [
-      { id: "nostalgia_childhood", label: "Childhood", color: "#C4B5FD", keywords: ["childhood", "grew up", "kid", "young", "school", "parent"] },
-      { id: "nostalgia_classic", label: "Timeless Classic", color: "#8B5CF6", keywords: ["classic", "timeless", "never gets old", "forever", "always"] },
-      { id: "nostalgia_longing", label: "Longing", color: "#DDD6FE", keywords: ["miss", "memories", "remember", "nostalgia", "back in the day", "years ago"] },
-      { id: "nostalgia_era", label: "Past Era", color: "#7C3AED", keywords: ["80s", "90s", "70s", "disco", "retro", "vintage"] },
+      { id: "nostalgia_childhood", label: "Childhood", color: "#C4B5FD", keywords: ["childhood", "grew up", "kid", "young", "school", "parent", "mom", "dad", "family"] },
+      { id: "nostalgia_classic", label: "Timeless Classic", color: "#8B5CF6", keywords: ["classic", "timeless", "never gets old", "forever", "always", "eternal", "endure"] },
+      { id: "nostalgia_longing", label: "Longing", color: "#DDD6FE", keywords: ["miss", "memories", "remember", "nostalgia", "back in the day", "years ago", "wish", "those days"] },
+      { id: "nostalgia_era", label: "Past Era", color: "#7C3AED", keywords: ["80s", "90s", "70s", "disco", "retro", "vintage", "throwback", "old school"] },
+      { id: "nostalgia_personal", label: "Personal Story", color: "#6D28D9", keywords: ["my life", "saved me", "got me through", "helped me", "part of my", "my story", "when i was"] },
     ],
   },
   {
@@ -33,11 +34,12 @@ const THEMES = [
     color: TEAL,
     keywords: ["voice", "song", "music", "album", "production", "beat", "melody", "dance", "sound", "sing", "vocal", "masterpiece", "genius"],
     subThemes: [
-      { id: "musical_vocal", label: "Vocal Power", color: "#5EEAD4", keywords: ["voice", "sing", "vocal", "range", "note", "pitch", "tone"] },
-      { id: "musical_production", label: "Production", color: "#14B8A6", keywords: ["production", "beat", "melody", "sound", "mix", "bass", "synth", "instrumental"] },
-      { id: "musical_praise", label: "Masterpiece", color: "#99F6E4", keywords: ["masterpiece", "genius", "brilliant", "song", "music", "album", "track"] },
-      { id: "musical_dance", label: "Dance", color: "#0D9488", keywords: ["dance", "dancing", "choreograph", "moves", "groove", "rhythm", "move"] },
-      { id: "musical_live", label: "Live & Concert", color: "#2DD4BF", keywords: ["concert", "live", "tour", "stage", "perform", "show", "gig"] },
+      { id: "musical_vocal", label: "Vocal Power", color: "#5EEAD4", keywords: ["voice", "sing", "vocal", "range", "note", "pitch", "tone", "singing"] },
+      { id: "musical_production", label: "Production", color: "#14B8A6", keywords: ["production", "beat", "melody", "sound", "mix", "bass", "synth", "instrumental", "producer"] },
+      { id: "musical_praise", label: "Masterpiece", color: "#99F6E4", keywords: ["masterpiece", "genius", "brilliant", "album", "track", "banger", "slaps"] },
+      { id: "musical_dance", label: "Dance & Club", color: "#0D9488", keywords: ["dance", "dancing", "choreograph", "moves", "groove", "rhythm", "club", "dancefloor"] },
+      { id: "musical_live", label: "Live & Concert", color: "#2DD4BF", keywords: ["concert", "live", "tour", "stage", "perform", "show", "gig", "audience", "crowd"] },
+      { id: "musical_specific", label: "Specific Songs", color: "#0F766E", keywords: ["like a prayer", "vogue", "hung up", "ray of light", "material girl", "papa don't preach", "like a virgin", "frozen", "music", "holiday", "express yourself", "la isla bonita", "into the groove", "erotica", "justify my love", "bedtime story"] },
     ],
   },
   {
@@ -46,9 +48,10 @@ const THEMES = [
     color: Y,
     keywords: ["queen", "icon", "legend", "goat", "greatest", "best", "pioneer", "original", "influence", "impact"],
     subThemes: [
-      { id: "icon_queen", label: "Queen & GOAT", color: "#FDE68A", keywords: ["queen", "goat", "greatest", "best", "number one", "#1"] },
-      { id: "icon_legacy", label: "Legacy", color: "#FCD34D", keywords: ["legend", "pioneer", "original", "influence", "impact", "icon", "legacy", "history"] },
-      { id: "icon_comparison", label: "Comparisons", color: "#F59E0B", keywords: ["better than", "beyonce", "gaga", "rihanna", "janet", "britney", "cher", "comparison", "vs"] },
+      { id: "icon_queen", label: "Queen & GOAT", color: "#FDE68A", keywords: ["queen", "goat", "greatest", "best", "number one", "#1", "unmatched", "unrivalled"] },
+      { id: "icon_legacy", label: "Legacy & Influence", color: "#FCD34D", keywords: ["legend", "pioneer", "original", "influence", "impact", "icon", "legacy", "history", "paved the way", "opened doors"] },
+      { id: "icon_comparison", label: "Artist Comparisons", color: "#F59E0B", keywords: ["better than", "beyonce", "gaga", "rihanna", "janet", "britney", "cher", "comparison", "vs", "taylor", "dua lipa", "chappell"] },
+      { id: "icon_respect", label: "Respect & Tribute", color: "#D97706", keywords: ["respect", "tribute", "honour", "honor", "salute", "bow down", "deserve", "credit", "recognition"] },
     ],
   },
   {
@@ -57,9 +60,32 @@ const THEMES = [
     color: PINK,
     keywords: ["love", "heart", "cry", "feel", "soul", "beautiful", "amazing", "perfect", "tears", "moved", "emotion"],
     subThemes: [
-      { id: "emotional_love", label: "Love & Adoration", color: "#F9A8D4", keywords: ["love", "heart", "adore", "beautiful", "amazing", "perfect", "wonderful"] },
-      { id: "emotional_tears", label: "Moved to Tears", color: "#EC4899", keywords: ["cry", "tears", "moved", "emotion", "emotional", "sobbing", "weep"] },
-      { id: "emotional_spiritual", label: "Soul & Spirit", color: "#BE185D", keywords: ["feel", "soul", "spiritual", "deep", "powerful", "chills", "goosebumps"] },
+      { id: "emotional_love", label: "Love & Adoration", color: "#F9A8D4", keywords: ["love", "heart", "adore", "beautiful", "amazing", "perfect", "wonderful", "obsessed", "stan"] },
+      { id: "emotional_tears", label: "Moved to Tears", color: "#EC4899", keywords: ["cry", "tears", "moved", "emotion", "emotional", "sobbing", "weep", "crying"] },
+      { id: "emotional_spiritual", label: "Soul & Spirit", color: "#BE185D", keywords: ["feel", "soul", "spiritual", "deep", "powerful", "chills", "goosebumps", "transcend"] },
+      { id: "emotional_healing", label: "Healing & Comfort", color: "#DB2777", keywords: ["healing", "comfort", "safe", "strength", "courage", "hope", "inspire", "uplift", "therapy"] },
+    ],
+  },
+  {
+    id: "empowerment",
+    label: "Feminism & Empowerment",
+    color: "#E879F9",
+    keywords: ["feminist", "feminism", "empowered", "strong woman", "powerful woman", "independent", "boss", "trailblazer", "barrier", "broke the mold"],
+    subThemes: [
+      { id: "empowerment_feminist", label: "Feminist Icon", color: "#F0ABFC", keywords: ["feminist", "feminism", "women's rights", "equality", "fight for", "strong woman", "powerful woman"] },
+      { id: "empowerment_independence", label: "Independence", color: "#D946EF", keywords: ["independent", "boss", "own terms", "control", "her own", "nobody tells", "didn't need", "self made"] },
+      { id: "empowerment_barrier", label: "Breaking Barriers", color: "#C026D3", keywords: ["trailblazer", "barrier", "broke the mold", "first woman", "no one before", "changed the game", "rules", "taboo", "boundary", "controversial"] },
+    ],
+  },
+  {
+    id: "sexuality",
+    label: "Sexuality & Provocation",
+    color: "#F43F5E",
+    keywords: ["sexy", "sex", "provocative", "controversial", "bold", "daring", "scandalous", "shock", "erotica", "book", "naked"],
+    subThemes: [
+      { id: "sexuality_bold", label: "Bold & Daring", color: "#FDA4AF", keywords: ["bold", "daring", "provocative", "controversial", "scandalous", "shock", "fearless", "unapologetic"] },
+      { id: "sexuality_liberation", label: "Sexual Liberation", color: "#FB7185", keywords: ["sexy", "sex", "erotica", "justify my love", "liberation", "freedom", "express", "naked", "body"] },
+      { id: "sexuality_queer", label: "Queer Culture", color: "#E11D48", keywords: ["gay", "queer", "lgbtq", "pride", "drag", "ballroom", "vogue", "community", "ally", "trans"] },
     ],
   },
   {
@@ -68,9 +94,21 @@ const THEMES = [
     color: GREEN,
     keywords: ["first time", "just found", "discovered", "never heard", "didn't know", "wow", "omg", "wait"],
     subThemes: [
-      { id: "discovery_new", label: "First Discovery", color: "#6EE7B7", keywords: ["first time", "just found", "discovered", "never heard", "didn't know", "new to"] },
-      { id: "discovery_shock", label: "Shock & Awe", color: "#059669", keywords: ["wow", "omg", "wait", "insane", "unreal", "shocked", "mindblown", "can't believe"] },
-      { id: "discovery_recommend", label: "Sharing", color: "#34D399", keywords: ["recommend", "share", "check out", "listen to", "watch this", "you need", "everyone should"] },
+      { id: "discovery_new", label: "First Discovery", color: "#6EE7B7", keywords: ["first time", "just found", "discovered", "never heard", "didn't know", "new to", "just started"] },
+      { id: "discovery_shock", label: "Shock & Awe", color: "#059669", keywords: ["wow", "omg", "wait", "insane", "unreal", "shocked", "mindblown", "can't believe", "what"] },
+      { id: "discovery_recommend", label: "Sharing & Recommending", color: "#34D399", keywords: ["recommend", "share", "check out", "listen to", "watch this", "you need", "everyone should", "go listen"] },
+      { id: "discovery_genz", label: "Gen Z Discovery", color: "#10B981", keywords: ["gen z", "tiktok", "zoomer", "my generation", "born in", "young people", "just learned", "algorithm"] },
+    ],
+  },
+  {
+    id: "humour",
+    label: "Humour & Playfulness",
+    color: "#06B6D4",
+    keywords: ["lol", "lmao", "haha", "funny", "hilarious", "dead", "joke", "slay", "ate", "serve", "camp", "iconic moment"],
+    subThemes: [
+      { id: "humour_slang", label: "Stan Slang", color: "#67E8F9", keywords: ["slay", "ate", "serve", "mother", "camp", "iconic", "period", "era", "understood the assignment", "main character"] },
+      { id: "humour_funny", label: "Comedy", color: "#22D3EE", keywords: ["lol", "lmao", "haha", "funny", "hilarious", "dead", "joke", "rofl", "screaming", "dying"] },
+      { id: "humour_meme", label: "Memes & References", color: "#0891B2", keywords: ["meme", "reference", "quote", "parody", "remix", "compilation", "reaction", "gif"] },
     ],
   },
   {
@@ -79,10 +117,11 @@ const THEMES = [
     color: AMBER,
     keywords: ["era", "generation", "culture", "society", "fashion", "style", "trend", "relevant", "today"],
     subThemes: [
-      { id: "cultural_era", label: "Era & Decade", color: "#FCD34D", keywords: ["era", "decade", "80s", "90s", "2000s", "period", "time"] },
-      { id: "cultural_fashion", label: "Fashion & Style", color: "#D97706", keywords: ["fashion", "style", "look", "outfit", "wear", "costume", "dress"] },
-      { id: "cultural_society", label: "Society & Identity", color: "#FBBF24", keywords: ["culture", "society", "relevant", "today", "modern", "generation", "identity", "lgbtq", "gay", "queer", "pride"] },
-      { id: "cultural_influence", label: "Pop Culture Impact", color: "#F59E0B", keywords: ["trend", "viral", "tiktok", "meme", "pop culture", "mainstream", "popular"] },
+      { id: "cultural_era", label: "Era & Decade", color: "#FCD34D", keywords: ["era", "decade", "80s", "90s", "2000s", "period", "time", "century"] },
+      { id: "cultural_fashion", label: "Fashion & Style", color: "#D97706", keywords: ["fashion", "style", "look", "outfit", "wear", "costume", "dress", "designer", "aesthetic"] },
+      { id: "cultural_society", label: "Society & Identity", color: "#FBBF24", keywords: ["culture", "society", "relevant", "today", "modern", "generation", "identity", "representation"] },
+      { id: "cultural_influence", label: "Pop Culture Impact", color: "#F59E0B", keywords: ["trend", "viral", "tiktok", "meme", "pop culture", "mainstream", "popular", "influence"] },
+      { id: "cultural_religion", label: "Religion & Spirituality", color: "#B45309", keywords: ["religion", "catholic", "christian", "prayer", "god", "church", "spiritual", "kabbalah", "blasphemy", "cross"] },
     ],
   },
   {
@@ -91,9 +130,10 @@ const THEMES = [
     color: RED,
     keywords: ["overrated", "hate", "bad", "worst", "old", "surgery", "cringe", "fake"],
     subThemes: [
-      { id: "criticism_negative", label: "Negative Opinion", color: "#FCA5A5", keywords: ["overrated", "hate", "bad", "worst", "cringe", "fake", "terrible", "awful"] },
-      { id: "criticism_appearance", label: "Appearance", color: "#DC2626", keywords: ["surgery", "age", "plastic", "face", "botox", "look old", "aging"] },
-      { id: "criticism_debate", label: "Debate & Defense", color: "#F87171", keywords: ["disagree", "wrong", "actually", "but", "opinion", "argue", "fight", "defend"] },
+      { id: "criticism_negative", label: "Negative Opinion", color: "#FCA5A5", keywords: ["overrated", "hate", "bad", "worst", "cringe", "fake", "terrible", "awful", "trash", "flop"] },
+      { id: "criticism_appearance", label: "Appearance & Age", color: "#DC2626", keywords: ["surgery", "age", "plastic", "face", "botox", "look old", "aging", "filler", "work done"] },
+      { id: "criticism_debate", label: "Debate & Defense", color: "#F87171", keywords: ["disagree", "wrong", "actually", "opinion", "argue", "fight", "defend", "unfair", "ageism", "misogyny"] },
+      { id: "criticism_relevance", label: "Relevance Debate", color: "#B91C1C", keywords: ["relevant", "irrelevant", "past", "over", "done", "washed", "retired", "move on", "let it go"] },
     ],
   },
   {
@@ -129,6 +169,21 @@ function classifySubTheme(content, themeId) {
     }
   }
   return theme.subThemes[0].id;
+}
+
+// Detect likely non-English text by checking ratio of non-ASCII characters
+function isLikelyNonEnglish(text) {
+  if (!text || text.length < 5) return false;
+  const stripped = text.replace(/[^a-zA-Z]/g, "");
+  if (stripped.length === 0) return true;
+  // If less than 40% of letters are ASCII Latin, likely non-English
+  const totalLetters = text.replace(/[^a-zA-Z\u00C0-\u024F\u0400-\u04FF\u0600-\u06FF\u3000-\u9FFF\uAC00-\uD7AF]/g, "").length;
+  if (totalLetters === 0) return false;
+  return stripped.length / totalLetters < 0.4;
+}
+
+function translateUrl(text) {
+  return `https://translate.google.com/?sl=auto&tl=en&text=${encodeURIComponent(text)}`;
 }
 
 function sampleArray(arr, n) {
@@ -296,8 +351,8 @@ export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, 
         const radius = 38 + (count / maxCount) * 28;
         // Place themes in a circle so they start stable
         const angle = ti * angleStep;
-        const cx = width / 2 + Math.cos(angle) * 180;
-        const cy = height / 2 + Math.sin(angle) * 180;
+        const cx = width / 2 + Math.cos(angle) * 220;
+        const cy = height / 2 + Math.sin(angle) * 220;
         themeIndex[theme.id] = { x: cx, y: cy };
         nodes.push({ id: theme.id, type: "theme", label: theme.label, color: theme.color, radius, count, x: cx, y: cy });
         ti++;
@@ -320,7 +375,7 @@ export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, 
 
             if (expandedSubThemes.has(sub.id)) {
               const subComments = groupedBySubTheme[sub.id] || [];
-              const sampled = sampleArray(subComments, 150);
+              const sampled = sampleArray(subComments, 250);
               sampled.forEach((c, ci) => {
                 // Scatter comments in a small cluster near sub-theme
                 const ca = (ci / sampled.length) * 2 * Math.PI;
@@ -332,7 +387,7 @@ export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, 
           });
         } else {
           const themeComments = groupedByTheme[theme.id] || [];
-          const sampled = sampleArray(themeComments, 150);
+          const sampled = sampleArray(themeComments, 250);
           sampled.forEach((c, ci) => {
             const ca = (ci / sampled.length) * 2 * Math.PI;
             const cr = 15 + Math.random() * 25;
@@ -343,24 +398,24 @@ export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, 
       });
 
       const simulation = d3.forceSimulation(nodes)
-        .force("center", d3.forceCenter(width / 2, height / 2).strength(0.03))
-        .force("collide", d3.forceCollide().radius((d) => d.radius + 1.5).strength(0.5).iterations(2))
+        .force("center", d3.forceCenter(width / 2, height / 2).strength(0.02))
+        .force("collide", d3.forceCollide().radius((d) => d.radius + 1).strength(0.4).iterations(3))
         .force("link", d3.forceLink(links).id((d) => d.id).distance((d) => {
-          if (d.target.type === "comment") return 20;
-          if (d.target.type === "subtheme") return 55;
+          if (d.target.type === "comment") return 15;
+          if (d.target.type === "subtheme") return 50;
           return 60;
         }).strength((d) => {
-          if (d.target.type === "comment") return 0.8;
+          if (d.target.type === "comment") return 0.9;
           return 0.5;
         }))
         .force("charge", d3.forceManyBody().strength((d) => {
-          if (d.type === "theme") return -120;
-          if (d.type === "subtheme") return -30;
-          return -1;
+          if (d.type === "theme") return -100;
+          if (d.type === "subtheme") return -20;
+          return -0.5;
         }))
-        .alpha(0.3)
-        .alphaDecay(0.03)
-        .velocityDecay(0.55);
+        .alpha(0.15)
+        .alphaDecay(0.04)
+        .velocityDecay(0.65);
 
       simulationRef.current = simulation;
 
@@ -393,7 +448,18 @@ export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, 
           d3.select(this).transition().duration(200).attr("r", d.radius).attr("fill-opacity", 0.65).attr("stroke-width", 0.5);
         });
 
-      commentNodes.append("title").text((d) => (d.data.content || "").slice(0, 120));
+      commentNodes.append("title").text((d) => {
+        const text = (d.data.content || "").slice(0, 120);
+        return isLikelyNonEnglish(d.data.content) ? `[Non-English] ${text}` : text;
+      });
+
+      // Give non-English nodes a distinct white dashed stroke
+      commentNodes
+        .filter((d) => isLikelyNonEnglish(d.data.content))
+        .attr("stroke", WHITE)
+        .attr("stroke-opacity", 0.5)
+        .attr("stroke-width", 1)
+        .attr("stroke-dasharray", "2,2");
 
       // Sub-theme nodes
       const subThemeGroup = g.append("g")
@@ -555,6 +621,20 @@ export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, 
             <p style={{ fontSize: 13, color: WHITE, lineHeight: 1.6, margin: "0 0 12px 0", wordBreak: "break-word" }}>
               {selectedComment.content}
             </p>
+            {isLikelyNonEnglish(selectedComment.content) && (
+              <a
+                href={translateUrl(selectedComment.content)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-block", fontSize: 11, fontWeight: 600, color: BG, background: TEAL,
+                  padding: "4px 10px", borderRadius: 4, textDecoration: "none", marginBottom: 10,
+                  fontFamily: "'Inter Tight', sans-serif",
+                }}
+              >
+                Translate to English
+              </a>
+            )}
             {selectedComment.video_title && (
               <div style={{ fontSize: 11, color: MUTED, borderTop: `1px solid ${BORDER}`, paddingTop: 8 }}>
                 <span style={{ fontWeight: 600 }}>Video:</span> {selectedComment.video_title}

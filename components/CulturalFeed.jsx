@@ -117,7 +117,19 @@ function decodeEntities(str) {
     });
 }
 
+function highlightMadonna(text) {
+  if (!text) return text;
+  const parts = text.split(/(madonna)/gi);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    part.toLowerCase() === "madonna"
+      ? <span key={i} style={{ color: Y, fontWeight: 700 }}>{part}</span>
+      : part
+  );
+}
+
 function FeedCard({ item }) {
+  const hasMadonna = /madonna/i.test(item.title || "");
   return (
     <a
       href={item.url}
@@ -126,18 +138,19 @@ function FeedCard({ item }) {
       style={{
         display: "block",
         background: CARD,
-        border: `1px solid ${BORDER}`,
+        border: `1px solid ${hasMadonna ? Y + "44" : BORDER}`,
+        borderLeft: hasMadonna ? `3px solid ${Y}` : undefined,
         borderRadius: 8,
         padding: "14px 18px",
         textDecoration: "none",
         transition: "border-color 0.15s ease",
       }}
       onMouseOver={(e) => (e.currentTarget.style.borderColor = Y)}
-      onMouseOut={(e) => (e.currentTarget.style.borderColor = BORDER)}
+      onMouseOut={(e) => (e.currentTarget.style.borderColor = hasMadonna ? Y + "44" : BORDER)}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 6 }}>
         <h3 style={{ fontSize: 14, fontWeight: 600, color: WHITE, margin: 0, lineHeight: 1.4, fontFamily: "'Newsreader', serif" }}>
-          {decodeEntities(item.title)}
+          {highlightMadonna(decodeEntities(item.title))}
         </h3>
         <span style={{
           fontSize: 10, color: BG, background: item.type === "brave" ? TEAL : MUTED,
@@ -195,10 +208,11 @@ export default function CulturalFeed() {
   const [errors, setErrors] = useState({});
 
   const fetchFeed = useCallback(async (category) => {
-    if (feeds[category]) return;
     setLoading((prev) => ({ ...prev, [category]: true }));
+    setErrors((prev) => ({ ...prev, [category]: null }));
     try {
-      const res = await fetch(`/api/news?category=${category}`);
+      // Always pass refresh=1 because we only fetch when explicitly asked
+      const res = await fetch(`/api/news?category=${category}&refresh=1`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setFeeds((prev) => ({ ...prev, [category]: data }));
@@ -207,11 +221,24 @@ export default function CulturalFeed() {
     } finally {
       setLoading((prev) => ({ ...prev, [category]: false }));
     }
-  }, [feeds]);
+  }, []);
 
-  useEffect(() => {
+  const handleRefresh = useCallback(() => {
     fetchFeed(activeTab);
   }, [activeTab, fetchFeed]);
+
+  // Load cached results on first visit (no fresh search, just check if server has cache)
+  useEffect(() => {
+    if (!feeds[activeTab] && !loading[activeTab] && !errors[activeTab]) {
+      // Try to load from server cache only (no refresh flag)
+      setLoading((prev) => ({ ...prev, [activeTab]: true }));
+      fetch(`/api/news?category=${activeTab}`)
+        .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+        .then((data) => setFeeds((prev) => ({ ...prev, [activeTab]: data })))
+        .catch(() => { /* No cached data - that's fine, user can hit New Search */ })
+        .finally(() => setLoading((prev) => ({ ...prev, [activeTab]: false })));
+    }
+  }, [activeTab]);
 
   const currentFeed = feeds[activeTab];
   const isLoading = loading[activeTab];
@@ -270,11 +297,26 @@ export default function CulturalFeed() {
               {activeTab === "madonna" ? "All Madonna coverage" : `Latest from ${tabDef.label}`}
             </span>
           </div>
-          {currentFeed && (
-            <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
-              {currentFeed.items.length} results {currentFeed.cachedAt ? `\u00B7 updated ${new Date(currentFeed.cachedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}
-            </span>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {currentFeed && (
+              <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
+                {currentFeed.items.length} results {currentFeed.cachedAt ? `\u00B7 updated ${new Date(currentFeed.cachedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}
+              </span>
+            )}
+            <button
+              onClick={handleRefresh}
+              disabled={isLoading}
+              style={{
+                padding: "4px 12px", fontSize: 11, fontWeight: 600,
+                color: isLoading ? MUTED : BG, background: isLoading ? BORDER : Y,
+                border: "none", borderRadius: 5, cursor: isLoading ? "default" : "pointer",
+                fontFamily: "'Inter Tight', sans-serif", letterSpacing: "0.02em",
+                transition: "all 0.15s ease",
+              }}
+            >
+              {isLoading ? "Searching..." : "New Search"}
+            </button>
+          </div>
         </div>
 
         {isLoading && (
@@ -306,6 +348,30 @@ export default function CulturalFeed() {
           </div>
         )}
 
+        {!currentFeed && !isLoading && !error && (
+          <div style={{
+            background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8,
+            padding: "32px 24px", textAlign: "center",
+          }}>
+            <p style={{ fontSize: 14, color: WHITE, margin: "0 0 8px", fontFamily: "'Inter Tight', sans-serif" }}>
+              No search results yet
+            </p>
+            <p style={{ fontSize: 12, color: MUTED, margin: "0 0 16px" }}>
+              Weekly search runs every Tuesday at 14:05. Hit New Search to fetch now.
+            </p>
+            <button
+              onClick={handleRefresh}
+              style={{
+                padding: "8px 20px", fontSize: 12, fontWeight: 600,
+                color: BG, background: Y, border: "none", borderRadius: 6, cursor: "pointer",
+                fontFamily: "'Inter Tight', sans-serif",
+              }}
+            >
+              New Search
+            </button>
+          </div>
+        )}
+
         {currentFeed && !isLoading && (
           <>
             {!currentFeed.hasBraveKey && (
@@ -319,7 +385,7 @@ export default function CulturalFeed() {
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: activeTab === "madonna" ? 800 : 600, overflowY: "auto" }}>
               {currentFeed.items.length === 0 ? (
-                <p style={{ color: MUTED, fontSize: 13, padding: 20 }}>No articles found. RSS feeds may be temporarily unavailable.</p>
+                <p style={{ color: MUTED, fontSize: 13, padding: 20 }}>No Madonna mentions found in current feeds. Try New Search or check back after the weekly search runs Tuesday 14:05.</p>
               ) : (
                 currentFeed.items.map((item, i) => <FeedCard key={item.url || i} item={item} />)
               )}
