@@ -17,32 +17,32 @@ const CACHE_TTL = IS_DEV ? 300 : 86400;
 // Multiple queries per platform catch different content types
 const PLATFORMS = [
   { id: "reddit", label: "Reddit", icon: "R", queries: [
-    { q: '"madonna" site:reddit.com', freshness: "pd" },
-    { q: 'madonna site:reddit.com/r/popheads OR site:reddit.com/r/music OR site:reddit.com/r/Madonna', freshness: "pd" },
+    { q: '"madonna" site:reddit.com', freshness: "pw" },
+    { q: 'madonna site:reddit.com/r/popheads OR site:reddit.com/r/music OR site:reddit.com/r/Madonna', freshness: "pw" },
     { q: 'madonna album OR tour OR concert site:reddit.com', freshness: "pw" },
   ]},
   { id: "twitter", label: "Twitter / X", icon: "X", queries: [
-    { q: '"madonna" site:twitter.com OR site:x.com', freshness: "pd" },
-    { q: 'madonna trending OR viral site:twitter.com OR site:x.com', freshness: "pd" },
+    { q: '"madonna" site:twitter.com OR site:x.com', freshness: "pw" },
+    { q: 'madonna trending OR viral site:twitter.com OR site:x.com', freshness: "pw" },
     { q: 'madonna tour OR album OR concert site:twitter.com OR site:x.com', freshness: "pw" },
   ]},
   { id: "tiktok", label: "TikTok", icon: "T", queries: [
-    { q: '"madonna" site:tiktok.com', freshness: "pd" },
+    { q: '"madonna" site:tiktok.com', freshness: "pw" },
     { q: 'madonna trend OR dance OR sound site:tiktok.com', freshness: "pw" },
   ]},
   { id: "youtube", label: "YouTube", icon: "Y", queries: [
-    { q: '"madonna" site:youtube.com', freshness: "pd" },
-    { q: 'madonna reaction OR performance OR interview site:youtube.com', freshness: "pd" },
+    { q: '"madonna" site:youtube.com', freshness: "pw" },
+    { q: 'madonna reaction OR performance OR interview site:youtube.com', freshness: "pw" },
     { q: 'madonna music video OR concert OR documentary site:youtube.com', freshness: "pw" },
   ]},
   { id: "instagram", label: "Instagram", icon: "I", queries: [
     // Instagram blocks crawlers — search for coverage OF Instagram activity instead
-    { q: 'madonna instagram post OR story OR reel', freshness: "pd" },
+    { q: 'madonna instagram post OR story OR reel', freshness: "pw" },
     { q: '"madonna" "instagram" fan OR fashion OR photo', freshness: "pw" },
   ]},
   { id: "web", label: "News / Web", icon: "W", queries: [
-    { q: '"madonna" news OR interview OR feature', freshness: "pd" },
-    { q: 'madonna 2026 profile OR cover OR exclusive', freshness: "pd" },
+    { q: '"madonna" news OR interview OR feature', freshness: "pw" },
+    { q: 'madonna 2026 profile OR cover OR exclusive', freshness: "pw" },
   ]},
 ];
 

@@ -79,7 +79,7 @@ export default function SpotifyTracker() {
   const fetchData = useCallback(async (refresh = false) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/spotify${refresh ? "?refresh=1" : ""}`);
+      const res = await fetch(`/api/spotify${refresh ? "?refresh=1" : ""}`, { signal: AbortSignal.timeout(15000) });
       if (res.ok) {
         const d = await res.json();
         setData(d);

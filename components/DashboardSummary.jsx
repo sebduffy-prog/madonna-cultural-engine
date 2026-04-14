@@ -44,21 +44,19 @@ export default function DashboardSummary() {
 
   useEffect(() => {
     async function load() {
-      // Try cached first
-      let [m, s, sp, a] = await Promise.all([
+      // Load fast sources first — don't wait for Spotify
+      const [m, s, a] = await Promise.all([
         fetch("/api/news?category=madonna").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/social").then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch("/api/spotify").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/ai-strategy").then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
-      // Auto-refresh any empty results
-      const refreshes = [];
-      if (!m?.items?.length) refreshes.push(fetch("/api/news?category=madonna&refresh=1").then(r => r.ok ? r.json() : null).then(d => { m = d || m; }).catch(() => {}));
-      if (!s?.platforms?.length || s.platforms.every(p => p.items.length === 0)) refreshes.push(fetch("/api/social?refresh=1").then(r => r.ok ? r.json() : null).then(d => { s = d || s; }).catch(() => {}));
-      if (!sp?.topTracks?.length) refreshes.push(fetch("/api/spotify?refresh=1").then(r => r.ok ? r.json() : null).then(d => { sp = d || sp; }).catch(() => {}));
-      if (refreshes.length > 0) await Promise.all(refreshes);
-      setMedia(m); setSocial(s); setSpotify(sp); setAi(a);
-      setLoading(false);
+      setMedia(m); setSocial(s); setAi(a);
+      setLoading(false); // Show dashboard immediately
+
+      // Load Spotify separately — it's slow and can fail
+      fetch("/api/spotify").then(r => r.ok ? r.json() : null).then(sp => {
+        if (sp) setSpotify(sp);
+      }).catch(() => {});
     }
     load();
   }, []);

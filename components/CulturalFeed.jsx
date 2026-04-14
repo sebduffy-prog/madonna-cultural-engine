@@ -339,7 +339,7 @@ export default function CulturalFeed() {
             {currentFeed && (
               <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
                 {activeTab === "social"
-                  ? `${(currentFeed.metrics?.mentionsFound || 0).toLocaleString()} mentions today \u00B7 ${(currentFeed.metrics?.cumulativeMentions || 0).toLocaleString()} cumulative`
+                  ? `${(currentFeed.metrics?.mentionsFound || 0).toLocaleString()} this week \u00B7 ${(currentFeed.metrics?.cumulativeMentions || 0).toLocaleString()} cumulative`
                   : `${currentFeed.items?.length || 0} results`}
                 {(currentFeed.cachedAt || currentFeed.fetchedAt) ? ` \u00B7 updated ${new Date(currentFeed.cachedAt || currentFeed.fetchedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}
               </span>
@@ -439,7 +439,7 @@ export default function CulturalFeed() {
                 <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
                   <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>Mentions Found</div>
                   <div style={{ fontSize: 28, fontWeight: 800, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{(currentFeed.metrics?.mentionsFound || 0).toLocaleString()}</div>
-                  <div style={{ fontSize: 9, color: DIM, fontFamily: "'Inter Tight', sans-serif", marginTop: 2 }}>today (past 24h)</div>
+                  <div style={{ fontSize: 9, color: DIM, fontFamily: "'Inter Tight', sans-serif", marginTop: 2 }}>this week</div>
                 </div>
 
                 {/* Cumulative */}
