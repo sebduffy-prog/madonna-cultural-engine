@@ -90,7 +90,7 @@ function sampleArray(arr, n) {
   return sampled;
 }
 
-export default function AudienceCommentsGraph({ comments }) {
+export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, totalCommentCount = 0 }) {
   const svgRef = useRef(null);
   const simulationRef = useRef(null);
   const [selectedComment, setSelectedComment] = useState(null);
@@ -106,13 +106,19 @@ export default function AudienceCommentsGraph({ comments }) {
   }, [comments]);
 
   const themeCounts = useMemo(() => {
+    // Use server-side full counts if available (reflects all 122K+ comments)
+    if (fullThemeCounts && Object.keys(fullThemeCounts).length > 0) {
+      const counts = {};
+      THEMES.forEach((t) => (counts[t.id] = fullThemeCounts[t.id] || 0));
+      return counts;
+    }
     const counts = {};
     THEMES.forEach((t) => (counts[t.id] = 0));
     classified.forEach((c) => {
       counts[c._theme] = (counts[c._theme] || 0) + 1;
     });
     return counts;
-  }, [classified]);
+  }, [classified, fullThemeCounts]);
 
   const sampledByTheme = useMemo(() => {
     const grouped = {};
@@ -142,7 +148,8 @@ export default function AudienceCommentsGraph({ comments }) {
 
     svg.attr("viewBox", `0 0 ${width} ${height}`);
 
-    const g = svg.append("g");
+    const g = svg.append("g")
+      .style("transition", "transform 0.08s ease-out");
 
     const zoom = d3.zoom()
       .scaleExtent([0.3, 4])
@@ -335,7 +342,7 @@ export default function AudienceCommentsGraph({ comments }) {
           Comment Universe
         </h2>
         <span style={{ fontSize: 12, color: MUTED, marginLeft: 8 }}>
-          {comments.length.toLocaleString()} comments (showing ~300 sampled)
+          {(totalCommentCount || comments.length).toLocaleString()} comments across all banks
         </span>
       </div>
 

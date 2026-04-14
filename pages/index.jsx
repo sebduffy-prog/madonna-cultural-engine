@@ -90,19 +90,46 @@ export async function getStaticProps() {
     });
   }
 
-  // YouTube comments - sample from each file
+  // Server-side theme classification (mirrors AudienceCommentsGraph keywords)
+  const THEME_KEYWORDS = [
+    { id: "nostalgia", keywords: ["remember", "nostalgia", "childhood", "grew up", "memories", "miss", "classic", "timeless", "old", "back in the day", "years ago"] },
+    { id: "musical", keywords: ["voice", "song", "music", "album", "production", "beat", "melody", "dance", "sound", "sing", "vocal", "masterpiece", "genius"] },
+    { id: "icon", keywords: ["queen", "icon", "legend", "goat", "greatest", "best", "pioneer", "original", "influence", "impact"] },
+    { id: "emotional", keywords: ["love", "heart", "cry", "feel", "soul", "beautiful", "amazing", "perfect", "tears", "moved", "emotion"] },
+    { id: "discovery", keywords: ["first time", "just found", "discovered", "never heard", "didn't know", "wow", "omg", "wait"] },
+    { id: "cultural", keywords: ["era", "generation", "culture", "society", "fashion", "style", "trend", "relevant", "today"] },
+    { id: "criticism", keywords: ["overrated", "hate", "bad", "worst", "old", "surgery", "cringe", "fake"] },
+  ];
+  function classifyComment(content) {
+    const lower = (content || "").toLowerCase();
+    for (const theme of THEME_KEYWORDS) {
+      for (const kw of theme.keywords) {
+        if (lower.includes(kw)) return theme.id;
+      }
+    }
+    return "general";
+  }
+
+  // YouTube comments - classify ALL for accurate counts, sample for visualization
   const commentFiles = ["youtube_comments_bank_1.csv","youtube_comments_bank_2.csv","youtube_comments_bank_3.csv","youtube_comments_bank_4.csv","youtube_comments_bank_5.csv"];
   let allComments = [];
+  let totalCommentCount = 0;
+  const fullThemeCounts = {};
   for (const f of commentFiles) {
     try {
       const text = fs.readFileSync(path.join(dir, f), "utf-8");
       const rows = parseCSV(text);
-      const header = rows[0];
       const data = rows.slice(1).filter(r => r.length >= 4 && r[2]).map(r => ({
         username: r[0] || "", date: r[1] || "", content: r[2] || "", video_title: r[3] || ""
       }));
-      // Sample ~500 from each file
-      const sample = data.sort(() => Math.random() - 0.5).slice(0, 500);
+      totalCommentCount += data.length;
+      // Classify all comments server-side for accurate theme counts
+      data.forEach(c => {
+        const theme = classifyComment(c.content);
+        fullThemeCounts[theme] = (fullThemeCounts[theme] || 0) + 1;
+      });
+      // Sample ~2000 per file for visualization
+      const sample = data.sort(() => Math.random() - 0.5).slice(0, 2000);
       allComments = allComments.concat(sample);
     } catch(e) {}
   }
@@ -113,14 +140,16 @@ export async function getStaticProps() {
     const gwiText = fs.readFileSync(path.join(dir, "Project_Sweet_Tooth_Master - All Internet Users (Audience....csv"), "utf-8");
     const rows = parseCSV(gwiText);
     let lastQuestion = "";
+    let lastEntityName = "";
     for (let i = 7; i < rows.length; i++) {
       const r = rows[i];
       if (!r || r.length < 11) continue;
       if (r[0]) lastQuestion = r[0];
-      if (r[2] === "Index" && r[1]) {
+      if (r[1]) lastEntityName = r[1];
+      if (r[2] === "Index" && lastEntityName) {
         const vals = [r[4],r[5],r[6],r[7],r[8],r[9],r[10]].map(v => parseInt(v?.replace(/,/g, "")) || 0);
         if (vals.some(v => v > 0 && v !== 100)) {
-          gwiData.push({ question: lastQuestion, name: r[1], genJones: vals[0], millennial: vals[1], genX: vals[2], genZ: vals[3], disco: vals[4], fashion: vals[5], nightlife: vals[6] });
+          gwiData.push({ question: lastQuestion, name: lastEntityName, genJones: vals[0], millennial: vals[1], genX: vals[2], genZ: vals[3], disco: vals[4], fashion: vals[5], nightlife: vals[6] });
         }
       }
     }
@@ -187,10 +216,10 @@ export async function getStaticProps() {
     }
   } catch(e) {}
 
-  return { props: { comments: allComments, gwiData, murals, venues } };
+  return { props: { comments: allComments, gwiData, murals, venues, fullThemeCounts, totalCommentCount } };
 }
 
-export default function Dashboard({ comments = [], gwiData = [], murals = [], venues = [] }) {
+export default function Dashboard({ comments = [], gwiData = [], murals = [], venues = [], fullThemeCounts = {}, totalCommentCount = 0 }) {
   const [tab, setTab] = useState("insight");
   const [authed, setAuthed] = useState(false);
   const [pw, setPw] = useState("");
@@ -784,7 +813,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
           </Sect>
         </>}
 
-        {tab === "comments" && <AudienceCommentsGraph comments={comments} />}
+        {tab === "comments" && <AudienceCommentsGraph comments={comments} fullThemeCounts={fullThemeCounts} totalCommentCount={totalCommentCount} />}
 
         {tab === "gwi" && <AudienceIntelligence gwiData={gwiData} />}
 
