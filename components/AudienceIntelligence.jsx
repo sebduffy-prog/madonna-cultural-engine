@@ -73,9 +73,9 @@ function SegmentExplorer({ data }) {
   const items = useMemo(() => {
     return data
       .map((row) => ({ name: row.name, question: row.question, index: Number(row[segKey]) || 0 }))
-      .filter((d) => d.index > 120)
+      .filter((d) => d.index > 0 && d.index !== 100)
       .sort((a, b) => b.index - a.index)
-      .slice(0, 30);
+      .slice(0, 50);
   }, [data, segKey]);
 
   const maxIndex = useMemo(() => Math.max(...items.map((d) => d.index), 200), [items]);
@@ -105,10 +105,10 @@ function SegmentExplorer({ data }) {
       </div>
       {items.length === 0 ? (
         <p style={{ color: MUTED, fontFamily: "'Newsreader', serif", fontSize: 14 }}>
-          No statements index above 120 for this segment.
+          No statements found for this segment.
         </p>
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <div style={{ overflowX: "auto", maxHeight: 600, overflowY: "auto" }}>
           <svg width={svgW} height={svgH} style={{ display: "block" }}>
             {items.map((d, i) => {
               const y = i * (barH + gap);
@@ -173,9 +173,9 @@ function CompareSegments({ data }) {
         valA: Number(row[segA]) || 0,
         valB: Number(row[segB]) || 0,
       }))
-      .filter((d) => d.valA > 150 || d.valB > 150)
+      .filter((d) => (d.valA > 0 && d.valA !== 100) || (d.valB > 0 && d.valB !== 100))
       .sort((x, y) => Math.max(y.valA, y.valB) - Math.max(x.valA, x.valB))
-      .slice(0, 20);
+      .slice(0, 30);
   }, [data, segA, segB]);
 
   const maxVal = useMemo(() => Math.max(...items.map((d) => Math.max(d.valA, d.valB)), 200), [items]);
@@ -204,10 +204,10 @@ function CompareSegments({ data }) {
       </div>
       {items.length === 0 ? (
         <p style={{ color: MUTED, fontFamily: "'Newsreader', serif", fontSize: 14 }}>
-          No statements index above 150 for either segment.
+          No statements found for either segment.
         </p>
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <div style={{ overflowX: "auto", maxHeight: 600, overflowY: "auto" }}>
           <svg width={svgW} height={svgH} style={{ display: "block" }}>
             {/* header labels */}
             <text x={sideW / 2} y={14} textAnchor="middle" fill={a.color} fontSize={11} fontWeight={700} fontFamily="'Inter Tight', sans-serif">
@@ -299,9 +299,9 @@ function PopularStatements({ data }) {
         const avg = vals.reduce((sum, v) => sum + v.index, 0) / vals.length;
         return { name: row.name, question: row.question, vals, strongCount: strong.length, avg };
       })
-      .filter((d) => d.strongCount >= 3)
+      .filter((d) => d.strongCount >= 2)
       .sort((a, b) => b.avg - a.avg)
-      .slice(0, 20);
+      .slice(0, 30);
   }, [data]);
 
   const axisMax = 350;
@@ -309,13 +309,13 @@ function PopularStatements({ data }) {
   if (items.length === 0) {
     return (
       <p style={{ color: MUTED, fontFamily: "'Newsreader', serif", fontSize: 14 }}>
-        No statements index above 130 across 3 or more segments.
+        No statements index above 130 across 2 or more segments.
       </p>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 600, overflowY: "auto" }}>
       {items.map((d) => (
         <div
           key={d.name + d.question}
@@ -388,8 +388,20 @@ const VIEWS = [
 
 export default function AudienceIntelligence({ gwiData }) {
   const [view, setView] = useState("explorer");
+  const [categoryFilter, setCategoryFilter] = useState("all");
 
-  const data = useMemo(() => cleanData(gwiData), [gwiData]);
+  const allData = useMemo(() => cleanData(gwiData), [gwiData]);
+
+  const categories = useMemo(() => {
+    const cats = new Set();
+    allData.forEach((row) => { if (row.question) cats.add(row.question); });
+    return Array.from(cats).sort();
+  }, [allData]);
+
+  const data = useMemo(() => {
+    if (categoryFilter === "all") return allData;
+    return allData.filter((row) => row.question === categoryFilter);
+  }, [allData, categoryFilter]);
 
   return (
     <div style={{ background: BG, padding: 24, borderRadius: 12 }}>
@@ -399,6 +411,44 @@ export default function AudienceIntelligence({ gwiData }) {
         <h2 style={{ fontSize: 14, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase", margin: 0, fontFamily: "'Inter Tight', sans-serif" }}>
           Audience Intelligence
         </h2>
+        <span style={{ fontSize: 11, color: MUTED, marginLeft: 8 }}>
+          {data.length} statements
+        </span>
+      </div>
+
+      {/* category filter */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>
+          Filter by Category
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <button
+            onClick={() => setCategoryFilter("all")}
+            style={{
+              ...tabStyle(categoryFilter === "all"),
+              fontSize: 11,
+              padding: "4px 10px",
+            }}
+          >
+            All ({allData.length})
+          </button>
+          {categories.map((cat) => {
+            const count = allData.filter((r) => r.question === cat).length;
+            return (
+              <button
+                key={cat}
+                onClick={() => setCategoryFilter(cat)}
+                style={{
+                  ...tabStyle(categoryFilter === cat),
+                  fontSize: 11,
+                  padding: "4px 10px",
+                }}
+              >
+                {cat} ({count})
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* view tabs */}

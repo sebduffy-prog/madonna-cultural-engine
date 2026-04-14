@@ -148,20 +148,28 @@ export default function StreetArtMap({ murals, venues }) {
       });
     }
 
-    // Dotted polylines between each venue and its nearest mural
-    venueLinks.forEach(({ venue, mural }) => {
+    // Connection lines between each venue and its nearest mural
+    venueLinks.forEach(({ venue, mural, distance }) => {
       if (!mural) return;
-      L.polyline(
+      const line = L.polyline(
         [
           [venue.lat, venue.lng],
           [mural.lat, mural.lng],
         ],
         {
-          color: "#FFD50044",
-          weight: 1,
-          dashArray: "4 8",
+          color: "#FFD50066",
+          weight: 1.5,
+          dashArray: "6 6",
         }
       ).addTo(map);
+      line.bindPopup(
+        `<div>
+          <strong style="color:${COLORS.PINK}">${venue.name}</strong>
+          <span style="color:${COLORS.MUTED}"> → </span>
+          <strong style="color:${COLORS.Y}">${mural.name}</strong><br/>
+          <span style="color:${COLORS.MUTED}">${distance.toFixed(2)} km</span>
+        </div>`
+      );
     });
 
     // Legend
@@ -186,6 +194,10 @@ export default function StreetArtMap({ murals, venues }) {
         <div style="display:flex; align-items:center; gap:8px;">
           <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:${COLORS.PINK}; border:2px solid ${COLORS.BG};"></span>
           Gay Venues
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="display:inline-block; width:20px; height:0; border-top:1.5px dashed #FFD50066;"></span>
+          <span style="font-size:11px;">Nearest Mural Link</span>
         </div>
       `;
       return div;
