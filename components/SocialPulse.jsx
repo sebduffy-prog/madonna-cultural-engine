@@ -17,10 +17,11 @@ const PINK = "#F472B6";
 
 const PLATFORMS = {
   reddit: { label: "Reddit", color: "#FF4500", icon: "R" },
-  twitter: { label: "Twitter / X", color: WHITE, icon: "X" },
   tiktok: { label: "TikTok", color: "#00F2EA", icon: "T" },
   youtube: { label: "YouTube", color: "#FF0000", icon: "Y" },
-  web: { label: "News / Web", color: "#A78BFA", icon: "W" },
+  instagram: { label: "Instagram", color: "#E1306C", icon: "I" },
+  news: { label: "News", color: "#A78BFA", icon: "N" },
+  video: { label: "Video", color: "#F59E0B", icon: "V" },
 };
 
 const PERIODS = [
@@ -215,7 +216,7 @@ export default function SocialPulse() {
 
       {/* Top metrics row */}
       <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-        <MetricCard label="Mentions Found" value={data.metrics?.mentionsFound || 0} sub={`Past ${PERIODS.find((p) => p.param === period)?.label || "week"}`} color={WHITE} />
+        <MetricCard label="Trend Index" value={data.isFirstRun ? "BASELINE" : `${data.index > 0 ? "+" : ""}${data.index}%`} sub={data.isFirstRun ? "Tracking starts tomorrow" : "vs baseline"} color={data.index > 0 ? "#34D399" : data.index < 0 ? "#EF4444" : WHITE} />
         <MetricCard label="Positive" value={`${data.sentiment?.positive || 0}%`} sub={`${data.sentiment?.positiveCount || 0} mentions`} color={GREEN} />
         <MetricCard label="Negative" value={`${data.sentiment?.negative || 0}%`} sub={`${data.sentiment?.negativeCount || 0} mentions`} color={RED} />
         <MetricCard label="Platforms" value={platforms.filter((p) => p.items.length > 0).length} sub={`of ${platforms.length} tracked`} color={PURPLE} />
@@ -236,7 +237,7 @@ export default function SocialPulse() {
             height={140}
             series={[
               // Total line
-              { label: "Total", color: WHITE, data: data.history.slice().reverse().map(s => ({ date: s.date, value: s.mentionsFound || s.totalMentions || 0 })) },
+              { label: "Index", color: WHITE, data: data.history.slice().reverse().map(s => ({ date: s.date, value: s.index || 0 })) },
               // Per-platform lines
               ...Object.entries(PLATFORMS).map(([id, def]) => ({
                 label: def.label,

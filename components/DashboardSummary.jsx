@@ -54,7 +54,7 @@ export default function DashboardSummary() {
       // Auto-refresh empty results (without blocking)
       const refreshes = [];
       if (!m?.items?.length) refreshes.push(fetch("/api/news?category=madonna&refresh=1").then(r => r.ok ? r.json() : null).then(d => { m = d || m; setMedia(m); }).catch(() => {}));
-      if (!s?.platforms?.length || s.metrics?.mentionsFound === 0) refreshes.push(fetch("/api/social?refresh=1").then(r => r.ok ? r.json() : null).then(d => { s = d || s; setSocial(s); }).catch(() => {}));
+      if (!s?.platforms?.length || s.totalSources === 0) refreshes.push(fetch("/api/social?refresh=1").then(r => r.ok ? r.json() : null).then(d => { s = d || s; setSocial(s); }).catch(() => {}));
 
       setMedia(m); setSocial(s); setAi(a);
       setLoading(false); // Show dashboard immediately
@@ -81,7 +81,7 @@ export default function DashboardSummary() {
   }
 
   const madonnaArticles = (media?.items || []).filter((i) => /madonna/i.test(i.title));
-  const totalSocialMentions = social?.metrics?.mentionsFound || social?.metrics?.totalMentions || 0;
+  const totalSocialMentions = social?.totalSources || social?.metrics?.mentionsFound || 0;
   const sentiment = social?.sentiment;
   const spotifyTracks = spotify?.topTracks?.length || 0;
   const topTrack = spotify?.topTracks?.[0];
@@ -142,7 +142,7 @@ export default function DashboardSummary() {
             series={[{
               label: "Total Mentions",
               color: PURPLE,
-              data: social.history.slice().reverse().map(s => ({ date: s.date, value: s.mentionsFound || s.totalMentions || 0 })),
+              data: social.history.slice().reverse().map(s => ({ date: s.date, value: s.index || 0 })),
             }]}
           />
         </div>

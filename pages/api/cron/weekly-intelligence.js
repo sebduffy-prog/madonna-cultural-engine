@@ -49,19 +49,18 @@ export default async function handler(req, res) {
     }
   }
 
-  // Step 2: Social listening (~25 queries)
+  // Step 2: Social trend index (~25 queries)
   try {
     const mock = createMockReqRes({ refresh: "1" });
     await socialHandler(mock.req, mock.res);
     const r = mock.getResult();
-    const queries = r.data?.metrics?.queriesUsed || 0;
+    const queries = r.data?.queriesUsed || 0;
     totalQueries += queries;
     results.steps.social = {
       ok: r.status === 200,
-      mentions: r.data?.metrics?.totalMentions || 0,
-      cumulative: r.data?.metrics?.cumulativeMentions || 0,
-      comments: r.data?.metrics?.totalComments || 0,
-      views: r.data?.metrics?.totalViews || 0,
+      index: r.data?.index || 0,
+      isFirstRun: r.data?.isFirstRun || false,
+      totalSources: r.data?.totalSources || 0,
       queriesUsed: queries,
     };
   } catch (err) {

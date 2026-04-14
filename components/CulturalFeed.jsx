@@ -206,6 +206,9 @@ const PLATFORM_COLORS = {
   twitter: WHITE,
   tiktok: "#00F2EA",
   youtube: "#FF0000",
+  instagram: "#E1306C",
+  news: "#A78BFA",
+  video: "#F59E0B",
   web: "#A78BFA",
 };
 
@@ -339,7 +342,7 @@ export default function CulturalFeed() {
             {currentFeed && (
               <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
                 {activeTab === "social"
-                  ? `${(currentFeed.metrics?.mentionsFound || 0).toLocaleString()} this week \u00B7 ${(currentFeed.metrics?.cumulativeMentions || 0).toLocaleString()} cumulative`
+                  ? `Index: ${currentFeed.index > 0 ? "+" : ""}${currentFeed.index || 0}% \u00B7 ${currentFeed.totalSources || 0} sources`
                   : `${currentFeed.items?.length || 0} results`}
                 {(currentFeed.cachedAt || currentFeed.fetchedAt) ? ` \u00B7 updated ${new Date(currentFeed.cachedAt || currentFeed.fetchedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}
               </span>
@@ -420,45 +423,33 @@ export default function CulturalFeed() {
 
           return (
             <>
-              {/* Madonna's Own Accounts */}
-              {currentFeed.ownAccounts && currentFeed.ownAccounts.posts > 0 && (
-                <div style={{ background: CARD, border: `1px solid ${Y}33`, borderLeft: `3px solid ${Y}`, borderRadius: 8, padding: "12px 16px", marginBottom: 14 }}>
-                  <div style={{ fontSize: 10, color: Y, textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 700, marginBottom: 8, fontFamily: "'Inter Tight', sans-serif" }}>Madonna's Own Accounts</div>
-                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                    <div><span style={{ fontSize: 20, fontWeight: 800, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{currentFeed.ownAccounts.posts}</span><span style={{ fontSize: 10, color: DIM, marginLeft: 4 }}>posts</span></div>
-                    {currentFeed.ownAccounts.comments > 0 && <div><span style={{ fontSize: 20, fontWeight: 800, color: TEAL, fontFamily: "'Inter Tight', sans-serif" }}>{currentFeed.ownAccounts.comments.toLocaleString()}</span><span style={{ fontSize: 10, color: DIM, marginLeft: 4 }}>comments</span></div>}
-                    {currentFeed.ownAccounts.score > 0 && <div><span style={{ fontSize: 20, fontWeight: 800, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }}>{currentFeed.ownAccounts.score.toLocaleString()}</span><span style={{ fontSize: 10, color: DIM, marginLeft: 4 }}>likes</span></div>}
-                    {currentFeed.ownAccounts.views > 0 && <div><span style={{ fontSize: 20, fontWeight: 800, color: GREEN, fontFamily: "'Inter Tight', sans-serif" }}>{currentFeed.ownAccounts.views.toLocaleString()}</span><span style={{ fontSize: 10, color: DIM, marginLeft: 4 }}>views</span></div>}
+              {/* Trend Index — hero metric */}
+              <div style={{ background: CARD, border: `1px solid ${currentFeed.index > 0 ? GREEN + "44" : currentFeed.index < 0 ? "#EF4444" + "44" : BORDER}`, borderRadius: 8, padding: "16px 20px", marginBottom: 14, display: "flex", alignItems: "center", gap: 20 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Trend Index</div>
+                  <div style={{ fontSize: 42, fontWeight: 800, fontFamily: "'Inter Tight', sans-serif", color: currentFeed.isFirstRun ? MUTED : currentFeed.index > 0 ? GREEN : currentFeed.index < 0 ? "#EF4444" : WHITE }}>
+                    {currentFeed.isFirstRun ? "BASELINE" : `${currentFeed.index > 0 ? "+" : ""}${currentFeed.index}%`}
+                  </div>
+                  <div style={{ fontSize: 10, color: DIM, fontFamily: "'Inter Tight', sans-serif", marginTop: 2 }}>
+                    {currentFeed.isFirstRun ? "First run — tracking starts tomorrow" : "vs baseline"} · {currentFeed.totalSources || 0} sources · {currentFeed.history?.length || 0} days tracked
                   </div>
                 </div>
-              )}
-
-              {/* Core metrics row */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
-                {/* Text Mentions — "madonna" in actual text */}
-                <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>Mentions Found</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{(currentFeed.metrics?.mentionsFound || 0).toLocaleString()}</div>
-                  <div style={{ fontSize: 9, color: DIM, fontFamily: "'Inter Tight', sans-serif", marginTop: 2 }}>this week</div>
+                {/* Platform breakdown */}
+                <div style={{ flex: 1, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {(currentFeed.platforms || []).map((p) => (
+                    <div key={p.id} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "8px 12px", minWidth: 80 }}>
+                      <div style={{ fontSize: 9, color: PLATFORM_COLORS[p.id] || DIM, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif", textTransform: "uppercase", marginBottom: 4 }}>{p.label}</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Inter Tight', sans-serif", color: currentFeed.isFirstRun ? MUTED : p.avgChange > 0 ? GREEN : p.avgChange < 0 ? "#EF4444" : WHITE }}>
+                        {currentFeed.isFirstRun ? "—" : `${p.avgChange > 0 ? "+" : ""}${p.avgChange}%`}
+                      </div>
+                      <div style={{ fontSize: 8, color: DIM, fontFamily: "'Inter Tight', sans-serif" }}>{p.totalCount} results</div>
+                    </div>
+                  ))}
                 </div>
+              </div>
 
-                {/* Cumulative */}
-                <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>Cumulative</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: Y, fontFamily: "'Inter Tight', sans-serif" }}>{(currentFeed.metrics?.cumulativeMentions || 0).toLocaleString()}</div>
-                  <div style={{ fontSize: 9, color: DIM, fontFamily: "'Inter Tight', sans-serif", marginTop: 2 }}>
-                    {currentFeed.history?.length > 0 ? `${currentFeed.history.length} days tracked` : "all time"}
-                  </div>
-                </div>
-
-                {/* Total Engagement */}
-                <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>Engagement</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: TEAL, fontFamily: "'Inter Tight', sans-serif" }}>{(currentFeed.metrics?.totalEngagement || 0).toLocaleString()}</div>
-                  <div style={{ fontSize: 9, color: DIM, fontFamily: "'Inter Tight', sans-serif", marginTop: 2 }}>comments + likes + views</div>
-                </div>
-
-                {/* Sentiment */}
+              {/* Sentiment */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
                 {currentFeed.sentiment && (
                   <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
@@ -484,24 +475,27 @@ export default function CulturalFeed() {
                     )}
                   </div>
                 )}
-
-                {/* Sources / Platforms */}
-                <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>Sources</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: PURPLE, fontFamily: "'Inter Tight', sans-serif", marginBottom: 4 }}>{(currentFeed.metrics?.sourcesTracked || 0).toLocaleString()}</div>
-                  {currentFeed.metrics?.platformBreakdown && Object.entries(currentFeed.metrics.platformBreakdown).map(([p, count]) => {
-                    const max = Math.max(...Object.values(currentFeed.metrics.platformBreakdown), 1);
-                    return (
-                      <div key={p} style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
-                        <span style={{ fontSize: 8, color: PLATFORM_COLORS[p] || DIM, width: 50, fontFamily: "'Inter Tight', sans-serif", fontWeight: 600 }}>{p}</span>
-                        <div style={{ flex: 1, height: 3, background: BORDER, borderRadius: 2, overflow: "hidden" }}>
-                          <div style={{ width: `${(count / max) * 100}%`, height: "100%", background: PLATFORM_COLORS[p] || PURPLE, borderRadius: 2 }} />
-                        </div>
-                        <span style={{ fontSize: 9, color: WHITE, fontWeight: 600, width: 20, textAlign: "right", fontFamily: "'Inter Tight', sans-serif" }}>{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                {/* Day-by-day history */}
+                {currentFeed.history?.length > 1 && (
+                  <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>Daily Index</div>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 50 }}>
+                      {currentFeed.history.slice(0, 14).reverse().map((day, i) => {
+                        const val = day.index || 0;
+                        const h = Math.max(4, Math.min(50, Math.abs(val) + 4));
+                        return (
+                          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: 50 }}>
+                            <div style={{ width: "100%", maxWidth: 20, height: h, borderRadius: 2, background: val > 0 ? GREEN : val < 0 ? "#EF4444" : MUTED }} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: MUTED, marginTop: 4 }}>
+                      <span>{currentFeed.history.length > 1 ? new Date(currentFeed.history[Math.min(13, currentFeed.history.length - 1)]?.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""}</span>
+                      <span>today</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Hashtag tracking */}
