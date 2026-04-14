@@ -25,28 +25,28 @@ const CACHE_TTL = IS_DEV ? 300 : 86400;
 const QUERIES = [
   // Reddit (5)
   { platform: "reddit", q: "site:reddit.com Madonna" },
-  { platform: "reddit", q: "site:reddit.com COADF2" },
-  { platform: "reddit", q: 'site:reddit.com "Confessions on a Dance Floor 2"' },
-  { platform: "reddit", q: 'site:reddit.com "Confessions II"' },
+  { platform: "reddit", q: "site:reddit.com Madonna COADF2" },
+  { platform: "reddit", q: 'site:reddit.com Madonna "Confessions on a Dance Floor 2"' },
+  { platform: "reddit", q: 'site:reddit.com Madonna "Confessions II"' },
   { platform: "reddit", q: "site:reddit.com madonna music 2026" },
   // TikTok (4)
   { platform: "tiktok", q: "site:tiktok.com Madonna" },
-  { platform: "tiktok", q: "site:tiktok.com COADF2" },
+  { platform: "tiktok", q: "site:tiktok.com Madonna COADF2" },
   { platform: "tiktok", q: "site:tiktok.com madonna confessions" },
-  { platform: "tiktok", q: 'site:tiktok.com "confessions II"' },
+  { platform: "tiktok", q: 'site:tiktok.com Madonna "confessions II"' },
   // YouTube (4)
   { platform: "youtube", q: "site:youtube.com Madonna" },
-  { platform: "youtube", q: "site:youtube.com COADF2" },
+  { platform: "youtube", q: "site:youtube.com Madonna COADF2" },
   { platform: "youtube", q: "site:youtube.com madonna 2026" },
-  { platform: "youtube", q: 'site:youtube.com "confessions on a dance floor 2"' },
+  { platform: "youtube", q: 'site:youtube.com Madonna "confessions on a dance floor 2"' },
   // Instagram (3)
   { platform: "instagram", q: "site:instagram.com Madonna" },
-  { platform: "instagram", q: "site:instagram.com COADF2" },
+  { platform: "instagram", q: "site:instagram.com Madonna COADF2" },
   { platform: "instagram", q: "site:instagram.com madonna confessions" },
   // News (6)
   { platform: "news", q: "Madonna", freshness: "pd" },
-  { platform: "news", q: "COADF2", freshness: "pd" },
-  { platform: "news", q: '"Confessions II"', freshness: "pd" },
+  { platform: "news", q: "Madonna COADF2", freshness: "pd" },
+  { platform: "news", q: 'Madonna "Confessions II"', freshness: "pd" },
   { platform: "news", q: '"Confessions on a Dance Floor 2"', freshness: "pd" },
   { platform: "news", q: "madonna album 2026", freshness: "pd" },
   { platform: "news", q: "madonna warner records", freshness: "pd" },
@@ -96,7 +96,11 @@ async function braveCount(query, apiKey, freshness = "pd") {
       score: r.data?.score || 0,
     }));
 
-    const allItems = [...items, ...discussions];
+    // Only keep results that are actually about Madonna
+    const allItems = [...items, ...discussions].filter((item) => {
+      const text = `${item.title} ${item.description} ${item.url}`.toLowerCase();
+      return text.includes("madonna") || text.includes("coadf") || text.includes("confessions on a dance floor") || text.includes("confessions ii");
+    });
     return { count: allItems.length, items: allItems };
   } catch {
     return { count: 0, items: [] };
