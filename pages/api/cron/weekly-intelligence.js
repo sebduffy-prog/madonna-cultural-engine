@@ -1,55 +1,46 @@
-// Weekly intelligence cron -- runs every Tuesday at 14:05 via Vercel Cron
-// Orchestrates: RSS/Brave refresh → Spotify snapshot → Social scan → AI recommendations
+// Daily intelligence cron -- runs at 8am via Vercel Cron
+// Calls each API endpoint directly via internal URL
 
 export default async function handler(req, res) {
-  // Verify cron secret in production (Vercel sets this automatically)
-  if (process.env.CRON_SECRET && req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : `http://localhost:${process.env.PORT || 3000}`;
+  // Build the correct base URL
+  const proto = req.headers["x-forwarded-proto"] || "https";
+  const host = req.headers["x-forwarded-host"] || req.headers.host || "localhost:3000";
+  const baseUrl = `${proto}://${host}`;
 
   const results = { startedAt: new Date().toISOString(), steps: {} };
 
-  // Step 1: Refresh all feed categories
-  for (const category of ["madonna", "fashion", "gay", "culture"]) {
+  // Helper to call our own API routes
+  async function callApi(path) {
     try {
-      const r = await fetch(`${baseUrl}/api/news?category=${category}&refresh=1`);
+      const r = await fetch(`${baseUrl}${path}`, {
+        headers: { "User-Agent": "SweetToothCron/1.0" },
+        signal: AbortSignal.timeout(55000),
+      });
+      if (!r.ok) return { ok: false, status: r.status };
       const data = await r.json();
-      results.steps[`feeds_${category}`] = { ok: r.ok, items: data.items?.length || 0 };
+      return { ok: true, data };
     } catch (err) {
-      results.steps[`feeds_${category}`] = { ok: false, error: err.message };
+      return { ok: false, error: err.message };
     }
   }
 
-  // Step 2: Refresh Spotify data
-  try {
-    const r = await fetch(`${baseUrl}/api/spotify?refresh=1&snapshot=1`);
-    const data = await r.json();
-    results.steps.spotify = { ok: r.ok, hasCredentials: data.hasCredentials, popularity: data.artist?.popularity };
-  } catch (err) {
-    results.steps.spotify = { ok: false, error: err.message };
+  // Step 1: Refresh all feed categories
+  for (const category of ["madonna", "fashion", "gay", "culture"]) {
+    const r = await callApi(`/api/news?category=${category}&refresh=1`);
+    results.steps[`feeds_${category}`] = { ok: r.ok, items: r.data?.items?.length || 0 };
   }
 
-  // Step 3: Social listening scan
-  try {
-    const r = await fetch(`${baseUrl}/api/social?refresh=1`);
-    const data = await r.json();
-    results.steps.social = { ok: r.ok, mentions: data.sentiment?.total || 0, sentiment: data.sentiment };
-  } catch (err) {
-    results.steps.social = { ok: false, error: err.message };
-  }
+  // Step 2: Refresh Spotify
+  const sp = await callApi("/api/spotify?refresh=1&snapshot=1");
+  results.steps.spotify = { ok: sp.ok, popularity: sp.data?.artist?.popularity, tracks: sp.data?.topTracks?.length || 0 };
 
-  // Step 4: Generate AI recommendations (uses data from steps 1-3)
-  try {
-    const r = await fetch(`${baseUrl}/api/ai-strategy?refresh=1`);
-    const data = await r.json();
-    results.steps.ai = { ok: r.ok, generated: !!data.recommendations, generatedAt: data.generatedAt };
-  } catch (err) {
-    results.steps.ai = { ok: false, error: err.message };
-  }
+  // Step 3: Social listening
+  const so = await callApi("/api/social?refresh=1&period=pw");
+  results.steps.social = { ok: so.ok, mentions: so.data?.metrics?.totalMentions || 0 };
+
+  // Step 4: AI recommendations
+  const ai = await callApi("/api/ai-strategy?refresh=1");
+  results.steps.ai = { ok: ai.ok, generated: !!ai.data?.recommendations };
 
   results.completedAt = new Date().toISOString();
   res.status(200).json(results);

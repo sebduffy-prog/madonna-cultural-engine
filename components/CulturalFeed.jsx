@@ -249,15 +249,24 @@ export default function CulturalFeed() {
     fetchFeed(activeTab);
   }, [activeTab, fetchFeed]);
 
-  // Load cached results on first visit (no fresh search, just check if server has cache)
+  // Load data on tab switch -- try cache first, auto-refresh if empty
   useEffect(() => {
     if (!feeds[activeTab] && !loading[activeTab] && !errors[activeTab]) {
-      // Try to load from server cache only (no refresh flag)
       setLoading((prev) => ({ ...prev, [activeTab]: true }));
-      fetch(activeTab === "social" ? "/api/social" : `/api/news?category=${activeTab}`)
+      const url = `/api/news?category=${activeTab}`;
+      fetch(url)
         .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-        .then((data) => setFeeds((prev) => ({ ...prev, [activeTab]: data })))
-        .catch(() => { /* No cached data - that's fine, user can hit New Search */ })
+        .then((data) => {
+          if (data?.items?.length > 0) {
+            setFeeds((prev) => ({ ...prev, [activeTab]: data }));
+          } else {
+            // Empty cache -- fetch fresh
+            return fetch(`/api/news?category=${activeTab}&refresh=1`)
+              .then((r) => r.ok ? r.json() : null)
+              .then((fresh) => { if (fresh) setFeeds((prev) => ({ ...prev, [activeTab]: fresh })); });
+          }
+        })
+        .catch(() => {})
         .finally(() => setLoading((prev) => ({ ...prev, [activeTab]: false })));
     }
   }, [activeTab]);

@@ -116,19 +116,26 @@ export default function SocialPulse() {
   const fetchData = useCallback(async (refresh = false) => {
     setLoading(true);
     try {
-      const url = `/api/social?${refresh ? "refresh=1&" : ""}period=${period}`;
+      const url = `/api/social?refresh=${refresh ? "1" : "0"}&period=${period}`;
       const res = await fetch(url);
-      if (res.ok) setData(await res.json());
+      if (res.ok) {
+        const d = await res.json();
+        // If we got empty data and weren't refreshing, try a fresh fetch
+        if (!refresh && (!d.platforms || d.platforms.every(p => p.items.length === 0))) {
+          const res2 = await fetch(`/api/social?refresh=1&period=${period}`);
+          if (res2.ok) { setData(await res2.json()); setLoading(false); return; }
+        }
+        setData(d);
+      }
     } catch { /* ignore */ }
     setLoading(false);
   }, [period]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Rerun when period changes
   const handlePeriodChange = (p) => {
     setPeriod(p);
-    setData(null); // Clear to show loading
+    setData(null);
   };
 
   if (loading && !data) {

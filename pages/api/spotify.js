@@ -90,9 +90,8 @@ export default async function handler(req, res) {
 
   const ARTIST_ID = madonnaArtist.id;
 
-  // All fetches use search-based approach to avoid 403 on restricted endpoints
+  // All fetches use search-based approach (direct artist endpoints return 403)
   const [
-    artistProfile,
     trackSearch1,
     trackSearch2,
     trackSearch3,
@@ -102,20 +101,17 @@ export default async function handler(req, res) {
     relatedSearch1,
     relatedSearch2,
   ] = await Promise.all([
-    spotifyFetch(`/artists/${ARTIST_ID}`, token), // May 403, we have madonnaArtist as fallback
     spotifyFetch(`/search?q=artist:Madonna&type=track&limit=20&market=GB`, token),
     spotifyFetch(`/search?q=Madonna+Hung+Up+Like+A+Prayer+Vogue&type=track&limit=20`, token),
     spotifyFetch(`/search?q=Madonna+Material+Girl+Ray+Of+Light+Frozen&type=track&limit=20`, token),
     spotifyFetch(`/search?q=Madonna+Music+Holiday+Express+Yourself+Into+Groove&type=track&limit=20`, token),
-    spotifyFetch(`/search?q=artist:Madonna&type=album&limit=20`, token), // Search for albums instead of direct endpoint
+    spotifyFetch(`/search?q=artist:Madonna&type=album&limit=20`, token),
     spotifyFetch(`/search?q=Madonna&type=playlist&limit=20`, token),
     spotifyFetch(`/search?q=genre:dance-pop+genre:pop&type=artist&limit=20`, token),
     spotifyFetch(`/search?q=Kylie+Minogue+OR+Cher+OR+Janet+Jackson+OR+Dua+Lipa+OR+Lady+Gaga&type=artist&limit=10`, token),
   ]);
 
-  // Also try direct albums endpoint as backup
-  const albumsDirect = await spotifyFetch(`/artists/${ARTIST_ID}/albums?include_groups=album&limit=20`, token);
-  const albumsData = albumsDirect || albumSearch;
+  const albumsData = albumSearch;
 
   // Merge and deduplicate tracks, keep only Madonna's
   const allTrackResults = [
@@ -168,7 +164,8 @@ export default async function handler(req, res) {
   });
   audienceTrending.sort((a, b) => b.popularity - a.popularity);
 
-  const artist = artistProfile || madonnaArtist;
+  // Artist data comes from search result (direct endpoint is 403)
+  const artist = madonnaArtist;
 
   const result = {
     hasCredentials: true,
