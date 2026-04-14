@@ -1,4 +1,11 @@
 import { useState } from "react";
+import dynamic from "next/dynamic";
+import fs from "fs";
+import path from "path";
+
+const StreetArtMap = dynamic(() => import("../components/StreetArtMap"), { ssr: false });
+const AudienceCommentsGraph = dynamic(() => import("../components/AudienceCommentsGraph"), { ssr: false });
+const AudienceIntelligence = dynamic(() => import("../components/AudienceIntelligence"), { ssr: false });
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
@@ -55,7 +62,135 @@ function StatRow({ label, value, sub, color = WHITE }) {
   );
 }
 
-export default function Dashboard() {
+export async function getStaticProps() {
+  const dir = path.join(process.cwd(), "Market Research");
+
+  function parseCSV(text) {
+    const rows = [];
+    let current = "";
+    let inQuotes = false;
+    const lines = text.split("\n");
+    for (const line of lines) {
+      for (let i = 0; i < line.length; i++) {
+        if (line[i] === '"') inQuotes = !inQuotes;
+      }
+      current += (current ? "\n" : "") + line;
+      if (!inQuotes) { rows.push(current); current = ""; }
+    }
+    if (current) rows.push(current);
+    return rows.map(row => {
+      const cols = []; let field = ""; let q = false;
+      for (let i = 0; i < row.length; i++) {
+        if (row[i] === '"') { q = !q; }
+        else if (row[i] === ',' && !q) { cols.push(field.trim()); field = ""; }
+        else { field += row[i]; }
+      }
+      cols.push(field.trim());
+      return cols;
+    });
+  }
+
+  // YouTube comments - sample from each file
+  const commentFiles = ["youtube_comments_bank_1.csv","youtube_comments_bank_2.csv","youtube_comments_bank_3.csv","youtube_comments_bank_4.csv","youtube_comments_bank_5.csv"];
+  let allComments = [];
+  for (const f of commentFiles) {
+    try {
+      const text = fs.readFileSync(path.join(dir, f), "utf-8");
+      const rows = parseCSV(text);
+      const header = rows[0];
+      const data = rows.slice(1).filter(r => r.length >= 4 && r[2]).map(r => ({
+        username: r[0] || "", date: r[1] || "", content: r[2] || "", video_title: r[3] || ""
+      }));
+      // Sample ~500 from each file
+      const sample = data.sort(() => Math.random() - 0.5).slice(0, 500);
+      allComments = allComments.concat(sample);
+    } catch(e) {}
+  }
+
+  // GWI data - extract Index rows
+  let gwiData = [];
+  try {
+    const gwiText = fs.readFileSync(path.join(dir, "Project_Sweet_Tooth_Master - All Internet Users (Audience....csv"), "utf-8");
+    const rows = parseCSV(gwiText);
+    let lastQuestion = "";
+    for (let i = 7; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r.length < 11) continue;
+      if (r[0]) lastQuestion = r[0];
+      if (r[2] === "Index" && r[1]) {
+        const vals = [r[4],r[5],r[6],r[7],r[8],r[9],r[10]].map(v => parseInt(v?.replace(/,/g, "")) || 0);
+        if (vals.some(v => v > 0 && v !== 100)) {
+          gwiData.push({ question: lastQuestion, name: r[1], genJones: vals[0], millennial: vals[1], genX: vals[2], genZ: vals[3], disco: vals[4], fashion: vals[5], nightlife: vals[6] });
+        }
+      }
+    }
+  } catch(e) {}
+
+  // Destinations (Murals) with geocoded coords
+  const muralCoords = {
+    "E1 6LA": [51.5229, -0.0717], "E1 6RF": [51.5207, -0.0717], "SW9 8EQ": [51.4613, -0.1145],
+    "SW9 8JX": [51.4624, -0.1163], "SE1 6JT": [51.4720, -0.0555], "NW1 0JH": [51.5392, -0.1426],
+    "NW1 8AG": [51.5414, -0.1466], "EC2A 3EJ": [51.5256, -0.0825], "EC2A 3NT": [51.5250, -0.0807],
+    "EC1V 9LP": [51.5264, -0.0878], "EC2A 3PQ": [51.5246, -0.0784], "E1 6QR": [51.5199, -0.0726],
+    "E1 6QL": [51.5207, -0.0717], "WC2H 8NJ": [51.5145, -0.1290], "M4 4AA": [53.4858, -2.2382],
+    "M4 1EU": [53.4849, -2.2360], "M1 1FB": [53.4826, -2.2335]
+  };
+  let murals = [];
+  try {
+    const dText = fs.readFileSync(path.join(dir, "destinations.csv"), "utf-8");
+    const rows = parseCSV(dText);
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r.length < 4 || !r[0]) continue;
+      const pc = r[3];
+      const coords = muralCoords[pc] || [51.51 + (Math.random()-0.5)*0.04, -0.1 + (Math.random()-0.5)*0.06];
+      murals.push({ name: r[0], address: r[1], city: r[2], postcode: pc, lat: coords[0], lng: coords[1] });
+    }
+  } catch(e) {}
+
+  // LGBTQ venues with geocoded coords
+  const venueCoords = {
+    "W1D 4UD": [51.5134, -0.1313], "SW4 6DH": [51.4625, -0.1477], "E2 6NB": [51.5272, -0.0618],
+    "EC1V 1JN": [51.5270, -0.0889], "N1 9SD": [51.5340, -0.1240], "W1D 3JN": [51.5136, -0.1318],
+    "WC2N 6PA": [51.5074, -0.1223], "W1H 7AF": [51.5140, -0.1620], "SE11 4LD": [51.4890, -0.1097],
+    "E9 5EN": [51.5454, -0.0354], "E2 6DG": [51.5242, -0.0718], "W1D 6HN": [51.5138, -0.1320],
+    "E8 2PB": [51.5494, -0.0752], "N16 8BJ": [51.5535, -0.0741], "W1D 6QA": [51.5134, -0.1323],
+    "SE11 5QY": [51.4855, -0.1134], "SW8 1RT": [51.4815, -0.1225], "W1F 0TA": [51.5126, -0.1352],
+    "W1D 6QB": [51.5135, -0.1325], "W1D 4UR": [51.5133, -0.1310], "WC1N 1AB": [51.5266, -0.1203],
+    "SE10 8DE": [51.4728, -0.0082], "SE1 7AE": [51.4997, -0.1138], "E8 2AA": [51.5480, -0.0760],
+    "WC2N 4JF": [51.5082, -0.1264], "WC2N 6NG": [51.5086, -0.1239], "SE15 4TL": [51.4702, -0.0667],
+    "NW3 1RE": [51.5560, -0.1781], "W1F 8QL": [51.5140, -0.1360], "WC2H 7BA": [51.5113, -0.1308],
+    "E9 6RG": [51.5400, -0.0414], "W1D 5LB": [51.5136, -0.1316], "SE8 5TQ": [51.4776, -0.0268],
+    "E2 7SB": [51.5298, -0.0622], "SE15 3QQ": [51.4658, -0.0558], "E14 7NW": [51.5118, -0.0265],
+    "WB2H 8BU": [51.5109, -0.1272], "E2 9ED": [51.5323, -0.0600], "WC2N 6HH": [51.5095, -0.1251],
+    "SE1 6AQ": [51.4937, -0.0970], "SE10 8ER": [51.4774, -0.0112], "SE11 5HY": [51.4848, -0.1145],
+    "W1D 6DR": [51.5126, -0.1339], "W1D 5JL": [51.5130, -0.1314], "W14 9NS": [51.4870, -0.2010],
+    "E20 1FT": [51.5437, -0.0136], "SE8 4AU": [51.4779, -0.0277], "SW4 7UJ": [51.4619, -0.1449],
+    "N1 9SD2": [51.5341, -0.1242], "SE1 7TW": [51.4933, -0.1203], "W1T 5EN": [51.5218, -0.1371],
+    "N16 7XB": [51.5544, -0.0739], "W1D 6QD": [51.5133, -0.1328], "E8 4AE": [51.5537, -0.0655],
+    "E14 7JD": [51.5097, -0.0253], "E5 8EE": [51.5572, -0.0465], "W1D 7PL": [51.5126, -0.1336],
+    "NW1 3EE": [51.5283, -0.1353]
+  };
+  let venues = [];
+  try {
+    const vText = fs.readFileSync(path.join(dir, "open_london_lgbtq_venues.csv"), "utf-8");
+    const rows = parseCSV(vText);
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r.length < 2 || !r[0]) continue;
+      const addr = r[1] || "";
+      const pcMatch = addr.match(/([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})/i);
+      const pc = pcMatch ? pcMatch[1].toUpperCase().replace(/\s+/g, " ") : "";
+      const pcKey = pc.replace(/\s/g, " ");
+      const coords = venueCoords[pcKey] || venueCoords[pc.replace(/\s/g, "")] || [51.51 + (Math.random()-0.5)*0.03, -0.1 + (Math.random()-0.5)*0.05];
+      venues.push({ name: r[0], address: addr, lat: coords[0], lng: coords[1] });
+    }
+  } catch(e) {}
+
+  return { props: { comments: allComments, gwiData, murals, venues } };
+}
+
+export default function Dashboard({ comments = [], gwiData = [], murals = [], venues = [] }) {
   const [tab, setTab] = useState("insight");
   const [authed, setAuthed] = useState(false);
   const [pw, setPw] = useState("");
@@ -78,7 +213,7 @@ export default function Dashboard() {
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Newsreader', 'Georgia', serif", color: WHITE }}>
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 24px" }}>
+      <div style={{ maxWidth: ["comments","gwi","streetmap"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCPm cultural intelligence</span>
@@ -95,6 +230,10 @@ export default function Dashboard() {
             { id: "engine", label: "The reactive engine" },
             { id: "channels", label: "Where attention lives" },
             { id: "britishgas", label: "Social intelligence" },
+            { id: "research", label: "Market research" },
+            { id: "comments", label: "Audience comments" },
+            { id: "gwi", label: "Audience intelligence" },
+            { id: "streetmap", label: "Street art map" },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 400,
@@ -507,6 +646,149 @@ export default function Dashboard() {
             </Card>
           </Sect>
         </>}
+
+        {tab === "research" && <>
+          <Sect title="The Imperial Phase">
+            <Card accent={Y}>
+              <Pull text="No artist before or since has sustained that kind of totalising dominance for so long, across so many simultaneous verticals." color={Y} />
+              <Insight text="Between 1984 and 1993, Madonna placed seventeen singles in the US Billboard Hot 100 top five. Seven reached number one. On the UK Singles Chart, she accumulated thirty-five consecutive top ten entries. True Blue debuted at number one in over twenty-eight countries simultaneously in 1986." color={DIM} />
+              <div style={{ background: CARD, borderRadius: 8, padding: 16, margin: "16px 0", border: `1px solid ${BORDER}` }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: Y, margin: "0 0 10px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Album-by-Album Commercial Anatomy</p>
+                {[
+                  { album: "Madonna", year: "1983", peak: "#8", sales: "10M+", singles: "Holiday, Borderline, Lucky Star" },
+                  { album: "Like a Virgin", year: "1984", peak: "#1", sales: "21M+", singles: "Like a Virgin, Material Girl" },
+                  { album: "True Blue", year: "1986", peak: "#1", sales: "25M+", singles: "Live to Tell, Papa Don't Preach" },
+                  { album: "Like a Prayer", year: "1989", peak: "#1", sales: "15M+", singles: "Like a Prayer, Express Yourself" },
+                  { album: "Immaculate Collection", year: "1990", peak: "#2", sales: "30M+", singles: "Justify My Love" },
+                  { album: "Erotica", year: "1992", peak: "#2", sales: "6M+", singles: "Erotica, Deeper and Deeper, Rain" },
+                ].map((a, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: i < 5 ? `1px solid ${BORDER}` : "none", fontSize: 13 }}>
+                    <span style={{ color: WHITE, fontWeight: 600, flex: 1 }}>{a.album} <span style={{ color: MUTED, fontWeight: 400 }}>({a.year})</span></span>
+                    <span style={{ color: Y, fontWeight: 700, width: 40, textAlign: "center" }}>{a.peak}</span>
+                    <span style={{ color: TEAL, width: 50, textAlign: "right" }}>{a.sales}</span>
+                  </div>
+                ))}
+              </div>
+              <Insight text="The Blond Ambition World Tour in 1990 grossed nearly $63 million, setting a new commercial benchmark. The Immaculate Collection remains the best-selling compilation album by a solo artist ever, with certified sales exceeding 30 million units globally." color={DIM} />
+            </Card>
+            <Card accent={PURPLE}>
+              <Pull text="She understood that the music video was not a supplement to the song. It was a parallel text, operating on its own semiotic register." color={PURPLE} />
+              <Insight text="Madonna grasped, earlier and more completely than any of her contemporaries, that in the MTV era, a pop star was fundamentally a visual proposition. 'Express Yourself' drew on Fritz Lang's Metropolis. 'Like a Prayer' layered Catholic iconography with civil rights symbolism. 'Vogue' translated underground ballroom culture into a mass-market visual language." color={DIM} />
+              <Insight text="The Jean Paul Gaultier cone bra for the Blond Ambition Tour remains, more than thirty-five years later, one of the most recognisable garments in the history of popular culture. Her fashion strategy was about perpetual reinvention at a pace that kept the press and public in constant anticipation." color={DIM} />
+            </Card>
+            <Card accent={CORAL}>
+              <Pull text="She grasped that outrage was an attention-generation mechanism, and that attention, regardless of its valence, was the fundamental currency of pop stardom." color={CORAL} />
+              <Insight text="The 1989 Pepsi deal: Madonna signed $5 million, the 'Like a Prayer' video provoked outrage, Pepsi withdrew the ad, Madonna retained the fee and received incalculable free media coverage. The album debuted at number one. This template would be replicated by every major pop act for three decades." color={DIM} />
+            </Card>
+            <Card accent={GREEN}>
+              <Pull text="She built an infrastructure of cultural authority that survived the inevitable cooling of her chart dominance." color={GREEN} />
+              <Insight text="Maverick Records (1992) was not a vanity label. It signed Alanis Morissette. Madonna positioned herself as an owner with equity, infrastructure, and a seat at the table. Multi-platform brand architecture across film, publishing, fashion, and endorsements ensured no single vertical's decline would be existential." color={DIM} />
+            </Card>
+          </Sect>
+
+          <Sect title="The Cathedral and the Dancefloor" accent={PINK}>
+            <Card accent={PINK}>
+              <Pull text="She emerged from the sweat-drenched, racially mixed, overwhelmingly queer nightclubs of lower Manhattan. That origin story is the skeleton key to her entire artistic project." color={PINK} />
+              <Insight text="The Mudd Club and Club 57 (1978-80): downtown art-world haunts where she mingled with Keith Haring and Jean-Michel Basquiat. The Fun House (1981-83): DJ Jellybean Benitez held 14-hour sets, playing freestyle that became the rhythmic backbone of her early recordings. Danceteria (1982-83): her first solo live performance, 16 December 1982. Sade tended bar; Keith Haring was a busboy." color={DIM} />
+              <p style={{ fontSize: 12, fontWeight: 700, color: PINK, margin: "16px 0 8px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>The Underground-to-Mainstream Pipeline</p>
+              {[
+                { name: "Jellybean Benitez", era: "1983-84", note: "Fun House DJ. Co-produced 'Holiday.' Freestyle sensibility defined the debut era." },
+                { name: "Shep Pettibone", era: "1990-92", note: "Club DJ elevated to co-producer on 'Vogue' and the entire Erotica album." },
+                { name: "William Orbit", era: "1998", note: "Unknown British electronic producer. Ray of Light won three Grammys and introduced electronica to mainstream pop." },
+                { name: "Stuart Price", era: "2005, 2026", note: "Confessions on a Dance Floor structured like a DJ set. Now reunited for the sequel." },
+                { name: "Honey Dijon / SOPHIE / Arca", era: "2010s-20s", note: "Continued pattern with openly queer, gender-nonconforming electronic artists." },
+              ].map((c, i) => (
+                <div key={i} style={{ padding: "8px 0", borderBottom: i < 4 ? `1px solid ${BORDER}` : "none" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: TEAL }}>{c.name}</span>
+                    <span style={{ fontSize: 11, color: MUTED }}>{c.era}</span>
+                  </div>
+                  <Insight text={c.note} color={DIM} />
+                </div>
+              ))}
+            </Card>
+            <Card accent={TEAL}>
+              <Pull text="50 number-one Dance Club Songs singles. The remix catalogue reads as a four-decade survey of underground dance music." color={TEAL} />
+              <Insight text="In the pre-streaming era, Madonna's remix singles served as a mass-distribution vehicle for dancefloor aesthetics. Many young ears around the world were first introduced to house, techno, and other electronic genres through a Madonna remix rather than through a club." color={DIM} />
+            </Card>
+          </Sect>
+
+          <Sect title="Advocacy, Visibility and Allyship" accent={PURPLE}>
+            <Card accent={PURPLE}>
+              <Pull text="No single ally has been a better friend or had a bigger impact on acceptance for the LGBTQ community than Madonna." color={PURPLE} />
+              <Insight text="CNN's Anderson Cooper, introducing her GLAAD Advocate for Change Award in 2019 — only the second person ever honoured." color={MUTED} />
+              <p style={{ fontSize: 12, fontWeight: 700, color: PURPLE, margin: "12px 0 8px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Key moments</p>
+              {[
+                { year: "1989", event: "Inserted HIV/AIDS education leaflet into Like a Prayer album packaging during the Reagan era." },
+                { year: "1990", event: "Blond Ambition Tour: 6 of 7 male dancers were gay. 3 were HIV-positive. Truth or Dare showed 'being gay when it was not cool.'" },
+                { year: "1990", event: "'Vogue' brought Harlem ballroom culture to global mainstream. Dancers from the House of Xtravaganza choreographed the video." },
+                { year: "1992", event: "'In This Life' (Erotica) — one of the few mainstream pop songs to address AIDS directly and by name." },
+                { year: "2018", event: "Surprise performance at the Stonewall Inn on New Year's Eve." },
+                { year: "2023-24", event: "Celebration Tour: described as her most radical queer statement since Blond Ambition. 'Live to Tell' performed surrounded by photos of friends lost to AIDS." },
+              ].map((m, i) => (
+                <div key={i} style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: i < 5 ? `1px solid ${BORDER}` : "none" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: PURPLE, minWidth: 48, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{m.year}</span>
+                  <Insight text={m.event} color={DIM} />
+                </div>
+              ))}
+            </Card>
+          </Sect>
+
+          <Sect title="Saints, Sinners & Sequins" accent={AMBER}>
+            <Card accent={AMBER}>
+              <Pull text="The icon's suffering is not voyeuristically consumed; it is recognised as structurally analogous to one's own. Her survival becomes proof that survival is possible." />
+              <Insight text="The sociological relationship between the gay community and female pop icons rests on seven attributes: suffering and survival, performative excess, vocal authenticity, sexual agency, loyalty to the community, reinvention, and camp sensibility. Madonna scores maximally on every dimension." color={DIM} />
+            </Card>
+            <Card accent={CORAL}>
+              <Pull text="The dancefloor was never merely a sonic environment. It was a political space — a space of liberation, of bodily autonomy, of queer survival." color={CORAL} />
+              <Insight text="House music's name was literally derived from a safe space for queer Black community — The Warehouse in Chicago. The gay community's aesthetic judgement became the unofficial A&R department of the global music industry. The club-to-radio pipeline: tracks that worked on gay dancefloors were refined and released to the mainstream." color={DIM} />
+            </Card>
+          </Sect>
+
+          <Sect title="The Postmodern Revolution" accent={TEAL}>
+            <Card accent={TEAL}>
+              <Insight text="Academic analysis from the Journal of Literature and Art Studies confirms Madonna used postmodern strategies to challenge foundational truths of sex and gender, promote gender deconstruction, create political sites of resistance, and question Catholic dissociation between the physical and the divine." color={DIM} />
+              <Insight text="Her interaction with queer subcultures shows rejection of hegemonic heteronormative constructions and results in fluidity through appropriation. From voguing to the Like a Prayer controversy to the American Life anti-war statement, she created what scholars call 'political sites of resistance' within mass pop culture." color={DIM} />
+            </Card>
+          </Sect>
+
+          <Sect title="Fandom in the 2020s" accent={GREEN}>
+            <Card accent={GREEN}>
+              <Pull text="45.2 million monthly Spotify listeners. 10 billion+ total streams. The catalog is undergoing simultaneous institutional consolidation and grassroots rediscovery." color={GREEN} />
+              <div style={{ background: CARD, borderRadius: 8, padding: 16, margin: "16px 0", border: `1px solid ${BORDER}` }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: GREEN, margin: "0 0 10px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>The Generational Map</p>
+                {[
+                  { seg: "Gen Jones (1954-65)", format: "Vinyl/CD collectors", channel: "Reissues, word-of-mouth", mode: "Archival completionism", color: PURPLE },
+                  { seg: "Gen X (1965-80)", format: "Streaming playlists", channel: "Spotify; Celebration Tour", mode: "Nostalgia-driven hits", color: CORAL },
+                  { seg: "Millennials (1981-96)", format: "Streaming primary", channel: "Club/DJ culture", mode: "Event-driven spikes", color: PINK },
+                  { seg: "Gen Z (1997-2012)", format: "Streaming-only", channel: "TikTok algorithm", mode: "Viral deep-catalog exploration", color: TEAL },
+                ].map((s, i) => (
+                  <div key={i} style={{ padding: "8px 0", borderBottom: i < 3 ? `1px solid ${BORDER}` : "none" }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: s.color, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{s.seg}</span>
+                    <div style={{ display: "flex", gap: 16, fontSize: 11, color: MUTED, marginTop: 4 }}>
+                      <span>{s.format}</span><span>{s.channel}</span><span style={{ color: DIM }}>{s.mode}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Insight text="The Celebration Tour (2023-24) grossed $225.4 million across 80 shows, including the largest standalone concert audience in history — 1.6 million at Copacabana Beach. Deep-catalog tracks from Erotica, Bedtime Stories, and Ray of Light are registering all-time peak streaming numbers in 2026, driven by TikTok-originated discovery loops." color={DIM} />
+            </Card>
+          </Sect>
+
+          <Sect title="From the Underground to the Mainstream" accent={Y}>
+            <Card accent={Y}>
+              <Pull text="Every dominant genre in contemporary pop music traces its DNA to underground clubs in the 1970s and 1980s in New York and Chicago. The underground won." color={Y} />
+              <Insight text="Disco Demolition Night (1979) forced the sound underground, where it mutated into house and techno. Frankie Knuckles at The Warehouse gave house music its name. Paradise Garage's 'Saturday Mass' defined garage music. Madonna's debut single was tested on a club dancefloor, signed because a club DJ believed in it." color={DIM} />
+              <Insight text="The current revival: Dua Lipa's Future Nostalgia, Beyonce's Renaissance (dedicated to her late gay uncle Johnny), Chappell Roan's Grammy-winning queer club artistry, Charli xcx's BRAT — each draws directly from the traditions forged in Black gay clubs. The trajectory from David Mancuso's Loft in 1970 to Chappell Roan's Grammy in 2025 is a case study in how marginalised communities built cultural infrastructure that consumed the mainstream." color={DIM} />
+            </Card>
+          </Sect>
+        </>}
+
+        {tab === "comments" && <AudienceCommentsGraph comments={comments} />}
+
+        {tab === "gwi" && <AudienceIntelligence gwiData={gwiData} />}
+
+        {tab === "streetmap" && <StreetArtMap murals={murals} venues={venues} />}
 
         <div style={{ marginTop: 48, paddingTop: 16, borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media × Cultural intelligence</span>
