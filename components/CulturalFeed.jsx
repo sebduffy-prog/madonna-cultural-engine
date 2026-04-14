@@ -419,7 +419,12 @@ export default function CulturalFeed() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
                 {currentFeed.sentiment && (
                   <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
-                    <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, fontFamily: "'Inter Tight', sans-serif" }}>Sentiment</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Inter Tight', sans-serif" }}>Sentiment</div>
+                      {currentFeed.sentiment.method?.startsWith("claude") && (
+                        <span style={{ fontSize: 8, color: TEAL, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif", background: TEAL + "18", padding: "1px 5px", borderRadius: 3 }}>AI</span>
+                      )}
+                    </div>
                     <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
                       <div style={{ width: `${currentFeed.sentiment.positive}%`, background: GREEN }} />
                       <div style={{ width: `${currentFeed.sentiment.neutral}%`, background: MUTED }} />
@@ -430,6 +435,11 @@ export default function CulturalFeed() {
                       <span style={{ color: MUTED }}>{currentFeed.sentiment.neutralCount} neu</span>
                       <span style={{ color: "#EF4444", fontWeight: 600 }}>{currentFeed.sentiment.negativeCount} neg</span>
                     </div>
+                    {currentFeed.sentiment.method?.includes(":") && (
+                      <div style={{ fontSize: 9, color: DIM, fontFamily: "'Inter Tight', sans-serif", marginTop: 6, fontStyle: "italic", lineHeight: 1.4 }}>
+                        {currentFeed.sentiment.method.split(": ").slice(1).join(": ")}
+                      </div>
+                    )}
                   </div>
                 )}
                 <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>

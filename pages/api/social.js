@@ -235,21 +235,71 @@ export default async function handler(req, res) {
     }))
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  // ── Sentiment analysis ──
-  const positive = ["love", "amazing", "incredible", "best", "queen", "icon", "legend", "slay",
-    "masterpiece", "brilliant", "beautiful", "gorgeous", "stunning", "perfect", "obsessed",
-    "iconic", "legendary", "goat", "favorite", "favourite", "blessed", "living for"];
-  const negative = ["hate", "bad", "worst", "overrated", "cringe", "fake", "surgery", "flop",
-    "awful", "terrible", "dead", "finished", "cancelled", "washed", "embarrassing", "desperate"];
+  // ── Sentiment analysis via Claude ──
   let pos = 0, neg = 0, neu = 0;
-  allItems.forEach((item) => {
-    const text = `${item.title} ${item.description}`.toLowerCase();
-    const hasPos = positive.some((w) => text.includes(w));
-    const hasNeg = negative.some((w) => text.includes(w));
-    if (hasPos && !hasNeg) pos++;
-    else if (hasNeg && !hasPos) neg++;
-    else neu++;
-  });
+  let sentimentMethod = "keyword-fallback";
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+  if (anthropicKey && allItems.length > 0) {
+    try {
+      // Build a compact list for Claude to analyse — up to 100 items
+      const batch = allItems.slice(0, 100).map((item, i) => (
+        `${i + 1}. [${item.platform || "web"}] ${item.title}${item.description ? " — " + item.description.slice(0, 150) : ""}`
+      )).join("\n");
+
+      const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 300,
+          system: `You analyse social media mentions about Madonna and return sentiment counts. For each mention, classify as positive (fan love, praise, excitement, nostalgia), negative (criticism, mockery, controversy), or neutral (news reporting, factual, mixed). Return ONLY a JSON object: {"positive":N,"negative":N,"neutral":N,"summary":"one sentence overall read"}`,
+          messages: [{ role: "user", content: `Analyse these ${allItems.length} Madonna mentions from the past week. Here are ${Math.min(allItems.length, 100)} of them:\n\n${batch}` }],
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (aiRes.ok) {
+        const aiData = await aiRes.json();
+        const aiText = aiData.content?.[0]?.text || "";
+        const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          // Scale to full item count if we only sent a sample
+          const scale = allItems.length / Math.min(allItems.length, 100);
+          pos = Math.round((parsed.positive || 0) * scale);
+          neg = Math.round((parsed.negative || 0) * scale);
+          neu = Math.round((parsed.neutral || 0) * scale);
+          sentimentMethod = "claude-ai";
+          // Attach the AI summary
+          if (parsed.summary) sentimentMethod = `claude-ai: ${parsed.summary}`;
+        }
+      }
+    } catch {
+      // Fall through to keyword fallback
+    }
+  }
+
+  // Keyword fallback if Claude wasn't available or failed
+  if (pos === 0 && neg === 0 && neu === 0) {
+    const posWords = ["love", "amazing", "incredible", "best", "queen", "icon", "legend", "slay",
+      "masterpiece", "brilliant", "beautiful", "gorgeous", "stunning", "perfect", "obsessed",
+      "iconic", "legendary", "goat", "favourite", "blessed"];
+    const negWords = ["hate", "bad", "worst", "overrated", "cringe", "fake", "surgery", "flop",
+      "awful", "terrible", "finished", "cancelled", "washed", "embarrassing"];
+    allItems.forEach((item) => {
+      const text = `${item.title} ${item.description}`.toLowerCase();
+      const hasPos = posWords.some((w) => text.includes(w));
+      const hasNeg = negWords.some((w) => text.includes(w));
+      if (hasPos && !hasNeg) pos++;
+      else if (hasNeg && !hasPos) neg++;
+      else neu++;
+    });
+  }
   const total = Math.max(pos + neg + neu, 1);
 
   // ── Cumulative from history ──
@@ -283,6 +333,7 @@ export default async function handler(req, res) {
       positiveCount: pos,
       negativeCount: neg,
       neutralCount: neu,
+      method: sentimentMethod,
     },
   };
 
