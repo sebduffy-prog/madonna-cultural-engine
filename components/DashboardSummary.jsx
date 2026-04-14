@@ -70,7 +70,7 @@ export default function DashboardSummary() {
   const madonnaArticles = (media?.items || []).filter((i) => /madonna/i.test(i.title));
   const totalSocialMentions = social?.metrics?.totalMentions || 0;
   const sentiment = social?.sentiment;
-  const artistPop = spotify?.artist?.popularity;
+  const spotifyTracks = spotify?.topTracks?.length || 0;
   const topTrack = spotify?.topTracks?.[0];
   const aiRecs = ai?.recommendations?.madonna || [];
 
@@ -98,9 +98,9 @@ export default function DashboardSummary() {
           <div style={{ fontSize: 9, color: DIM }}>across all platforms</div>
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
-          <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Spotify popularity</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: GREEN, fontFamily: "'Inter Tight', sans-serif" }}>{artistPop || "---"}</div>
-          <div style={{ fontSize: 9, color: DIM }}>out of 100</div>
+          <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Spotify catalogue</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: GREEN, fontFamily: "'Inter Tight', sans-serif" }}>{spotifyTracks || "---"}</div>
+          <div style={{ fontSize: 9, color: DIM }}>tracks found</div>
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
           <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Sentiment</div>
@@ -196,7 +196,7 @@ export default function DashboardSummary() {
 
         {/* Streaming snapshot */}
         <Panel title="Streaming snapshot" color={GREEN}>
-          {!spotify?.artist || !spotify.artist.popularity ? (
+          {!spotify?.artist ? (
             <p style={{ fontSize: 12, color: MUTED }}>Spotify not connected or no data yet. Check the Streaming tab.</p>
           ) : (
             <>
@@ -204,7 +204,7 @@ export default function DashboardSummary() {
                 {spotify.artist.image && <img src={spotify.artist.imageSmall || spotify.artist.image} alt="" style={{ width: 40, height: 40, borderRadius: "50%" }} />}
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: WHITE }}>{spotify.artist.name}</div>
-                  <div style={{ fontSize: 10, color: DIM }}>Popularity: {spotify.artist.popularity} / Followers: {(spotify.artist.followers / 1e6).toFixed(1)}M</div>
+                  <div style={{ fontSize: 10, color: DIM }}>{spotify.topTracks?.length || 0} tracks \u00B7 {spotify.relatedArtists?.length || 0} connected artists</div>
                 </div>
               </div>
               {spotify.topTracks?.length > 0 && (

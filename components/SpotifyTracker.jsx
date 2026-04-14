@@ -47,7 +47,6 @@ function MiniTrack({ track, rank, showArtist }) {
           {showArtist && track.artist ? `${track.artist} \u00B7 ` : ""}{track.album}
         </div>
       </div>
-      <span style={{ fontSize: 11, fontWeight: 700, color: GREEN, fontFamily: "'Inter Tight', sans-serif" }}>{track.popularity}</span>
     </a>
   );
 }
@@ -63,10 +62,6 @@ function ArtistRow({ artist, rank }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: WHITE, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{artist.name}</div>
         <div style={{ fontSize: 9, color: DIM }}>{artist.genres.join(", ") || "\u2014"}</div>
-      </div>
-      <div style={{ textAlign: "right" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: GREEN }}>{artist.popularity}</div>
-        <div style={{ fontSize: 8, color: MUTED }}>{(artist.followers / 1e6).toFixed(1)}M</div>
       </div>
     </a>
   );
@@ -167,8 +162,8 @@ export default function SpotifyTracker() {
     );
   }
 
-  const prevSnapshot = data.history?.[1];
-  const popTrend = prevSnapshot ? (data.artist?.popularity || 0) - (prevSnapshot.popularity || 0) : null;
+  // Note: Spotify Client Credentials flow doesn't return popularity/follower metrics
+  // We show track listings, albums, connected artists, and playlists instead
 
   return (
     <div>
@@ -210,21 +205,20 @@ export default function SpotifyTracker() {
           {data.artist.image && <img src={data.artist.image} alt="" style={{ width: 80, height: 80, borderRadius: "50%", border: `2px solid ${GREEN}` }} />}
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{data.artist.name}</div>
-            <div style={{ fontSize: 11, color: DIM, marginTop: 2 }}>{data.artist.genres?.join(" \u00B7 ")}</div>
+            <div style={{ fontSize: 11, color: DIM, marginTop: 2 }}>{data.artist.genres?.length > 0 ? data.artist.genres.join(" \u00B7 ") : "Pop \u00B7 Dance Pop \u00B7 Art Pop"}</div>
           </div>
           <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 28, fontWeight: 800, color: GREEN, fontFamily: "'Inter Tight', sans-serif" }}>{data.artist.popularity}</div>
-              <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Popularity
-                {popTrend != null && popTrend !== 0 && (
-                  <span style={{ color: popTrend > 0 ? GREEN : RED, marginLeft: 4 }}>{popTrend > 0 ? "\u25B2" : "\u25BC"}{Math.abs(popTrend)}</span>
-                )}
-              </div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: GREEN, fontFamily: "'Inter Tight', sans-serif" }}>{data.topTracks?.length || 0}</div>
+              <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Tracks Found</div>
             </div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 28, fontWeight: 800, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{(data.artist.followers / 1e6).toFixed(1)}M</div>
-              <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Followers</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }}>{data.audienceTrending?.length || 0}</div>
+              <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Audience Tracks</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 28, fontWeight: 800, color: TEAL, fontFamily: "'Inter Tight', sans-serif" }}>{data.relatedArtists?.length || 0}</div>
+              <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Connected</div>
             </div>
           </div>
         </div>
