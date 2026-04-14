@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/weekly-intelligence",
+      "schedule": "5 14 * * 2"
+    }
+  ]
+}

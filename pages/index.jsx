@@ -7,6 +7,8 @@ const StreetArtMap = dynamic(() => import("../components/StreetArtMap"), { ssr: 
 const AudienceCommentsGraph = dynamic(() => import("../components/AudienceCommentsGraph"), { ssr: false });
 const AudienceIntelligence = dynamic(() => import("../components/AudienceIntelligence"), { ssr: false });
 const CulturalFeed = dynamic(() => import("../components/CulturalFeed"), { ssr: false });
+const SpotifyTracker = dynamic(() => import("../components/SpotifyTracker"), { ssr: false });
+const MentionsTicker = dynamic(() => import("../components/MentionsTicker"), { ssr: false });
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
@@ -275,7 +277,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Newsreader', 'Georgia', serif", color: WHITE }}>
-      <div style={{ maxWidth: ["comments","gwi","streetmap","culturalfeed"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
+      <div style={{ maxWidth: ["comments","gwi","streetmap","culturalfeed","spotify"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCPm cultural intelligence</span>
@@ -283,6 +285,8 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, lineHeight: 1.1, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Madonna</h1>
         <p style={{ fontSize: 15, color: MUTED, margin: "0 0 4px", fontStyle: "italic" }}>The original. Not the comeback.</p>
         <div style={{ height: 3, background: Y, borderRadius: 2, margin: "16px 0 24px" }} />
+
+        <MentionsTicker />
 
         <div style={{ display: "flex", gap: 6, marginBottom: 32, flexWrap: "wrap" }}>
           {[
@@ -297,6 +301,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "gwi", label: "Audience intelligence" },
             { id: "streetmap", label: "Street art map" },
             { id: "culturalfeed", label: "Cultural feed" },
+            { id: "spotify", label: "Streaming intelligence" },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 400,
@@ -854,6 +859,8 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         {tab === "streetmap" && <StreetArtMap murals={murals} venues={venues} />}
 
         {tab === "culturalfeed" && <CulturalFeed />}
+
+        {tab === "spotify" && <SpotifyTracker />}
 
         <div style={{ marginTop: 48, paddingTop: 16, borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media × Cultural intelligence</span>

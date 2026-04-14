@@ -16,6 +16,7 @@ const CORAL = "#FB923C";
 
 const TABS = [
   { id: "madonna", label: "Madonna", color: Y, icon: "\u2605" },
+  { id: "social", label: "Social Pulse", color: PURPLE, icon: "\u25CF" },
   { id: "fashion", label: "Fashion", color: PINK, icon: "\u2666" },
   { id: "gay", label: "Gay Community", color: TEAL, icon: "\u2665" },
   { id: "culture", label: "General Cultural", color: AMBER, icon: "\u266B" },
@@ -206,13 +207,26 @@ export default function CulturalFeed() {
   const [feeds, setFeeds] = useState({});
   const [loading, setLoading] = useState({});
   const [errors, setErrors] = useState({});
+  const [aiRecs, setAiRecs] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  // Load AI recommendations on mount
+  useEffect(() => {
+    fetch("/api/ai-strategy")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.recommendations) setAiRecs(data); })
+      .catch(() => {});
+  }, []);
 
   const fetchFeed = useCallback(async (category) => {
     setLoading((prev) => ({ ...prev, [category]: true }));
     setErrors((prev) => ({ ...prev, [category]: null }));
     try {
-      // Always pass refresh=1 because we only fetch when explicitly asked
-      const res = await fetch(`/api/news?category=${category}&refresh=1`);
+      // Social tab uses its own API endpoint
+      const url = category === "social"
+        ? "/api/social?refresh=1"
+        : `/api/news?category=${category}&refresh=1`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setFeeds((prev) => ({ ...prev, [category]: data }));
@@ -232,7 +246,7 @@ export default function CulturalFeed() {
     if (!feeds[activeTab] && !loading[activeTab] && !errors[activeTab]) {
       // Try to load from server cache only (no refresh flag)
       setLoading((prev) => ({ ...prev, [activeTab]: true }));
-      fetch(`/api/news?category=${activeTab}`)
+      fetch(activeTab === "social" ? "/api/social" : `/api/news?category=${activeTab}`)
         .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
         .then((data) => setFeeds((prev) => ({ ...prev, [activeTab]: data })))
         .catch(() => { /* No cached data - that's fine, user can hit New Search */ })
@@ -244,7 +258,9 @@ export default function CulturalFeed() {
   const isLoading = loading[activeTab];
   const error = errors[activeTab];
   const tabDef = TABS.find((t) => t.id === activeTab);
-  const recs = RECOMMENDATIONS[activeTab] || [];
+  // Use AI recommendations if available, fall back to hardcoded
+  const tabKey = activeTab === "social" ? "madonna" : activeTab;
+  const recs = (aiRecs?.recommendations?.[tabKey]) || RECOMMENDATIONS[tabKey] || [];
 
   return (
     <div style={{ background: BG, borderRadius: 12 }}>
@@ -294,13 +310,16 @@ export default function CulturalFeed() {
               textTransform: "uppercase", letterSpacing: "0.04em",
               fontFamily: "'Inter Tight', sans-serif",
             }}>
-              {activeTab === "madonna" ? "All Madonna coverage" : `Latest from ${tabDef.label}`}
+              {activeTab === "madonna" ? "All Madonna coverage" : activeTab === "social" ? "Madonna across social platforms" : `Latest from ${tabDef.label}`}
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {currentFeed && (
               <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
-                {currentFeed.items.length} results {currentFeed.cachedAt ? `\u00B7 updated ${new Date(currentFeed.cachedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}
+                {activeTab === "social"
+                  ? `${currentFeed.sentiment?.total || 0} mentions`
+                  : `${currentFeed.items?.length || 0} results`}
+                {(currentFeed.cachedAt || currentFeed.fetchedAt) ? ` \u00B7 updated ${new Date(currentFeed.cachedAt || currentFeed.fetchedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}
               </span>
             )}
             <button
@@ -372,7 +391,48 @@ export default function CulturalFeed() {
           </div>
         )}
 
-        {currentFeed && !isLoading && (
+        {currentFeed && !isLoading && activeTab === "social" && (
+          <>
+            {/* Sentiment bar */}
+            {currentFeed.sentiment && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", gap: 12, marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: GREEN, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>Positive {currentFeed.sentiment.positive}%</span>
+                  <span style={{ fontSize: 11, color: MUTED, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>Neutral {currentFeed.sentiment.neutral}%</span>
+                  <span style={{ fontSize: 11, color: "#EF4444", fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>Negative {currentFeed.sentiment.negative}%</span>
+                </div>
+                <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{ width: `${currentFeed.sentiment.positive}%`, background: GREEN }} />
+                  <div style={{ width: `${currentFeed.sentiment.neutral}%`, background: MUTED }} />
+                  <div style={{ width: `${currentFeed.sentiment.negative}%`, background: "#EF4444" }} />
+                </div>
+              </div>
+            )}
+            {/* Platform sections */}
+            {(currentFeed.platforms || []).map((platform) => (
+              <div key={platform.id} style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    width: 20, height: 20, borderRadius: 4, background: PURPLE, color: BG,
+                    fontSize: 10, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif",
+                  }}>{platform.icon}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{platform.label}</span>
+                  <span style={{ fontSize: 10, color: MUTED }}>{platform.items.length} mentions</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 300, overflowY: "auto" }}>
+                  {platform.items.length === 0 ? (
+                    <p style={{ color: MUTED, fontSize: 12, padding: "8px 0" }}>No recent mentions found.</p>
+                  ) : (
+                    platform.items.map((item, i) => <FeedCard key={item.url || i} item={item} />)
+                  )}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {currentFeed && !isLoading && activeTab !== "social" && (
           <>
             {!currentFeed.hasBraveKey && (
               <div style={{
@@ -384,8 +444,8 @@ export default function CulturalFeed() {
               </div>
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: activeTab === "madonna" ? 800 : 600, overflowY: "auto" }}>
-              {currentFeed.items.length === 0 ? (
-                <p style={{ color: MUTED, fontSize: 13, padding: 20 }}>No Madonna mentions found in current feeds. Try New Search or check back after the weekly search runs Tuesday 14:05.</p>
+              {(currentFeed.items || []).length === 0 ? (
+                <p style={{ color: MUTED, fontSize: 13, padding: 20 }}>No results found. Try New Search or check back after the weekly search runs Tuesday 14:05.</p>
               ) : (
                 currentFeed.items.map((item, i) => <FeedCard key={item.url || i} item={item} />)
               )}
@@ -396,18 +456,44 @@ export default function CulturalFeed() {
 
       {/* Strategic Recommendations */}
       <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <div style={{ width: 2, height: 14, background: Y, borderRadius: 1 }} />
-          <span style={{
-            fontSize: 12, fontWeight: 600, color: Y,
-            textTransform: "uppercase", letterSpacing: "0.04em",
-            fontFamily: "'Inter Tight', sans-serif",
-          }}>
-            Madonna: Strategic Recommendations
-          </span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 2, height: 14, background: Y, borderRadius: 1 }} />
+            <span style={{
+              fontSize: 12, fontWeight: 600, color: Y,
+              textTransform: "uppercase", letterSpacing: "0.04em",
+              fontFamily: "'Inter Tight', sans-serif",
+            }}>
+              Madonna: Strategic Recommendations
+            </span>
+            {aiRecs?.generatedAt && (
+              <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
+                AI-generated {new Date(aiRecs.generatedAt).toLocaleDateString("en-GB")}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={async () => {
+              setAiLoading(true);
+              try {
+                const r = await fetch("/api/ai-strategy?refresh=1");
+                if (r.ok) { const d = await r.json(); if (d.recommendations) setAiRecs(d); }
+              } catch { /* ignore */ }
+              setAiLoading(false);
+            }}
+            disabled={aiLoading}
+            style={{
+              padding: "4px 12px", fontSize: 11, fontWeight: 600,
+              color: aiLoading ? MUTED : BG, background: aiLoading ? BORDER : CORAL,
+              border: "none", borderRadius: 5, cursor: aiLoading ? "default" : "pointer",
+              fontFamily: "'Inter Tight', sans-serif",
+            }}
+          >
+            {aiLoading ? "Generating..." : "Generate AI Recommendations"}
+          </button>
         </div>
         <p style={{ fontSize: 13, color: DIM, margin: "0 0 12px", lineHeight: 1.5, fontStyle: "italic" }}>
-          What could Madonna do right now to own this space?
+          {aiRecs?.recommendations ? "AI-generated based on this week's intelligence data." : "What could Madonna do right now to own this space?"}
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {recs.map((rec, i) => (
