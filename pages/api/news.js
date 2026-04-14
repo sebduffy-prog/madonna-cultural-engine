@@ -280,15 +280,6 @@ export default async function handler(req, res) {
   let allRss = rssResults.flat();
   const allBrave = braveResults.flat();
 
-  // Madonna tab: prioritise Madonna-specific, but always include all if few found
-  if (category === "madonna") {
-    const matched = allRss.filter((item) => {
-      const text = `${item.title} ${item.description}`.toLowerCase();
-      return text.includes("madonna");
-    });
-    allRss = matched.length >= 5 ? matched : [...matched, ...allRss.filter(item => !matched.includes(item))];
-  }
-
   // Deduplicate by URL
   const seen = new Set();
   const combined = [...allBrave, ...allRss].filter((item) => {
@@ -297,22 +288,43 @@ export default async function handler(req, res) {
     return true;
   });
 
-  // Sort by date (newest first)
-  combined.sort((a, b) => {
-    const da = a.date ? new Date(a.date).getTime() : 0;
-    const db = b.date ? new Date(b.date).getTime() : 0;
-    if (da && db) return db - da;
-    if (da) return -1;
-    if (db) return 1;
-    return 0;
-  });
+  // Madonna tab: rank by relevance — title mentions first, then description, then rest
+  if (category === "madonna") {
+    combined.forEach((item) => {
+      const titleHas = /madonna/i.test(item.title || "");
+      const descHas = /madonna/i.test(item.description || "");
+      // 0 = Madonna in title, 1 = Madonna in description only, 2 = no mention
+      item._rank = titleHas ? 0 : descHas ? 1 : 2;
+    });
+    combined.sort((a, b) => {
+      // Primary: relevance rank
+      if (a._rank !== b._rank) return a._rank - b._rank;
+      // Secondary: date (newest first)
+      const da = a.date ? new Date(a.date).getTime() : 0;
+      const db = b.date ? new Date(b.date).getTime() : 0;
+      if (da && db) return db - da;
+      if (da) return -1;
+      if (db) return 1;
+      return 0;
+    });
+  } else {
+    // Other tabs: sort by date only
+    combined.sort((a, b) => {
+      const da = a.date ? new Date(a.date).getTime() : 0;
+      const db = b.date ? new Date(b.date).getTime() : 0;
+      if (da && db) return db - da;
+      if (da) return -1;
+      if (db) return 1;
+      return 0;
+    });
+  }
 
   const maxItems = category === "madonna" ? 100 : 60;
 
   const result = {
     category,
     hasBraveKey: !!apiKey,
-    items: combined.slice(0, maxItems),
+    items: combined.slice(0, maxItems).map(({ _rank, ...item }) => item),
     totalFound: combined.length,
     braveResults: allBrave.length,
     rssResults: allRss.length,

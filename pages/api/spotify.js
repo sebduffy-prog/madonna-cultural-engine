@@ -86,47 +86,61 @@ export default async function handler(req, res) {
     return res.status(200).json({ hasCredentials: false, error: tokenError || "Auth failed" });
   }
 
-  // Try direct artist endpoint first (known Madonna Spotify ID), fall back to search
-  const MADONNA_ID = "6tbjWDEIzxTsHi1PYOhLWV";
+  // Find Madonna via search (with retry for 429 rate limits)
   let madonnaArtist = null;
   let debugInfo = {};
 
-  // Attempt 1: direct artist lookup
-  const artistDirect = await spotifyFetch(`/artists/${MADONNA_ID}`, token, true);
-  if (artistDirect && !artistDirect._error) {
-    madonnaArtist = artistDirect;
-    debugInfo.artistEndpoint = "OK";
-  } else {
-    debugInfo.artistEndpoint = artistDirect?._error ? `${artistDirect.status} ${artistDirect.statusText}` : "null";
-  }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 2000 * attempt)); // back off on retry
 
-  // Attempt 2: search
-  if (!madonnaArtist) {
     const artistSearch = await spotifyFetch(`/search?q=Madonna&type=artist&limit=10`, token, true);
     if (artistSearch && !artistSearch._error) {
       madonnaArtist = artistSearch.artists?.items?.find(a =>
-        a.name.toLowerCase() === "madonna" || a.id === MADONNA_ID
+        a.name.toLowerCase() === "madonna"
       );
-      debugInfo.searchEndpoint = madonnaArtist ? "OK" : `no match in ${artistSearch.artists?.items?.length || 0} results`;
+      if (madonnaArtist) {
+        debugInfo.searchEndpoint = "OK";
+        debugInfo.artistId = madonnaArtist.id;
+        debugInfo.attempt = attempt + 1;
+        break;
+      }
+      debugInfo.searchEndpoint = `no match in ${artistSearch.artists?.items?.length || 0} results`;
+      break; // search worked but no match — don't retry
+    } else if (artistSearch?.status === 429) {
+      debugInfo.searchEndpoint = `429 rate limited (attempt ${attempt + 1}/3)`;
+      continue; // retry after backoff
     } else {
       debugInfo.searchEndpoint = artistSearch?._error ? `${artistSearch.status} ${artistSearch.statusText}` : "null";
+      break; // non-retryable error
     }
   }
 
+  // If search failed, try direct artist lookup with known ID
   if (!madonnaArtist) {
-    // Build actionable error message from what we learned
-    const status = artistDirect?.status || 0;
+    const KNOWN_IDS = ["6tbjWDEIzxTsHi1PYOhLWV", "25u4wHJWxCA9vO0CzxMzNm", "058LBJlQF2fSoJKJuFpcaO"];
+    for (const id of KNOWN_IDS) {
+      const direct = await spotifyFetch(`/artists/${id}`, token, true);
+      if (direct && !direct._error && direct.name?.toLowerCase() === "madonna") {
+        madonnaArtist = direct;
+        debugInfo.artistEndpoint = `OK (${id})`;
+        break;
+      }
+    }
+    if (!madonnaArtist) debugInfo.artistEndpoint = "all known IDs failed";
+  }
+
+  if (!madonnaArtist) {
+    const searchStatus = parseInt(debugInfo.searchEndpoint) || 0;
     let advice = "Check your Spotify Developer Dashboard at developer.spotify.com/dashboard.";
-    if (status === 401) advice = "Your Client ID or Secret is invalid. Regenerate the secret in your Spotify app settings.";
-    else if (status === 403) advice = "Your Spotify app may need Extended Quota Mode. Go to developer.spotify.com/dashboard, select your app, and request Extended Quota.";
-    else if (status === 429) advice = "Rate limited by Spotify. Wait a few minutes and retry.";
+    if (searchStatus === 401) advice = "Your Client ID or Secret is invalid. Regenerate the secret in your Spotify app settings.";
+    else if (searchStatus === 403) advice = "Your Spotify app needs Web API access. Go to developer.spotify.com/dashboard, select your app, check Settings > Web API is enabled.";
+    else if (searchStatus === 429) advice = "Rate limited by Spotify after 3 retries. Wait a few minutes and hit Retry.";
 
     return res.status(200).json({
       hasCredentials: true, artist: null,
       debug: {
         error: "Could not connect to Spotify API",
         testError: advice,
-        testStatus: status,
         ...debugInfo,
         tokenObtained: !!token,
         clientIdPrefix: clientId.slice(0, 8) + "...",
