@@ -220,12 +220,18 @@ export default function CulturalFeed() {
   const [errors, setErrors] = useState({});
   const [aiRecs, setAiRecs] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [mediaIndex, setMediaIndex] = useState(null);
+  const [mediaIndexLoading, setMediaIndexLoading] = useState(false);
 
-  // Load AI recommendations on mount
+  // Load AI recommendations + media index on mount
   useEffect(() => {
     fetch("/api/ai-strategy")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data?.recommendations) setAiRecs(data); })
+      .catch(() => {});
+    fetch("/api/media-index")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setMediaIndex(data); })
       .catch(() => {});
   }, []);
 
@@ -284,6 +290,102 @@ export default function CulturalFeed() {
 
   return (
     <div style={{ background: BG, borderRadius: 12 }}>
+      {/* Media Trend Index */}
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "16px 20px", marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 3, height: 18, background: Y, borderRadius: 2 }} />
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase", margin: 0, fontFamily: "'Inter Tight', sans-serif" }}>
+              Media Trend Index
+            </h2>
+            {mediaIndex?.baselineDate && (
+              <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
+                vs {new Date(mediaIndex.baselineDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} baseline
+              </span>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {mediaIndex && (
+              <span style={{ fontSize: 9, color: DIM, fontFamily: "'Inter Tight', sans-serif" }}>
+                {mediaIndex.feedSize || 0} in feed{mediaIndex.newItems > 0 ? ` \u00B7 ${mediaIndex.newItems} new` : ""}
+              </span>
+            )}
+            <button
+              onClick={async () => {
+                setMediaIndexLoading(true);
+                try {
+                  const r = await fetch("/api/media-index?refresh=1");
+                  if (r.ok) setMediaIndex(await r.json());
+                } catch {}
+                setMediaIndexLoading(false);
+              }}
+              disabled={mediaIndexLoading}
+              style={{
+                padding: "4px 12px", fontSize: 10, fontWeight: 600,
+                color: mediaIndexLoading ? MUTED : BG, background: mediaIndexLoading ? BORDER : Y,
+                border: "none", borderRadius: 4, cursor: mediaIndexLoading ? "default" : "pointer",
+                fontFamily: "'Inter Tight', sans-serif",
+              }}
+            >{mediaIndexLoading ? "Searching..." : "Search"}</button>
+          </div>
+        </div>
+
+        {mediaIndex ? (
+          <>
+            {/* Index hero + query breakdown */}
+            <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 12 }}>
+              <div>
+                <div style={{
+                  fontSize: 42, fontWeight: 800, fontFamily: "'Inter Tight', sans-serif",
+                  color: mediaIndex.isFirstRun ? MUTED : mediaIndex.index > 0 ? GREEN : mediaIndex.index < 0 ? "#EF4444" : WHITE,
+                }}>
+                  {mediaIndex.isFirstRun ? "BASELINE" : `${mediaIndex.index > 0 ? "+" : ""}${mediaIndex.index}%`}
+                </div>
+                <div style={{ fontSize: 10, color: DIM, fontFamily: "'Inter Tight', sans-serif" }}>
+                  {mediaIndex.isFirstRun ? "Baseline set — next search shows change" : `${mediaIndex.totalToday} today vs ${mediaIndex.totalBaseline} baseline`}
+                </div>
+              </div>
+              <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {(mediaIndex.queryScores || []).map((q) => (
+                  <div key={q.label} style={{
+                    background: BG, border: `1px solid ${BORDER}`, borderRadius: 5, padding: "4px 10px",
+                    fontSize: 10, fontFamily: "'Inter Tight', sans-serif",
+                  }}>
+                    <span style={{ color: DIM }}>{q.label} </span>
+                    <span style={{
+                      fontWeight: 700,
+                      color: mediaIndex.isFirstRun ? MUTED : q.pctChange > 0 ? GREEN : q.pctChange < 0 ? "#EF4444" : WHITE,
+                    }}>
+                      {mediaIndex.isFirstRun ? q.todayCount : `${q.pctChange > 0 ? "+" : ""}${q.pctChange}%`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Sentiment bar */}
+            {mediaIndex.sentiment && (
+              <div>
+                <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 4 }}>
+                  <div style={{ width: `${mediaIndex.sentiment.positive}%`, background: GREEN }} />
+                  <div style={{ width: `${mediaIndex.sentiment.neutral}%`, background: MUTED }} />
+                  <div style={{ width: `${mediaIndex.sentiment.negative}%`, background: "#EF4444" }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, fontFamily: "'Inter Tight', sans-serif" }}>
+                  <span style={{ color: GREEN }}>{mediaIndex.sentiment.positive}% positive</span>
+                  {mediaIndex.sentiment.method?.includes(":") && (
+                    <span style={{ color: DIM, fontStyle: "italic" }}>{mediaIndex.sentiment.method.split(": ").slice(1).join(": ")}</span>
+                  )}
+                  <span style={{ color: "#EF4444" }}>{mediaIndex.sentiment.negative}% negative</span>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ color: MUTED, fontSize: 12, padding: "8px 0" }}>Hit Search to set the baseline and start tracking.</div>
+        )}
+      </div>
+
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <div style={{ width: 3, height: 18, background: Y, borderRadius: 2 }} />

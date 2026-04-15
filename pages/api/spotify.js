@@ -74,7 +74,12 @@ export default async function handler(req, res) {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
-    return res.status(200).json({ hasCredentials: false, error: "Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to .env.local" });
+    console.error("[spotify] Missing credentials:", { hasClientId: !!clientId, hasClientSecret: !!clientSecret });
+    return res.status(200).json({
+      hasCredentials: false,
+      error: "Spotify credentials missing. Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to Vercel Environment Variables (Settings → Environment Variables).",
+      debug: { hasClientId: !!clientId, hasClientSecret: !!clientSecret },
+    });
   }
 
   const token = await getToken();
