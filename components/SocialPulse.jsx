@@ -145,7 +145,7 @@ export default function SocialPulse() {
         <span style={{ fontSize: 11, color: MUTED }}>Trend index vs {data?.baselineDate ? new Date(data.baselineDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "14 Apr"} baseline</span>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 9, color: DIM, fontFamily: "'Inter Tight', sans-serif" }}>
-            {data.history?.length || 0} days tracked
+            {data.feedSize || 0} in feed{data.newItems > 0 ? ` · ${data.newItems} new` : ""} · {data.history?.length || 0} days
           </span>
           <button onClick={() => fetchData(true)} disabled={loading} style={{
             padding: "4px 12px", fontSize: 10, fontWeight: 600,

@@ -223,13 +223,16 @@ export default async function handler(req, res) {
     p.avgChange = p.baselineTotal > 0 && !isFirstRun
       ? Math.round(((p.todayTotal - p.baselineTotal) / p.baselineTotal) * 1000) / 10
       : 0;
-    // Dedup items
+    // Dedup today's items for count accuracy
     const seen = new Set();
     p.items = p.items.filter((item) => {
       if (!item.url || seen.has(item.url)) return false;
       seen.add(item.url);
       return true;
-    }).slice(0, 25);
+    });
+    p.todayItems = p.items.length;
+    // Trim for response
+    p.items = p.items.slice(0, 25);
     return p;
   });
 
@@ -240,13 +243,33 @@ export default async function handler(req, res) {
     ? Math.round(((totalToday - totalBaseline) / totalBaseline) * 1000) / 10
     : 0;
 
-  // Dedup all items
+  // Dedup today's items
   const seenAll = new Set();
-  const uniqueItems = allItems.filter((item) => {
+  const todaysItems = allItems.filter((item) => {
     if (!item.url || seenAll.has(item.url)) return false;
     seenAll.add(item.url);
     return true;
   });
+
+  // ── Persistent feed pool: always 100 items, newest at top ──
+  const FEED_KEY = "social_feed_pool";
+  const MAX_FEED = 100;
+  let feedPool = await kvGet(FEED_KEY) || [];
+
+  // Add new items to the top (ones not already in the pool)
+  const poolUrls = new Set(feedPool.map((i) => i.url));
+  const newItems = todaysItems.filter((i) => i.url && !poolUrls.has(i.url));
+  feedPool = [...newItems, ...feedPool];
+
+  // Cap at 100 — oldest items drop off the bottom
+  if (feedPool.length > MAX_FEED) {
+    feedPool = feedPool.slice(0, MAX_FEED);
+  }
+
+  // Persist the pool
+  await kvSet(FEED_KEY, feedPool);
+
+  const uniqueItems = feedPool;
 
   // ── AI Sentiment ──
   let pos = 0, neg = 0, neu = 0;
@@ -312,8 +335,10 @@ export default async function handler(req, res) {
     totalBaseline,
     platforms: platformList,
     queryScores,
-    totalSources: uniqueItems.length,
-    items: uniqueItems.slice(0, 30),
+    totalSources: todaysItems.length,
+    newItems: newItems.length,
+    feedSize: feedPool.length,
+    items: feedPool.slice(0, 30),
     sentiment: {
       positive: Math.round((pos / sentTotal) * 100),
       negative: Math.round((neg / sentTotal) * 100),
