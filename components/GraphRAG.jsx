@@ -62,7 +62,6 @@ function CommentBubble({ comment, themeColor }) {
 export default function GraphRAG() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState("updating");
   const [activeTheme, setActiveTheme] = useState(null);
 
   const fetchData = useCallback(async (refresh = false) => {
@@ -84,15 +83,11 @@ export default function GraphRAG() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 3, height: 18, background: RED, borderRadius: 2 }} />
-          <h2 style={{ fontSize: 14, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase", margin: 0, fontFamily: "'Inter Tight', sans-serif" }}>
-            Graph RAG
-          </h2>
-          <span style={{ fontSize: 11, color: MUTED }}>YouTube intelligence</span>
-        </div>
+      {/* Action buttons */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <span style={{ fontSize: 11, color: MUTED }}>
+          {data ? `${data.totalComments?.toLocaleString() || 0} comments in RAG · ${data.totalVideos || 0} videos tracked` : "Hit Search to scan YouTube"}
+        </span>
         <div style={{ display: "flex", gap: 6 }}>
           <button onClick={async () => {
             setLoading(true);
@@ -116,23 +111,7 @@ export default function GraphRAG() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-        {[
-          { id: "updating", label: "New & Viral" },
-          { id: "catalogue", label: "Catalogue (100K comments)" },
-        ].map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
-            padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 400,
-            color: tab === t.id ? BG : DIM,
-            background: tab === t.id ? RED : "transparent",
-            border: tab === t.id ? "none" : `1px solid ${BORDER}`,
-            borderRadius: 6, cursor: "pointer", fontFamily: "'Inter Tight', sans-serif",
-          }}>{t.label}</button>
-        ))}
-      </div>
-
-      {tab === "updating" && (
+      {(
         <>
           {/* Stats row */}
           {data && (
@@ -226,15 +205,6 @@ export default function GraphRAG() {
         </>
       )}
 
-      {tab === "catalogue" && (
-        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "24px", textAlign: "center" }}>
-          <p style={{ fontSize: 16, color: WHITE, margin: "0 0 8px", fontFamily: "'Inter Tight', sans-serif", fontWeight: 700 }}>100,000+ Catalogue Comments</p>
-          <p style={{ fontSize: 12, color: MUTED, margin: "0 0 4px", lineHeight: 1.5 }}>
-            Pre-loaded from Madonna's YouTube channel. Videos with 20M+ views, 2000+ comments sampled per video.
-            This is the permanent reference dataset. The "New & Viral" tab adds fresh comments as they appear.
-          </p>
-        </div>
-      )}
     </div>
   );
 }

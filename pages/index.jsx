@@ -13,6 +13,7 @@ const DashboardSummary = dynamic(() => import("../components/DashboardSummary"),
 const MentionsTicker = dynamic(() => import("../components/MentionsTicker"), { ssr: false });
 const StrategyRecommendations = dynamic(() => import("../components/StrategyRecommendations"), { ssr: false });
 const GraphRAG = dynamic(() => import("../components/GraphRAG"), { ssr: false });
+const YouTubeIntelligence = dynamic(() => import("../components/YouTubeIntelligence"), { ssr: false });
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
@@ -281,7 +282,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Newsreader', 'Georgia', serif", color: WHITE }}>
-      <div style={{ maxWidth: ["comments","gwi","streetmap","culturalfeed","socialpulse","spotify","dashboard","strategy","graphrag"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
+      <div style={{ maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","spotify","dashboard","strategy"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCPm cultural intelligence</span>
@@ -298,10 +299,9 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "culturalfeed", label: "Media" },
             { id: "socialpulse", label: "Social listening" },
             { id: "spotify", label: "Streaming" },
-            { id: "comments", label: "YouTube comments" },
+            { id: "youtube", label: "YouTube" },
             { id: "gwi", label: "Audience" },
             { id: "streetmap", label: "Locations" },
-            { id: "graphrag", label: "Graph RAG" },
             { id: "strategy", label: "Strategy" },
             { id: "audiences", label: "Audience strategy" },
             { id: "territories", label: "Territories" },
@@ -861,7 +861,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
           </Sect>
         </>}
 
-        {tab === "comments" && <AudienceCommentsGraph comments={comments} fullThemeCounts={fullThemeCounts} totalCommentCount={totalCommentCount} />}
+        {tab === "youtube" && <YouTubeIntelligence comments={comments} fullThemeCounts={fullThemeCounts} totalCommentCount={totalCommentCount} />}
 
         {tab === "gwi" && <AudienceIntelligence gwiData={gwiData} />}
 
@@ -870,7 +870,6 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         {tab === "culturalfeed" && <CulturalFeed />}
 
         {tab === "socialpulse" && <SocialPulse />}
-        {tab === "graphrag" && <GraphRAG />}
         {tab === "strategy" && <StrategyRecommendations />}
 
         {tab === "spotify" && <SpotifyTracker />}
