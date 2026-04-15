@@ -214,11 +214,16 @@ export default async function handler(req, res) {
     return true;
   });
 
-  // Step 2: Stats (~30 units)
-  const ids = unique.map((v) => v.id.videoId).join(",");
-  const stats = ids ? await ytGet(`/videos?part=statistics,snippet&id=${ids}`, apiKey) : null;
+  // Step 2: Stats — batch in chunks of 50 (YouTube API limit)
+  const allVideoIds = unique.map((v) => v.id.videoId);
+  const statsItems = [];
+  for (let i = 0; i < allVideoIds.length; i += 50) {
+    const chunk = allVideoIds.slice(i, i + 50).join(",");
+    const batch = await ytGet(`/videos?part=statistics,snippet&id=${chunk}`, apiKey);
+    if (batch?.items) statsItems.push(...batch.items);
+  }
 
-  const videos = (stats?.items || []).map((v) => ({
+  const videos = statsItems.map((v) => ({
     id: v.id, title: v.snippet.title, channel: v.snippet.channelTitle,
     publishedAt: v.snippet.publishedAt,
     description: (v.snippet.description || "").slice(0, 300),

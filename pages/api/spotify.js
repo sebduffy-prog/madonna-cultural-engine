@@ -100,28 +100,35 @@ export default async function handler(req, res) {
     });
   }
 
-  // ── Call 2: Top tracks (proper endpoint, not search) ──
-  await delay(300);
+  // ── Call 2: Top tracks ──
+  await delay(500);
   const topTracksData = await spGet(`/artists/${MADONNA_ID}/top-tracks?market=GB`, token);
 
-  // ── Call 3: Search playlists (separate call for playlist discovery) ──
-  await delay(300);
+  // ── Call 3: Search playlists ──
+  await delay(500);
   const playlistSearch = await spGet("/search?q=Madonna&type=playlist&limit=15&market=GB", token);
 
-  // ── Call 4+5: Albums (two pages) ──
-  await delay(300);
-  const [albums, albums2] = await Promise.all([
-    spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=20&offset=0`, token),
-    spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=20&offset=20`, token),
-  ]);
+  // ── Call 4: Albums page 1 ──
+  await delay(500);
+  const albums = await spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=20&offset=0`, token);
 
-  // ── Call 6: Related artists ──
-  await delay(300);
-  const relatedData = await spGet(`/artists/${MADONNA_ID}/related-artists`, token);
+  // ── Call 5: Albums page 2 ──
+  await delay(500);
+  const albums2 = await spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=20&offset=20`, token);
 
-  // Process top tracks from the proper endpoint
-  const tracks = (topTracksData?.tracks || [])
+  // Process top tracks — fall back to search if top-tracks endpoint fails
+  let tracks = (topTracksData?.tracks || [])
     .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+
+  if (tracks.length === 0) {
+    // Fallback: search for Madonna tracks
+    await delay(500);
+    const searchFallback = await spGet("/search?q=Madonna&type=track&limit=20&market=GB", token);
+    const seenTracks = new Set();
+    tracks = (searchFallback?.tracks?.items || [])
+      .filter(t => { if (seenTracks.has(t.id)) return false; seenTracks.add(t.id); return t.artists?.some(a => a.id === MADONNA_ID); })
+      .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+  }
 
   const playlists = (playlistSearch?.playlists?.items || []).filter(Boolean);
 
@@ -181,16 +188,6 @@ export default async function handler(req, res) {
 
   const allAlbums = [...(albums?.items || []), ...(albums2?.items || [])];
 
-  const relatedArtists = (relatedData?.artists || []).slice(0, 20).map(a => ({
-    id: a.id, name: a.name,
-    popularity: a.popularity || 0,
-    followers: a.followers?.total || 0,
-    genres: a.genres || [],
-    image: a.images?.[0]?.url || "",
-    imageSmall: a.images?.[1]?.url || a.images?.[0]?.url || "",
-    externalUrl: a.external_urls?.spotify || "",
-  }));
-
   const result = {
     hasCredentials: true,
     fetchedAt: new Date().toISOString(),
@@ -221,7 +218,7 @@ export default async function handler(req, res) {
     connectedSongs: connectedSongs.sort((a, b) => b.popularity - a.popularity),
     playlistAnalysed,
     playlistTrackCount,
-    relatedArtists,
+    relatedArtists: [],
     audienceTrending: [],
     history: [],
   };

@@ -90,9 +90,9 @@ export default async function handler(req, res) {
     return res.status(200).json({ error: "No Brave API key" });
   }
 
-  // Run all queries — paginate until exhausted
+  // Run all queries — past week to match the 60-mention baseline
   const raw = await Promise.all(
-    QUERIES.map((q) => braveSearchAll(q.q, apiKey, "pd"))
+    QUERIES.map((q) => braveSearchAll(q.q, apiKey, "pw"))
   );
 
   // Count total API calls used (for budget tracking)
