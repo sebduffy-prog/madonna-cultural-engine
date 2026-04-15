@@ -95,22 +95,21 @@ export default async function handler(req, res) {
     });
   }
 
-  // Calls 2-5: staggered
-  await new Promise((r) => setTimeout(r, 300));
-  const [tracks1, tracks2] = await Promise.all([
-    spGet("/search?q=artist:Madonna&type=track&limit=10&market=GB", token),
-    spGet("/search?q=artist:Madonna&type=track&limit=10&offset=10&market=GB", token),
-  ]);
+  // Call 2: tracks (sequential, not parallel — avoid 429)
+  await new Promise((r) => setTimeout(r, 500));
+  const tracks1 = await spGet("/search?q=Madonna&type=track&limit=10&market=GB", token);
 
-  await new Promise((r) => setTimeout(r, 300));
-  const [albums1, albums2] = await Promise.all([
-    spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=10&offset=0`, token),
-    spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=10&offset=10`, token),
-  ]);
+  // Call 3: albums
+  await new Promise((r) => setTimeout(r, 500));
+  const albums1 = await spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=10&offset=0`, token);
 
-  // Process tracks
+  // Call 4: more albums
+  await new Promise((r) => setTimeout(r, 500));
+  const albums2 = await spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=10&offset=10`, token);
+
+  // Process tracks — filter to Madonna's only
   const seen = new Set();
-  const tracks = [...(tracks1?.tracks?.items || []), ...(tracks2?.tracks?.items || [])]
+  const tracks = (tracks1?.tracks?.items || [])
     .filter(t => {
       if (seen.has(t.id)) return false;
       seen.add(t.id);

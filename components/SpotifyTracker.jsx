@@ -210,22 +210,22 @@ export default function SpotifyTracker() {
           <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 28, fontWeight: 800, color: GREEN, fontFamily: "'Inter Tight', sans-serif" }}>{data.topTracks?.length || 0}</div>
-              <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Tracks Found</div>
+              <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Tracks</div>
             </div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 28, fontWeight: 800, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }}>{data.audienceTrending?.length || 0}</div>
-              <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Audience Tracks</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: PURPLE, fontFamily: "'Inter Tight', sans-serif" }}>{data.albums?.length || 0}</div>
+              <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Albums</div>
             </div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 28, fontWeight: 800, color: TEAL, fontFamily: "'Inter Tight', sans-serif" }}>{data.relatedArtists?.length || 0}</div>
-              <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Connected</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }}>{data.playlists?.length || 0}</div>
+              <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Playlists</div>
             </div>
           </div>
         </div>
       )}
 
       {/* Widget grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
 
         {/* Top tracks panel */}
         <Panel title="Top Tracks" color={GREEN}>
@@ -234,19 +234,48 @@ export default function SpotifyTracker() {
           </div>
         </Panel>
 
-        {/* Audience trending panel */}
-        <Panel title="Audience Trending" color={AMBER}>
-          <div style={{ fontSize: 9, color: DIM, marginBottom: 6, fontStyle: "italic" }}>What Madonna listeners are streaming now</div>
+        {/* Playlists panel */}
+        <Panel title={`Playlists (${data.playlists?.length || 0})`} color={PINK}>
           <div style={{ maxHeight: 320, overflowY: "auto" }}>
-            {data.audienceTrending?.slice(0, 15).map((t, i) => <MiniTrack key={t.name + t.artist} track={t} rank={i + 1} showArtist />)}
+            {data.playlists?.length > 0 ? data.playlists.slice(0, 10).map((p, i) => (
+              <a key={p.name + i} href={p.externalUrl} target="_blank" rel="noopener noreferrer" style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "4px 0",
+                textDecoration: "none", borderBottom: `1px solid ${BORDER}22`,
+              }}>
+                {p.image && <img src={p.image} alt="" style={{ width: 28, height: 28, borderRadius: 3 }} />}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: WHITE, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                  <div style={{ fontSize: 8, color: DIM }}>{p.tracks?.toLocaleString()} tracks · {p.owner}</div>
+                </div>
+              </a>
+            )) : <div style={{ fontSize: 11, color: MUTED, padding: 8 }}>No playlists found</div>}
           </div>
         </Panel>
 
-        {/* Connected artists panel */}
-        <Panel title="Connected Artists" color={TEAL}>
-          <div style={{ fontSize: 9, color: DIM, marginBottom: 6, fontStyle: "italic" }}>Who her audience also listens to</div>
-          <div style={{ maxHeight: 320, overflowY: "auto" }}>
-            {data.relatedArtists?.slice(0, 12).map((a, i) => <ArtistRow key={a.name} artist={a} rank={i + 1} />)}
+        {/* Artist info panel */}
+        <Panel title="Artist Profile" color={TEAL}>
+          <div style={{ fontSize: 11, color: DIM, lineHeight: 1.6 }}>
+            {data.artist?.popularity > 0 && <div style={{ marginBottom: 6 }}>
+              <span style={{ color: MUTED, fontSize: 9, textTransform: "uppercase" }}>Popularity</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                <div style={{ flex: 1, height: 6, background: BORDER, borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{ width: `${data.artist.popularity}%`, height: "100%", background: GREEN, borderRadius: 3 }} />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: GREEN, fontFamily: "'Inter Tight', sans-serif" }}>{data.artist.popularity}</span>
+              </div>
+            </div>}
+            {data.artist?.followers > 0 && <div style={{ marginBottom: 6 }}>
+              <span style={{ color: MUTED, fontSize: 9, textTransform: "uppercase" }}>Followers</span>
+              <div style={{ fontSize: 18, fontWeight: 800, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{data.artist.followers.toLocaleString()}</div>
+            </div>}
+            {data.artist?.genres?.length > 0 && <div>
+              <span style={{ color: MUTED, fontSize: 9, textTransform: "uppercase" }}>Genres</span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                {data.artist.genres.map((g) => (
+                  <span key={g} style={{ fontSize: 10, color: TEAL, background: TEAL + "18", padding: "2px 8px", borderRadius: 10, fontFamily: "'Inter Tight', sans-serif" }}>{g}</span>
+                ))}
+              </div>
+            </div>}
           </div>
         </Panel>
 
@@ -260,24 +289,6 @@ export default function SpotifyTracker() {
                 {a.imageSmall && <img src={a.imageSmall} alt="" style={{ width: 100, height: 100, borderRadius: 6, display: "block" }} />}
                 <div style={{ fontSize: 10, fontWeight: 600, color: WHITE, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</div>
                 <div style={{ fontSize: 8, color: MUTED }}>{a.releaseDate?.slice(0, 4)} \u00B7 {a.type}</div>
-              </a>
-            ))}
-          </div>
-        </Panel>
-
-        {/* Playlists panel */}
-        <Panel title={`Playlists (${data.playlists?.length || 0})`} color={PINK}>
-          <div style={{ maxHeight: 200, overflowY: "auto" }}>
-            {data.playlists?.slice(0, 10).map((p, i) => (
-              <a key={p.name + i} href={p.externalUrl} target="_blank" rel="noopener noreferrer" style={{
-                display: "flex", alignItems: "center", gap: 6, padding: "4px 0",
-                textDecoration: "none", borderBottom: `1px solid ${BORDER}22`,
-              }}>
-                {p.image && <img src={p.image} alt="" style={{ width: 28, height: 28, borderRadius: 3 }} />}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: WHITE, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-                  <div style={{ fontSize: 8, color: DIM }}>{p.tracks.toLocaleString()} tracks</div>
-                </div>
               </a>
             ))}
           </div>
