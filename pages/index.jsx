@@ -9,6 +9,7 @@ const AudienceIntelligence = dynamic(() => import("../components/AudienceIntelli
 const CulturalFeed = dynamic(() => import("../components/CulturalFeed"), { ssr: false });
 const SpotifyTracker = dynamic(() => import("../components/SpotifyTracker"), { ssr: false });
 const SocialPulse = dynamic(() => import("../components/SocialPulse"), { ssr: false });
+const SocialDashboard = dynamic(() => import("../components/SocialDashboard"), { ssr: false });
 const DashboardSummary = dynamic(() => import("../components/DashboardSummary"), { ssr: false });
 const MentionsTicker = dynamic(() => import("../components/MentionsTicker"), { ssr: false });
 const StrategyRecommendations = dynamic(() => import("../components/StrategyRecommendations"), { ssr: false });
@@ -869,7 +870,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
         {tab === "culturalfeed" && <CulturalFeed />}
 
-        {tab === "socialpulse" && <SocialPulse />}
+        {tab === "socialpulse" && <SocialDashboard />}
         {tab === "strategy" && <StrategyRecommendations />}
 
         {tab === "spotify" && <SpotifyTracker />}

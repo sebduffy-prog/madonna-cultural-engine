@@ -76,11 +76,15 @@ export default async function handler(req, res) {
   }
 
   if (!refresh && !reset) {
-    const cached = await kvGet(CACHE_KEY);
-    if (cached && cached.index !== undefined) {
-      cached.history = await kvListGet(HISTORY_KEY, 0, 364);
-      return res.status(200).json(cached);
-    }
+    try {
+      const cached = await Promise.race([kvGet(CACHE_KEY), new Promise((_, r) => setTimeout(() => r(), 3000))]);
+      if (cached && cached.index !== undefined) {
+        let history = [];
+        try { history = await Promise.race([kvListGet(HISTORY_KEY, 0, 364), new Promise((_, r) => setTimeout(() => r(), 3000))]); } catch {}
+        cached.history = history || [];
+        return res.status(200).json(cached);
+      }
+    } catch {}
   }
 
   if (!apiKey) {
@@ -143,12 +147,13 @@ export default async function handler(req, res) {
   });
 
   // Persistent feed pool — 200 items, newest in, oldest out
-  let feedPool = await kvGet(FEED_KEY) || [];
+  let feedPool = [];
+  try { feedPool = await Promise.race([kvGet(FEED_KEY), new Promise((_, r) => setTimeout(() => r(), 3000))]) || []; } catch {}
   const poolUrls = new Set(feedPool.map((i) => i.url));
   const newItems = todaysItems.filter((i) => i.url && !poolUrls.has(i.url));
   feedPool = [...newItems, ...feedPool];
   if (feedPool.length > MAX_FEED) feedPool = feedPool.slice(0, MAX_FEED);
-  await kvSet(FEED_KEY, feedPool);
+  try { await Promise.race([kvSet(FEED_KEY, feedPool), new Promise((_, r) => setTimeout(() => r(), 5000))]); } catch {}
 
   // AI Sentiment
   let pos = 0, neg = 0, neu = 0;
