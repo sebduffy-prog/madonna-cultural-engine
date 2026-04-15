@@ -295,8 +295,9 @@ export default function SpotifyTracker() {
         </Panel>
 
         {/* Connected Artists via Playlist Analysis */}
-        {data.connectedArtists?.length > 0 && (
-          <Panel title={`Connected Artists (${data.connectedArtists.length})`} color={TEAL} span={3}>
+        <Panel title={`Connected Artists (${data.connectedArtists?.length || 0})`} color={TEAL} span={3}>
+          {data.connectedArtists?.length > 0 ? (
+            <>
             <div style={{ fontSize: 9, color: DIM, marginBottom: 8, fontStyle: "italic" }}>
               Artists who appear alongside Madonna in curated playlists · {data.playlistsAnalysed} playlists · {data.totalPlaylistTracks} tracks analysed
             </div>
@@ -314,8 +315,11 @@ export default function SpotifyTracker() {
                 </div>
               ))}
             </div>
-          </Panel>
-        )}
+          </>
+          ) : (
+            <div style={{ fontSize: 11, color: MUTED, padding: 8 }}>Hit Refresh Now to analyse playlists and find connected artists. Connectivity % shows how often each artist appears alongside Madonna in curated playlists.</div>
+          )}
+        </Panel>
 
         {/* Trend history panel */}
         {data.history && data.history.length > 1 && (

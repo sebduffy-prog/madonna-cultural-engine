@@ -1,17 +1,21 @@
 // Spotify Tracker — Madonna
-// Artist profile + tracks + albums + connected artists via playlist analysis
-// Track popularity stored daily for trend tracking
-// All sequential with 500ms gaps to respect rate limits
-// Verified artist ID: 6tbjWDEIzxoDsBA1FuhfPW
+// 6 sequential API calls with 500ms gaps:
+//   1. Artist profile
+//   2. Search (tracks + playlists combined)
+//   3-4. Albums × 2 pages
+//   5. Biggest playlist content → connected artists
+//   6. Second playlist content → more connected data
+// All Blob calls have timeouts
 
 import { kvGet, kvSet, kvListPush, kvListGet } from "../../lib/kv";
 
 const MADONNA_ID = "6tbjWDEIzxoDsBA1FuhfPW";
-const CACHE_TTL_MS = 43200000; // 12 hours
+const CACHE_TTL_MS = 43200000;
 const CACHE_KEY = "spotify_data";
 const HISTORY_KEY = "spotify_popularity_history";
 
 let tokenCache = { token: null, expires: 0 };
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function getToken() {
   if (tokenCache.token && Date.now() < tokenCache.expires) return tokenCache.token;
@@ -21,10 +25,7 @@ async function getToken() {
   try {
     const r = await fetch("https://accounts.spotify.com/api/token", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: "Basic " + Buffer.from(`${id}:${secret}`).toString("base64"),
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Authorization: "Basic " + Buffer.from(`${id}:${secret}`).toString("base64") },
       body: "grant_type=client_credentials",
       signal: AbortSignal.timeout(8000),
     });
@@ -34,8 +35,6 @@ async function getToken() {
     return d.access_token;
   } catch { return null; }
 }
-
-const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function spGet(path, token) {
   try {
@@ -60,20 +59,16 @@ async function spGet(path, token) {
 export default async function handler(req, res) {
   const { refresh } = req.query;
 
-  // Try Blob cache first (survives cold starts)
   if (!refresh) {
     try {
-      const cached = await Promise.race([
-        kvGet(CACHE_KEY),
-        new Promise((_, reject) => setTimeout(() => reject("timeout"), 3000)),
-      ]);
-      if (cached && cached.artist) {
+      const cached = await Promise.race([kvGet(CACHE_KEY), new Promise((_, r) => setTimeout(() => r(), 3000))]);
+      if (cached?.artist) {
         let history = [];
-        try { history = await Promise.race([kvListGet(HISTORY_KEY, 0, 29), new Promise((_, r) => setTimeout(() => r("timeout"), 3000))]); } catch {}
+        try { history = await Promise.race([kvListGet(HISTORY_KEY, 0, 29), new Promise((_, r) => setTimeout(() => r(), 3000))]); } catch {}
         cached.history = history || [];
         return res.status(200).json(cached);
       }
-    } catch { /* Blob timeout — fall through */ }
+    } catch {}
   }
 
   const clientId = process.env.SPOTIFY_CLIENT_ID;
@@ -83,21 +78,15 @@ export default async function handler(req, res) {
   }
 
   const token = await getToken();
-  if (!token) {
-    return res.status(200).json({ hasCredentials: false, error: "Token request failed" });
-  }
+  if (!token) return res.status(200).json({ hasCredentials: false, error: "Token failed" });
 
-  // ── Sequential API calls with 500ms gaps ──
-
-  // 1. Artist profile
+  // 1. Artist
   const artist = await spGet(`/artists/${MADONNA_ID}`, token);
-  if (!artist) {
-    return res.status(200).json({ hasCredentials: true, artist: null, debug: { error: "Artist fetch failed" }, topTracks: [], albums: [], playlists: [], connectedArtists: [] });
-  }
+  if (!artist) return res.status(200).json({ hasCredentials: true, artist: null, debug: { error: "Artist fetch failed" }, topTracks: [], albums: [], playlists: [], connectedArtists: [] });
 
-  // 2. Tracks
+  // 2. Combined search: tracks + playlists in ONE call
   await delay(500);
-  const tracks1 = await spGet("/search?q=Madonna&type=track&limit=10&market=GB", token);
+  const search = await spGet("/search?q=Madonna&type=track,playlist&limit=10&market=GB", token);
 
   // 3-4. Albums (2 pages)
   await delay(500);
@@ -105,19 +94,19 @@ export default async function handler(req, res) {
   await delay(500);
   const albums2 = await spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=10&offset=10`, token);
 
-  // 5-6. Playlists featuring Madonna (2 pages for more data)
-  await delay(500);
-  const pl1 = await spGet("/search?q=Madonna&type=playlist&limit=10", token);
-  await delay(500);
-  const pl2 = await spGet("/search?q=Madonna&type=playlist&limit=10&offset=10", token);
+  // Process tracks
+  const seenTracks = new Set();
+  const tracks = (search?.tracks?.items || [])
+    .filter(t => { if (seenTracks.has(t.id)) return false; seenTracks.add(t.id); return t.artists?.some(a => a.id === MADONNA_ID); })
+    .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
 
-  const playlists = [...(pl1?.playlists?.items || []), ...(pl2?.playlists?.items || [])].filter(Boolean);
+  const playlists = (search?.playlists?.items || []).filter(Boolean);
 
-  // 7-9. Fetch tracks from top 3 playlists to find connected artists
+  // 5-6. Fetch 2 biggest playlists for connected artists
   const connectedMap = {};
   const playlistsWithTracks = [];
 
-  for (const pl of playlists.slice(0, 3)) {
+  for (const pl of playlists.filter(p => p.tracks?.total > 10).slice(0, 2)) {
     await delay(500);
     const plData = await spGet(`/playlists/${pl.id}?fields=name,tracks.items(track(name,artists,popularity))`, token);
     if (plData?.tracks?.items) {
@@ -127,63 +116,37 @@ export default async function handler(req, res) {
         if (!track?.artists) continue;
         for (const a of track.artists) {
           if (a.id === MADONNA_ID) continue;
-          if (!connectedMap[a.id]) {
-            connectedMap[a.id] = { id: a.id, name: a.name, count: 0, tracks: [] };
-          }
+          if (!connectedMap[a.id]) connectedMap[a.id] = { id: a.id, name: a.name, count: 0, tracks: [] };
           connectedMap[a.id].count++;
-          if (connectedMap[a.id].tracks.length < 3) {
-            connectedMap[a.id].tracks.push(track.name);
-          }
+          if (connectedMap[a.id].tracks.length < 3) connectedMap[a.id].tracks.push(track.name);
         }
       }
     }
   }
 
-  // Sort by co-occurrence frequency → connectivity score
-  const totalPlaylistTracks = playlistsWithTracks.reduce((s, p) => s + p.trackCount, 0);
+  const totalPlTracks = playlistsWithTracks.reduce((s, p) => s + p.trackCount, 0);
   const connectedArtists = Object.values(connectedMap)
     .sort((a, b) => b.count - a.count)
     .slice(0, 20)
-    .map((a) => ({
-      ...a,
-      connectivity: totalPlaylistTracks > 0 ? Math.round((a.count / totalPlaylistTracks) * 1000) / 10 : 0,
-    }));
-
-  // Process tracks
-  const seenTracks = new Set();
-  const tracks = (tracks1?.tracks?.items || [])
-    .filter(t => {
-      if (seenTracks.has(t.id)) return false;
-      seenTracks.add(t.id);
-      return t.artists?.some(a => a.id === MADONNA_ID);
-    })
-    .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
-
-  const allAlbums = [...(albums1?.items || []), ...(albums2?.items || [])];
+    .map((a) => ({ ...a, connectivity: totalPlTracks > 0 ? Math.round((a.count / totalPlTracks) * 1000) / 10 : 0 }));
 
   const result = {
     hasCredentials: true,
     fetchedAt: new Date().toISOString(),
     cacheTTL: CACHE_TTL_MS / 1000,
     artist: {
-      name: artist.name,
-      followers: artist.followers?.total || 0,
-      popularity: artist.popularity || 0,
-      genres: artist.genres || [],
-      image: artist.images?.[0]?.url || "",
-      imageSmall: artist.images?.[1]?.url || "",
+      name: artist.name, followers: artist.followers?.total || 0,
+      popularity: artist.popularity || 0, genres: artist.genres || [],
+      image: artist.images?.[0]?.url || "", imageSmall: artist.images?.[1]?.url || "",
     },
     topTracks: tracks.slice(0, 20).map(t => ({
-      name: t.name,
-      album: t.album?.name || "",
+      name: t.name, album: t.album?.name || "",
       albumImage: t.album?.images?.[1]?.url || t.album?.images?.[0]?.url || "",
       albumImageSmall: t.album?.images?.[2]?.url || "",
-      popularity: t.popularity || 0,
-      externalUrl: t.external_urls?.spotify || "",
-      durationMs: t.duration_ms,
-      releaseDate: t.album?.release_date || "",
+      popularity: t.popularity || 0, externalUrl: t.external_urls?.spotify || "",
+      durationMs: t.duration_ms, releaseDate: t.album?.release_date || "",
     })),
-    albums: allAlbums.map(a => ({
+    albums: [...(albums1?.items || []), ...(albums2?.items || [])].map(a => ({
       name: a.name, type: a.album_type, releaseDate: a.release_date || "",
       totalTracks: a.total_tracks || 0,
       image: a.images?.[0]?.url || "", imageSmall: a.images?.[1]?.url || a.images?.[0]?.url || "",
@@ -195,34 +158,16 @@ export default async function handler(req, res) {
     })),
     connectedArtists,
     playlistsAnalysed: playlistsWithTracks.length,
-    totalPlaylistTracks,
-    relatedArtists: [],
-    audienceTrending: [],
+    totalPlaylistTracks: totalPlTracks,
+    relatedArtists: [], audienceTrending: [],
   };
 
-  // Persist to Blob (with timeout so it doesn't hang)
-  try {
-    await Promise.race([
-      kvSet(CACHE_KEY, result, CACHE_TTL_MS / 1000),
-      new Promise((_, r) => setTimeout(() => r("timeout"), 5000)),
-    ]);
-  } catch { /* don't block on Blob failure */ }
-
-  // Store daily popularity snapshot
-  try {
-    await Promise.race([
-      kvListPush(HISTORY_KEY, {
-        date: result.fetchedAt,
-        popularity: result.artist.popularity,
-        followers: result.artist.followers,
-        topTracks: result.topTracks.slice(0, 10).map(t => ({ name: t.name, popularity: t.popularity })),
-      }, 90),
-      new Promise((_, r) => setTimeout(() => r("timeout"), 5000)),
-    ]);
-  } catch {}
+  // Persist with timeout
+  try { await Promise.race([kvSet(CACHE_KEY, result, CACHE_TTL_MS / 1000), new Promise((_, r) => setTimeout(() => r(), 5000))]); } catch {}
+  try { await Promise.race([kvListPush(HISTORY_KEY, { date: result.fetchedAt, popularity: result.artist.popularity, followers: result.artist.followers, topTracks: result.topTracks.slice(0, 5).map(t => ({ name: t.name, popularity: t.popularity })) }, 90), new Promise((_, r) => setTimeout(() => r(), 5000))]); } catch {}
 
   let history = [];
-  try { history = await Promise.race([kvListGet(HISTORY_KEY, 0, 29), new Promise((_, r) => setTimeout(() => r("timeout"), 3000))]); } catch {}
+  try { history = await Promise.race([kvListGet(HISTORY_KEY, 0, 29), new Promise((_, r) => setTimeout(() => r(), 3000))]); } catch {}
   result.history = history || [];
 
   res.status(200).json(result);
