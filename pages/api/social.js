@@ -253,8 +253,11 @@ export default async function handler(req, res) {
   const sentTotal = Math.max(pos + neg + neu, 1);
 
   // ── Build result ──
+  const hasBlobStorage = !!process.env.BLOB_READ_WRITE_TOKEN;
   const result = {
     hasBraveKey: true,
+    hasBlobStorage,
+    storageWarning: !hasBlobStorage ? "No Vercel Blob store connected. Data will not persist between cold starts. Connect a Blob store in Vercel Dashboard → Storage → Create Blob Store." : undefined,
     fetchedAt: new Date().toISOString(),
     isFirstRun,
     baselineDate,

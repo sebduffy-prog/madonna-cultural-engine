@@ -156,6 +156,13 @@ export default function SocialPulse() {
         </div>
       </div>
 
+      {/* Storage warning */}
+      {data.storageWarning && (
+        <div style={{ background: "#F59E0B11", border: "1px solid #F59E0B44", borderRadius: 6, padding: "8px 14px", marginBottom: 14, fontSize: 11, color: "#F59E0B", fontFamily: "'Inter Tight', sans-serif" }}>
+          {data.storageWarning}
+        </div>
+      )}
+
       {/* Overall index + per-platform indices */}
       <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
         <IndexDisplay value={data.index || 0} label="Overall Index" color={Y} isBaseline={isBaseline} />
