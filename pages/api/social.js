@@ -13,7 +13,7 @@
 //
 // 25 queries per daily run = 750/month
 
-import { kvGet, kvSet, kvListPush, kvListGet } from "../../lib/kv";
+import { kvGet, kvSet, kvListPush, kvListGet, kvDiagnostic } from "../../lib/kv";
 
 const CACHE_KEY = "social:trend-index";
 const BASELINE_KEY = "social:trend-baseline";
@@ -284,12 +284,14 @@ export default async function handler(req, res) {
   }
   const sentTotal = Math.max(pos + neg + neu, 1);
 
+  // ── Storage diagnostic ──
+  const storageDiag = await kvDiagnostic();
+
   // ── Build result ──
-  const hasBlobStorage = !!process.env.BLOB_READ_WRITE_TOKEN;
   const result = {
     hasBraveKey: true,
-    hasBlobStorage,
-    storageWarning: !hasBlobStorage ? "No Vercel Blob store connected. Data will not persist between cold starts. Connect a Blob store in Vercel Dashboard → Storage → Create Blob Store." : undefined,
+    storage: storageDiag,
+    storageWarning: !storageDiag.canWrite ? `Blob storage not working: ${storageDiag.error || "write failed"}. Baseline will not persist.` : undefined,
     fetchedAt: new Date().toISOString(),
     isFirstRun,
     baselineDate,
