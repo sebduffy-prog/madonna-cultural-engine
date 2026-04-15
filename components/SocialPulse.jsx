@@ -147,19 +147,6 @@ export default function SocialPulse() {
           <span style={{ fontSize: 9, color: DIM, fontFamily: "'Inter Tight', sans-serif" }}>
             {data.history?.length || 0} days tracked
           </span>
-          <button onClick={async () => {
-            setLoading(true);
-            try {
-              const r = await fetch("/api/social?reset=1&refresh=1");
-              if (r.ok) setData(await r.json());
-            } catch {}
-            setLoading(false);
-          }} disabled={loading} style={{
-            padding: "4px 12px", fontSize: 10, fontWeight: 600,
-            color: loading ? MUTED : BG, background: loading ? BORDER : AMBER,
-            border: "none", borderRadius: 4, cursor: loading ? "default" : "pointer",
-            fontFamily: "'Inter Tight', sans-serif",
-          }}>Set Baseline</button>
           <button onClick={() => fetchData(true)} disabled={loading} style={{
             padding: "4px 12px", fontSize: 10, fontWeight: 600,
             color: loading ? MUTED : BG, background: loading ? BORDER : PURPLE,

@@ -1,12 +1,11 @@
 // Social Trend Index Engine
 //
-// Every run stores a FULL snapshot to Blob: every query's total_count,
-// every item found (URL, title, platform, date). The first snapshot
-// becomes the baseline. Every subsequent run compares total_counts
-// against that baseline as % change. Over time, the stored snapshots
-// form a time series — every post, article, result is persisted.
+// Runs a fixed battery of Brave Search queries. Counts actual returned
+// results (filtered to Madonna-relevant only). First run with pw (past week)
+// sets the baseline. Daily runs with pd (past day) compare against it.
 //
-// 48 queries per run = ~1,440/month
+// Paid plan: count=50 per query + pagination = up to 100 results per query.
+// 48 queries × 2 pages = 96 API calls per run = 2,880/month at daily.
 
 import { kvGet, kvSet, kvListPush, kvListGet, kvDiagnostic } from "../../lib/kv";
 
@@ -54,23 +53,23 @@ const QUERIES = [
   { platform: "instagram", q: "site:instagram.com madonna fan" },
   { platform: "instagram", q: "site:instagram.com madonna 2026" },
   // News (10)
-  { platform: "news", q: "Madonna", freshness: "pd" },
-  { platform: "news", q: "Madonna COADF2", freshness: "pd" },
-  { platform: "news", q: 'Madonna "Confessions II"', freshness: "pd" },
-  { platform: "news", q: '"Confessions on a Dance Floor 2"', freshness: "pd" },
-  { platform: "news", q: "madonna album 2026", freshness: "pd" },
-  { platform: "news", q: "madonna warner records", freshness: "pd" },
-  { platform: "news", q: "madonna Netflix series biopic", freshness: "pd" },
-  { platform: "news", q: 'madonna "Stuart Price" new music', freshness: "pd" },
-  { platform: "news", q: "madonna tour concert announcement", freshness: "pd" },
-  { platform: "news", q: "madonna interview profile feature 2026", freshness: "pd" },
+  { platform: "news", q: "Madonna" },
+  { platform: "news", q: "Madonna COADF2" },
+  { platform: "news", q: 'Madonna "Confessions II"' },
+  { platform: "news", q: '"Confessions on a Dance Floor 2"' },
+  { platform: "news", q: "madonna album 2026" },
+  { platform: "news", q: "madonna warner records" },
+  { platform: "news", q: "madonna Netflix series biopic" },
+  { platform: "news", q: 'madonna "Stuart Price" new music' },
+  { platform: "news", q: "madonna tour concert announcement" },
+  { platform: "news", q: "madonna interview profile feature 2026" },
   // Video (6)
-  { platform: "video", q: "Madonna Confessions video", freshness: "pw" },
-  { platform: "video", q: "Madonna COADF2 video", freshness: "pw" },
-  { platform: "video", q: "Madonna 2026 video", freshness: "pw" },
-  { platform: "video", q: "Madonna new album music video", freshness: "pw" },
-  { platform: "video", q: "Madonna live performance 2026", freshness: "pw" },
-  { platform: "video", q: "Madonna documentary Netflix trailer", freshness: "pw" },
+  { platform: "video", q: "Madonna Confessions video" },
+  { platform: "video", q: "Madonna COADF2 video" },
+  { platform: "video", q: "Madonna 2026 video" },
+  { platform: "video", q: "Madonna new album music video" },
+  { platform: "video", q: "Madonna live performance 2026" },
+  { platform: "video", q: "Madonna documentary Netflix trailer" },
 ];
 
 const PLATFORM_META = {
@@ -82,49 +81,49 @@ const PLATFORM_META = {
   video: { label: "Video", color: "#F59E0B", icon: "V" },
 };
 
-// ── Brave Search ──
-async function braveSearch(query, apiKey, freshness = "pd") {
-  if (!apiKey) return { totalCount: 0, items: [] };
-  try {
-    const params = new URLSearchParams({ q: query, count: "20", freshness });
-    const res = await fetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
-      headers: { "X-Subscription-Token": apiKey, Accept: "application/json" },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) return { totalCount: 0, items: [] };
-    const data = await res.json();
+// Madonna relevance filter
+function isMadonnaRelevant(item) {
+  const text = `${item.title} ${item.description} ${item.url}`.toLowerCase();
+  return text.includes("madonna") || text.includes("coadf") ||
+    text.includes("confessions on a dance floor") || text.includes("confessions ii");
+}
 
-    const items = (data.web?.results || []).map((r) => ({
-      title: r.title || "",
-      url: r.url || "",
-      description: (r.description || "").slice(0, 300),
-      date: r.page_age || "",
-      source: (() => { try { return new URL(r.url).hostname.replace("www.", ""); } catch { return ""; } })(),
-    }));
+// ── Brave Search with pagination ──
+// Returns all Madonna-relevant items found across 2 pages (up to 100 results)
+async function braveSearchDeep(query, apiKey, freshness = "pd") {
+  if (!apiKey) return [];
+  const allItems = [];
 
-    const discussions = (data.discussions?.results || []).map((r) => ({
-      title: r.title || "",
-      url: r.url || "",
-      description: (r.description || "").slice(0, 300),
-      date: r.data?.question_posted_at || r.page_age || "",
-      source: r.data?.forum_name || "",
-      comments: r.data?.num_answers || 0,
-      score: r.data?.score || 0,
-    }));
+  for (const offset of [0, 50]) {
+    try {
+      const params = new URLSearchParams({
+        q: query, count: "50", freshness, offset: String(offset),
+      });
+      const res = await fetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
+        headers: { "X-Subscription-Token": apiKey, Accept: "application/json" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) break;
+      const data = await res.json();
 
-    // Filter to Madonna-relevant results only
-    const allItems = [...items, ...discussions].filter((item) => {
-      const text = `${item.title} ${item.description} ${item.url}`.toLowerCase();
-      return text.includes("madonna") || text.includes("coadf") || text.includes("confessions on a dance floor") || text.includes("confessions ii");
-    });
+      const items = (data.web?.results || []).map((r) => ({
+        title: r.title || "",
+        url: r.url || "",
+        description: (r.description || "").slice(0, 300),
+        date: r.page_age || "",
+        age: r.age || "",
+        source: (() => { try { return new URL(r.url).hostname.replace("www.", ""); } catch { return ""; } })(),
+      }));
 
-    // total_count = Brave's estimated total results (uncapped)
-    const totalCount = data.web?.total_count || allItems.length;
+      allItems.push(...items);
 
-    return { totalCount, items: allItems };
-  } catch {
-    return { totalCount: 0, items: [] };
+      // If we got fewer than 50, no more pages
+      if (items.length < 50) break;
+    } catch { break; }
   }
+
+  // Filter to Madonna-relevant only
+  return allItems.filter(isMadonnaRelevant);
 }
 
 export default async function handler(req, res) {
@@ -150,39 +149,44 @@ export default async function handler(req, res) {
     return res.status(200).json({ hasBraveKey: false, platforms: [], index: 0 });
   }
 
-  // ── Run all queries in parallel ──
-  const raw = await Promise.all(
-    QUERIES.map((q) => braveSearch(q.q, apiKey, q.freshness || "pd"))
-  );
-
-  // ── Build this run's full snapshot ──
-  const snapshot = {
-    date: new Date().toISOString(),
-    queries: QUERIES.map((q, i) => ({
-      platform: q.platform,
-      query: q.q,
-      totalCount: raw[i].totalCount,
-      itemCount: raw[i].items.length,
-      items: raw[i].items, // store EVERY item
-    })),
-  };
-
-  // ── Load or set baseline ──
+  // ── Load baseline ──
   let baseline = await kvGet(BASELINE_KEY);
   const isFirstRun = !baseline || !baseline.queries;
 
+  // Baseline uses pw (past week) for a larger sample
+  // Daily runs use pd (past day) to capture today's volume
+  const freshness = isFirstRun ? "pw" : "pd";
+
+  // ── Run all queries in parallel ──
+  const raw = await Promise.all(
+    QUERIES.map((q) => braveSearchDeep(q.q, apiKey, freshness))
+  );
+
+  // ── Build snapshot ──
+  const snapshot = {
+    date: new Date().toISOString(),
+    freshness,
+    queries: QUERIES.map((q, i) => ({
+      platform: q.platform,
+      query: q.q,
+      count: raw[i].length,
+      items: raw[i],
+    })),
+  };
+
+  // Set baseline on first run
   if (isFirstRun) {
     baseline = snapshot;
-    await kvSet(BASELINE_KEY, baseline); // persists to Blob
+    await kvSet(BASELINE_KEY, baseline);
   }
 
-  // ── Calculate % change per query vs baseline ──
+  // ── Calculate % change per query ──
   const queryScores = QUERIES.map((q, i) => {
-    const todayCount = raw[i].totalCount;
-    const baseCount = baseline.queries?.[i]?.totalCount || 0;
+    const todayCount = raw[i].length;
+    const baseCount = baseline.queries?.[i]?.count || 0;
     const pctChange = baseCount > 0
       ? Math.round(((todayCount - baseCount) / baseCount) * 1000) / 10
-      : 0;
+      : (todayCount > 0 ? 100 : 0);
     return {
       platform: q.platform,
       query: q.q,
@@ -202,31 +206,30 @@ export default async function handler(req, res) {
         id: q.platform,
         ...PLATFORM_META[q.platform],
         queries: [],
-        totalCount: 0,
+        todayTotal: 0,
         baselineTotal: 0,
         items: [],
       };
     }
     const p = platformMap[q.platform];
     p.queries.push(queryScores[i]);
-    p.totalCount += raw[i].totalCount;
-    p.baselineTotal += baseline.queries?.[i]?.totalCount || 0;
-    p.items.push(...raw[i].items);
-    allItems.push(...raw[i].items.map((item) => ({ ...item, platform: q.platform })));
+    p.todayTotal += raw[i].length;
+    p.baselineTotal += baseline.queries?.[i]?.count || 0;
+    p.items.push(...raw[i]);
+    allItems.push(...raw[i].map((item) => ({ ...item, platform: q.platform })));
   });
 
   const platformList = Object.values(platformMap).map((p) => {
-    // Platform % change = total_count change across all queries for this platform
     p.avgChange = p.baselineTotal > 0 && !isFirstRun
-      ? Math.round(((p.totalCount - p.baselineTotal) / p.baselineTotal) * 1000) / 10
+      ? Math.round(((p.todayTotal - p.baselineTotal) / p.baselineTotal) * 1000) / 10
       : 0;
-    // Dedup items by URL
+    // Dedup items
     const seen = new Set();
     p.items = p.items.filter((item) => {
       if (!item.url || seen.has(item.url)) return false;
       seen.add(item.url);
       return true;
-    }).slice(0, 20);
+    }).slice(0, 25);
     return p;
   });
 
@@ -302,6 +305,8 @@ export default async function handler(req, res) {
     fetchedAt: snapshot.date,
     isFirstRun,
     baselineDate: baseline.date,
+    baselineFreshness: baseline.freshness,
+    todayFreshness: freshness,
     index: overallIndex,
     totalToday,
     totalBaseline,
@@ -317,24 +322,24 @@ export default async function handler(req, res) {
       total: uniqueItems.length,
       method: sentimentMethod,
     },
-    queriesUsed: QUERIES.length,
+    queriesUsed: QUERIES.length * 2, // 2 pages per query
   };
 
-  // ── Persist everything ──
+  // ── Persist ──
   await kvSet(CACHE_KEY, result, CACHE_TTL);
 
-  // Store this run as a history snapshot — full data persisted
+  // Store history snapshot
   await kvListPush(HISTORY_KEY, {
     date: snapshot.date,
     index: overallIndex,
     totalToday,
     totalBaseline,
     totalSources: uniqueItems.length,
+    freshness,
     platforms: Object.fromEntries(platformList.map((p) => [p.id, {
-      count: p.totalCount,
+      today: p.todayTotal,
       baseline: p.baselineTotal,
       change: p.avgChange,
-      items: p.items.length,
     }])),
     sentiment: result.sentiment,
   }, 365);
