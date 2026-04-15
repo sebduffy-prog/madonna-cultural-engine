@@ -20,15 +20,19 @@ const COMMENTS_KEY = "youtube_rag_comments";
 const THEMES_KEY = "youtube_rag_themes";
 const CACHE_TTL = 86400;
 const VIRAL_THRESHOLD = 100000;
-const COMMENTS_VIRAL = 1000;
-const COMMENTS_NORMAL = 500;
-const MAX_STORED_COMMENTS = 10000;
+const COMMENTS_VIRAL = 2000;
+const COMMENTS_NORMAL = 1000;
+const MAX_STORED_COMMENTS = 50000;
 
 const SEARCH_QUERIES = [
   "Madonna",
   "Madonna COADF2",
   "Madonna Confessions on a Dance Floor 2",
   'Madonna "Confessions II"',
+  "Madonna new album 2026",
+  "Madonna comeback",
+  "Madonna concert tour 2026",
+  "Madonna reaction",
 ];
 
 // Default themes — get replaced by AI analysis
@@ -183,7 +187,7 @@ export default async function handler(req, res) {
   const searchResults = [];
   for (const q of SEARCH_QUERIES) {
     const data = await ytGet(
-      `/search?part=snippet&q=${encodeURIComponent(q)}&type=video&order=date&maxResults=10&publishedAfter=${new Date(Date.now() - 7 * 86400000).toISOString()}`,
+      `/search?part=snippet&q=${encodeURIComponent(q)}&type=video&order=date&maxResults=25&publishedAfter=${new Date(Date.now() - 14 * 86400000).toISOString()}`,
       apiKey
     );
     if (data?.items) searchResults.push(...data.items);
@@ -218,7 +222,7 @@ export default async function handler(req, res) {
   }).sort((a, b) => b.viewCount - a.viewCount);
 
   // Step 3: Pull comments at depth
-  const targets = madonnaVideos.filter((v) => v.commentCount > 0).slice(0, 8);
+  const targets = madonnaVideos.filter((v) => v.commentCount > 0).slice(0, 15);
   const allNew = [];
 
   for (const video of targets) {
