@@ -1,18 +1,12 @@
 // Spotify Tracker — Madonna
-// 6 sequential API calls with 500ms gaps:
-//   1. Artist profile
-//   2. Search (tracks + playlists combined)
-//   3-4. Albums × 2 pages
-//   5. Biggest playlist content → connected artists
-//   6. Second playlist content → more connected data
-// All Blob calls have timeouts
+// 4 sequential calls + 1 playlist deep-dive = 5 total
+// Connected artists from playlist co-occurrence analysis
 
 import { kvGet, kvSet, kvListPush, kvListGet } from "../../lib/kv";
 
 const MADONNA_ID = "6tbjWDEIzxoDsBA1FuhfPW";
-const CACHE_TTL_MS = 43200000;
+const CACHE_TTL = 43200;
 const CACHE_KEY = "spotify_data";
-const HISTORY_KEY = "spotify_popularity_history";
 
 let tokenCache = { token: null, expires: 0 };
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -43,7 +37,8 @@ async function spGet(path, token) {
       signal: AbortSignal.timeout(8000),
     });
     if (r.status === 429) {
-      const wait = Math.min(parseInt(r.headers.get("retry-after") || "3", 10), 10);
+      const wait = Math.min(parseInt(r.headers.get("retry-after") || "5", 10), 15);
+      console.log(`[spotify] 429 on ${path.split("?")[0]}, waiting ${wait}s`);
       await delay(wait * 1000);
       const r2 = await fetch(`https://api.spotify.com/v1${path}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -51,7 +46,7 @@ async function spGet(path, token) {
       });
       return r2.ok ? r2.json() : null;
     }
-    if (!r.ok) return null;
+    if (!r.ok) { console.error(`[spotify] ${r.status} on ${path.split("?")[0]}`); return null; }
     return r.json();
   } catch { return null; }
 }
@@ -62,36 +57,31 @@ export default async function handler(req, res) {
   if (!refresh) {
     try {
       const cached = await Promise.race([kvGet(CACHE_KEY), new Promise((_, r) => setTimeout(() => r(), 3000))]);
-      if (cached?.artist) {
-        let history = [];
-        try { history = await Promise.race([kvListGet(HISTORY_KEY, 0, 29), new Promise((_, r) => setTimeout(() => r(), 3000))]); } catch {}
-        cached.history = history || [];
-        return res.status(200).json(cached);
-      }
+      if (cached?.artist) return res.status(200).json(cached);
     } catch {}
   }
 
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    return res.status(200).json({ hasCredentials: false, error: "Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to Vercel env vars." });
+  if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
+    return res.status(200).json({ hasCredentials: false, error: "Missing Spotify credentials in Vercel env vars" });
   }
 
   const token = await getToken();
   if (!token) return res.status(200).json({ hasCredentials: false, error: "Token failed" });
 
-  // 1. Artist
+  // ── Call 1: Artist ──
   const artist = await spGet(`/artists/${MADONNA_ID}`, token);
-  if (!artist) return res.status(200).json({ hasCredentials: true, artist: null, debug: { error: "Artist fetch failed" }, topTracks: [], albums: [], playlists: [], connectedArtists: [] });
+  if (!artist) return res.status(200).json({ hasCredentials: true, artist: null, debug: { error: "Artist fetch failed" } });
 
-  // 2. Combined search: tracks + playlists in ONE call
-  await delay(500);
+  // ── Call 2: Search tracks + playlists (1 call) ──
+  await delay(1000);
   const search = await spGet("/search?q=Madonna&type=track,playlist&limit=10&market=GB", token);
 
-  // 3-4. Albums (2 pages)
-  await delay(500);
-  const albums1 = await spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=10&offset=0`, token);
-  await delay(500);
+  // ── Call 3: Albums ──
+  await delay(1000);
+  const albums = await spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=10&offset=0`, token);
+
+  // ── Call 4: More albums ──
+  await delay(1000);
   const albums2 = await spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=10&offset=10`, token);
 
   // Process tracks
@@ -102,38 +92,69 @@ export default async function handler(req, res) {
 
   const playlists = (search?.playlists?.items || []).filter(Boolean);
 
-  // 5-6. Fetch 2 biggest playlists for connected artists
+  // ── Call 5: Fetch the BIGGEST playlist for connected artists ──
+  // Pick the playlist with the most tracks
   const connectedMap = {};
-  const playlistsWithTracks = [];
+  let playlistAnalysed = null;
+  let playlistTrackCount = 0;
+  const connectedSongs = [];
 
-  for (const pl of playlists.filter(p => p.tracks?.total > 10).slice(0, 2)) {
-    await delay(500);
-    const plData = await spGet(`/playlists/${pl.id}?fields=name,tracks.items(track(name,artists,popularity))`, token);
+  const biggestPlaylist = playlists.filter(p => p.tracks?.total > 20).sort((a, b) => (b.tracks?.total || 0) - (a.tracks?.total || 0))[0];
+
+  if (biggestPlaylist) {
+    await delay(1000);
+    const plData = await spGet(`/playlists/${biggestPlaylist.id}?fields=name,tracks.total,tracks.items(track(id,name,popularity,artists(id,name)))`, token);
     if (plData?.tracks?.items) {
-      playlistsWithTracks.push({ name: pl.name, trackCount: plData.tracks.items.length });
+      playlistAnalysed = plData.name || biggestPlaylist.name;
+      playlistTrackCount = plData.tracks.items.length;
+
       for (const item of plData.tracks.items) {
         const track = item.track;
         if (!track?.artists) continue;
+
+        // Check if Madonna is on this track
+        const hasMadonna = track.artists.some(a => a.id === MADONNA_ID);
+
         for (const a of track.artists) {
           if (a.id === MADONNA_ID) continue;
-          if (!connectedMap[a.id]) connectedMap[a.id] = { id: a.id, name: a.name, count: 0, tracks: [] };
+          if (!connectedMap[a.id]) {
+            connectedMap[a.id] = { id: a.id, name: a.name, count: 0, tracks: [], isFeatured: false };
+          }
           connectedMap[a.id].count++;
-          if (connectedMap[a.id].tracks.length < 3) connectedMap[a.id].tracks.push(track.name);
+          if (connectedMap[a.id].tracks.length < 5) {
+            connectedMap[a.id].tracks.push(track.name);
+          }
+          // If they appear on the SAME track as Madonna = featured/collab
+          if (hasMadonna) {
+            connectedMap[a.id].isFeatured = true;
+            if (!connectedSongs.find(s => s.trackId === track.id)) {
+              connectedSongs.push({
+                trackId: track.id,
+                trackName: track.name,
+                artists: track.artists.map(a => a.name).join(", "),
+                popularity: track.popularity || 0,
+              });
+            }
+          }
         }
       }
     }
   }
 
-  const totalPlTracks = playlistsWithTracks.reduce((s, p) => s + p.trackCount, 0);
   const connectedArtists = Object.values(connectedMap)
     .sort((a, b) => b.count - a.count)
-    .slice(0, 20)
-    .map((a) => ({ ...a, connectivity: totalPlTracks > 0 ? Math.round((a.count / totalPlTracks) * 1000) / 10 : 0 }));
+    .slice(0, 25)
+    .map(a => ({
+      ...a,
+      connectivity: playlistTrackCount > 0 ? Math.round((a.count / playlistTrackCount) * 1000) / 10 : 0,
+    }));
+
+  const allAlbums = [...(albums?.items || []), ...(albums2?.items || [])];
 
   const result = {
     hasCredentials: true,
     fetchedAt: new Date().toISOString(),
-    cacheTTL: CACHE_TTL_MS / 1000,
+    cacheTTL: CACHE_TTL,
     artist: {
       name: artist.name, followers: artist.followers?.total || 0,
       popularity: artist.popularity || 0, genres: artist.genres || [],
@@ -146,7 +167,7 @@ export default async function handler(req, res) {
       popularity: t.popularity || 0, externalUrl: t.external_urls?.spotify || "",
       durationMs: t.duration_ms, releaseDate: t.album?.release_date || "",
     })),
-    albums: [...(albums1?.items || []), ...(albums2?.items || [])].map(a => ({
+    albums: allAlbums.map(a => ({
       name: a.name, type: a.album_type, releaseDate: a.release_date || "",
       totalTracks: a.total_tracks || 0,
       image: a.images?.[0]?.url || "", imageSmall: a.images?.[1]?.url || a.images?.[0]?.url || "",
@@ -157,18 +178,15 @@ export default async function handler(req, res) {
       externalUrl: p.external_urls?.spotify || "", image: p.images?.[0]?.url || "",
     })),
     connectedArtists,
-    playlistsAnalysed: playlistsWithTracks.length,
-    totalPlaylistTracks: totalPlTracks,
-    relatedArtists: [], audienceTrending: [],
+    connectedSongs: connectedSongs.sort((a, b) => b.popularity - a.popularity),
+    playlistAnalysed,
+    playlistTrackCount,
+    relatedArtists: [],
+    audienceTrending: [],
+    history: [],
   };
 
-  // Persist with timeout
-  try { await Promise.race([kvSet(CACHE_KEY, result, CACHE_TTL_MS / 1000), new Promise((_, r) => setTimeout(() => r(), 5000))]); } catch {}
-  try { await Promise.race([kvListPush(HISTORY_KEY, { date: result.fetchedAt, popularity: result.artist.popularity, followers: result.artist.followers, topTracks: result.topTracks.slice(0, 5).map(t => ({ name: t.name, popularity: t.popularity })) }, 90), new Promise((_, r) => setTimeout(() => r(), 5000))]); } catch {}
-
-  let history = [];
-  try { history = await Promise.race([kvListGet(HISTORY_KEY, 0, 29), new Promise((_, r) => setTimeout(() => r(), 3000))]); } catch {}
-  result.history = history || [];
+  try { await Promise.race([kvSet(CACHE_KEY, result, CACHE_TTL), new Promise((_, r) => setTimeout(() => r(), 5000))]); } catch {}
 
   res.status(200).json(result);
 }

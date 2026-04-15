@@ -299,7 +299,7 @@ export default function SpotifyTracker() {
           {data.connectedArtists?.length > 0 ? (
             <>
             <div style={{ fontSize: 9, color: DIM, marginBottom: 8, fontStyle: "italic" }}>
-              Artists who appear alongside Madonna in curated playlists · {data.playlistsAnalysed} playlists · {data.totalPlaylistTracks} tracks analysed
+              Artists who appear alongside Madonna in "{data.playlistAnalysed || "—"}" · {data.playlistTrackCount || 0} tracks analysed
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
               {data.connectedArtists.slice(0, 12).map((a) => (
@@ -320,6 +320,24 @@ export default function SpotifyTracker() {
             <div style={{ fontSize: 11, color: MUTED, padding: 8 }}>Hit Refresh Now to analyse playlists and find connected artists. Connectivity % shows how often each artist appears alongside Madonna in curated playlists.</div>
           )}
         </Panel>
+
+        {/* Connected Songs — Madonna collabs found in playlists */}
+        {data.connectedSongs?.length > 0 && (
+          <Panel title={`Connected Songs (${data.connectedSongs.length})`} color={GREEN} span={3}>
+            <div style={{ fontSize: 9, color: DIM, marginBottom: 8, fontStyle: "italic" }}>
+              Tracks featuring Madonna alongside other artists found in playlists
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              {data.connectedSongs.map((s) => (
+                <div key={s.trackId} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "8px 10px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: WHITE, marginBottom: 2 }}>{s.trackName}</div>
+                  <div style={{ fontSize: 9, color: DIM }}>{s.artists}</div>
+                  {s.popularity > 0 && <div style={{ fontSize: 9, color: GREEN, fontWeight: 600, marginTop: 2 }}>Popularity: {s.popularity}</div>}
+                </div>
+              ))}
+            </div>
+          </Panel>
+        )}
 
         {/* Trend history panel */}
         {data.history && data.history.length > 1 && (

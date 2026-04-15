@@ -24,6 +24,8 @@ const COMMENTS_VIRAL = 2000;
 const COMMENTS_NORMAL = 1000;
 const MAX_STORED_COMMENTS = 50000;
 
+const MADONNA_CHANNEL_ID = "UCJiLxJhBhSFtoddDw7cgQqQ"; // @madonna official channel
+
 const SEARCH_QUERIES = [
   "Madonna",
   "Madonna COADF2",
@@ -188,7 +190,7 @@ export default async function handler(req, res) {
 
   // ── Full search + comment pull ──
 
-  // Step 1: Search (400 units)
+  // Step 1a: Search by keywords (800 units)
   const searchResults = [];
   for (const q of SEARCH_QUERIES) {
     const data = await ytGet(
@@ -197,6 +199,13 @@ export default async function handler(req, res) {
     );
     if (data?.items) searchResults.push(...data.items);
   }
+
+  // Step 1b: Get Madonna's channel uploads directly (100 units)
+  const channelVideos = await ytGet(
+    `/search?part=snippet&channelId=${MADONNA_CHANNEL_ID}&type=video&order=date&maxResults=25`,
+    apiKey
+  );
+  if (channelVideos?.items) searchResults.push(...channelVideos.items);
 
   const seenIds = new Set();
   const unique = searchResults.filter((v) => {
@@ -223,7 +232,9 @@ export default async function handler(req, res) {
 
   const madonnaVideos = videos.filter((v) => {
     const t = `${v.title} ${v.description} ${v.channel}`.toLowerCase();
-    return t.includes("madonna") || t.includes("coadf") || t.includes("confessions on a dance floor") || t.includes("confessions ii");
+    return t.includes("madonna") || t.includes("coadf") || t.includes("confessions on a dance floor") ||
+      t.includes("confessions ii") || t.includes("material girl") || t.includes("hung up") ||
+      t.includes("like a prayer") || t.includes("vogue") || v.channel === "Madonna";
   }).sort((a, b) => b.viewCount - a.viewCount);
 
   // Step 3: Pull comments at depth
