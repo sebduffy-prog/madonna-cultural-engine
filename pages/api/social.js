@@ -1,27 +1,21 @@
 // Social Trend Index Engine
 //
-// Uses Brave Search as a proxy mention tracker. Runs a fixed daily battery
-// of site-scoped queries, records how many results Brave indexes each day.
-// First run sets the baseline at zero. Every subsequent day, each query score
-// is expressed as % change against that baseline. Aggregated by platform and
-// rolled up into a single daily index score.
+// Every run stores a FULL snapshot to Blob: every query's total_count,
+// every item found (URL, title, platform, date). The first snapshot
+// becomes the baseline. Every subsequent run compares total_counts
+// against that baseline as % change. Over time, the stored snapshots
+// form a time series — every post, article, result is persisted.
 //
-// This is a directional trend engine — not a raw headcount.
-// A single drop, album announcement, or press spike pushes queries to
-// saturation and drives the index sharply upward. Quiet periods register
-// as flat or declining.
-//
-// 25 queries per daily run = 750/month
+// 48 queries per run = ~1,440/month
 
 import { kvGet, kvSet, kvListPush, kvListGet, kvDiagnostic } from "../../lib/kv";
 
-const CACHE_KEY = "social:trend-index";
-const BASELINE_KEY = "social:trend-baseline";
-const IS_DEV = process.env.NODE_ENV === "development";
-const CACHE_TTL = IS_DEV ? 300 : 86400;
+const BASELINE_KEY = "social_trend_baseline";
+const HISTORY_KEY = "social_trend_history";
+const CACHE_KEY = "social_trend_cache";
+const CACHE_TTL = 86400;
 
 // ── Fixed query battery ──
-// Every query runs every day. Result count tracked over time.
 const QUERIES = [
   // Reddit (10)
   { platform: "reddit", q: "site:reddit.com Madonna" },
@@ -88,16 +82,16 @@ const PLATFORM_META = {
   video: { label: "Video", color: "#F59E0B", icon: "V" },
 };
 
-// ── Brave Search — just count results ──
-async function braveCount(query, apiKey, freshness = "pd") {
-  if (!apiKey) return { count: 0, items: [] };
+// ── Brave Search ──
+async function braveSearch(query, apiKey, freshness = "pd") {
+  if (!apiKey) return { totalCount: 0, items: [] };
   try {
     const params = new URLSearchParams({ q: query, count: "20", freshness });
     const res = await fetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
       headers: { "X-Subscription-Token": apiKey, Accept: "application/json" },
       signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) return { count: 0, items: [] };
+    if (!res.ok) return { totalCount: 0, items: [] };
     const data = await res.json();
 
     const items = (data.web?.results || []).map((r) => ({
@@ -108,7 +102,6 @@ async function braveCount(query, apiKey, freshness = "pd") {
       source: (() => { try { return new URL(r.url).hostname.replace("www.", ""); } catch { return ""; } })(),
     }));
 
-    // Also count discussions
     const discussions = (data.discussions?.results || []).map((r) => ({
       title: r.title || "",
       url: r.url || "",
@@ -119,16 +112,18 @@ async function braveCount(query, apiKey, freshness = "pd") {
       score: r.data?.score || 0,
     }));
 
-    // Only keep results that are actually about Madonna
+    // Filter to Madonna-relevant results only
     const allItems = [...items, ...discussions].filter((item) => {
       const text = `${item.title} ${item.description} ${item.url}`.toLowerCase();
       return text.includes("madonna") || text.includes("coadf") || text.includes("confessions on a dance floor") || text.includes("confessions ii");
     });
-    // Use Brave's estimated total_count — the real volume, not capped at 20
-    const estimatedTotal = data.web?.total_count || allItems.length;
-    return { count: estimatedTotal, items: allItems };
+
+    // total_count = Brave's estimated total results (uncapped)
+    const totalCount = data.web?.total_count || allItems.length;
+
+    return { totalCount, items: allItems };
   } catch {
-    return { count: 0, items: [] };
+    return { totalCount: 0, items: [] };
   }
 }
 
@@ -136,22 +131,19 @@ export default async function handler(req, res) {
   const { refresh, reset } = req.query;
   const apiKey = process.env.BRAVE_API_KEY || "";
 
-  // Reset baseline — forces a fresh start from now
+  // Reset baseline
   if (reset) {
     await kvSet(BASELINE_KEY, null);
     await kvSet(CACHE_KEY, null);
-    // Fall through to re-fetch with new baseline
   }
 
   // Serve cache if not refreshing
-  if (!refresh) {
+  if (!refresh && !reset) {
     const cached = await kvGet(CACHE_KEY);
-    if (cached && cached.index !== undefined) {
-      const history = await kvListGet("social:trend-history", 0, 364);
-      cached.history = history;
+    if (cached && cached.platforms) {
+      cached.history = await kvListGet(HISTORY_KEY, 0, 364);
       return res.status(200).json(cached);
     }
-    // No cache — fall through to fetch
   }
 
   if (!apiKey) {
@@ -159,62 +151,75 @@ export default async function handler(req, res) {
   }
 
   // ── Run all queries in parallel ──
-  const results = await Promise.all(
-    QUERIES.map((q) => braveCount(q.q, apiKey, q.freshness || "pd"))
+  const raw = await Promise.all(
+    QUERIES.map((q) => braveSearch(q.q, apiKey, q.freshness || "pd"))
   );
 
-  // ── Build per-query scores ──
-  const baselineRaw = await kvGet(BASELINE_KEY);
-  // Handle both formats: old (plain array) and new (object with date + counts)
-  const baselineCounts = baselineRaw ? (Array.isArray(baselineRaw) ? baselineRaw : baselineRaw.counts) : null;
-  const baselineDate = baselineRaw?.date || "2026-04-14T09:00:00.000Z";
-  const isFirstRun = !baselineCounts;
+  // ── Build this run's full snapshot ──
+  const snapshot = {
+    date: new Date().toISOString(),
+    queries: QUERIES.map((q, i) => ({
+      platform: q.platform,
+      query: q.q,
+      totalCount: raw[i].totalCount,
+      itemCount: raw[i].items.length,
+      items: raw[i].items, // store EVERY item
+    })),
+  };
 
+  // ── Load or set baseline ──
+  let baseline = await kvGet(BASELINE_KEY);
+  const isFirstRun = !baseline || !baseline.queries;
+
+  if (isFirstRun) {
+    baseline = snapshot;
+    await kvSet(BASELINE_KEY, baseline); // persists to Blob
+  }
+
+  // ── Calculate % change per query vs baseline ──
   const queryScores = QUERIES.map((q, i) => {
-    const count = results[i].count;
-    const baseCount = baselineCounts ? (baselineCounts[i] || 0) : count;
-    const pctChange = baseCount > 0 ? ((count - baseCount) / baseCount) * 100 : 0;
+    const todayCount = raw[i].totalCount;
+    const baseCount = baseline.queries?.[i]?.totalCount || 0;
+    const pctChange = baseCount > 0
+      ? Math.round(((todayCount - baseCount) / baseCount) * 1000) / 10
+      : 0;
     return {
       platform: q.platform,
       query: q.q,
-      count,
+      todayCount,
       baselineCount: baseCount,
-      pctChange: isFirstRun ? 0 : Math.round(pctChange * 10) / 10,
+      pctChange: isFirstRun ? 0 : pctChange,
     };
   });
 
-  // Set baseline on first run — persists via Vercel Blob
-  if (isFirstRun) {
-    await kvSet(BASELINE_KEY, {
-      date: new Date().toISOString(),
-      counts: QUERIES.map((_, i) => results[i].count),
-    });
-  }
-
   // ── Aggregate by platform ──
-  const platforms = {};
+  const platformMap = {};
   const allItems = [];
+
   QUERIES.forEach((q, i) => {
-    if (!platforms[q.platform]) {
-      platforms[q.platform] = {
+    if (!platformMap[q.platform]) {
+      platformMap[q.platform] = {
         id: q.platform,
         ...PLATFORM_META[q.platform],
         queries: [],
         totalCount: 0,
-        avgChange: 0,
+        baselineTotal: 0,
         items: [],
       };
     }
-    platforms[q.platform].queries.push(queryScores[i]);
-    platforms[q.platform].totalCount += results[i].count;
-    platforms[q.platform].items.push(...results[i].items);
-    allItems.push(...results[i].items.map((item) => ({ ...item, platform: q.platform })));
+    const p = platformMap[q.platform];
+    p.queries.push(queryScores[i]);
+    p.totalCount += raw[i].totalCount;
+    p.baselineTotal += baseline.queries?.[i]?.totalCount || 0;
+    p.items.push(...raw[i].items);
+    allItems.push(...raw[i].items.map((item) => ({ ...item, platform: q.platform })));
   });
 
-  // Calculate platform index scores
-  const platformList = Object.values(platforms).map((p) => {
-    const changes = p.queries.map((q) => q.pctChange);
-    p.avgChange = changes.length > 0 ? Math.round((changes.reduce((s, c) => s + c, 0) / changes.length) * 10) / 10 : 0;
+  const platformList = Object.values(platformMap).map((p) => {
+    // Platform % change = total_count change across all queries for this platform
+    p.avgChange = p.baselineTotal > 0 && !isFirstRun
+      ? Math.round(((p.totalCount - p.baselineTotal) / p.baselineTotal) * 1000) / 10
+      : 0;
     // Dedup items by URL
     const seen = new Set();
     p.items = p.items.filter((item) => {
@@ -225,12 +230,14 @@ export default async function handler(req, res) {
     return p;
   });
 
-  // ── Overall index = average of platform indices ──
-  const overallIndex = platformList.length > 0
-    ? Math.round((platformList.reduce((s, p) => s + p.avgChange, 0) / platformList.length) * 10) / 10
+  // ── Overall index ──
+  const totalToday = queryScores.reduce((s, q) => s + q.todayCount, 0);
+  const totalBaseline = queryScores.reduce((s, q) => s + q.baselineCount, 0);
+  const overallIndex = totalBaseline > 0 && !isFirstRun
+    ? Math.round(((totalToday - totalBaseline) / totalBaseline) * 1000) / 10
     : 0;
 
-  // Total unique items across all platforms
+  // Dedup all items
   const seenAll = new Set();
   const uniqueItems = allItems.filter((item) => {
     if (!item.url || seenAll.has(item.url)) return false;
@@ -238,7 +245,7 @@ export default async function handler(req, res) {
     return true;
   });
 
-  // ── AI Sentiment on today's items ──
+  // ── AI Sentiment ──
   let pos = 0, neg = 0, neu = 0;
   let sentimentMethod = "keyword";
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
@@ -262,12 +269,12 @@ export default async function handler(req, res) {
         const t = (await aiRes.json()).content?.[0]?.text || "";
         const m = t.match(/\{[\s\S]*\}/);
         if (m) {
-          const p2 = JSON.parse(m[0]);
+          const parsed = JSON.parse(m[0]);
           const scale = uniqueItems.length / Math.min(uniqueItems.length, 80);
-          pos = Math.round((p2.positive || 0) * scale);
-          neg = Math.round((p2.negative || 0) * scale);
-          neu = Math.round((p2.neutral || 0) * scale);
-          sentimentMethod = p2.summary ? `claude-ai: ${p2.summary}` : "claude-ai";
+          pos = Math.round((parsed.positive || 0) * scale);
+          neg = Math.round((parsed.negative || 0) * scale);
+          neu = Math.round((parsed.neutral || 0) * scale);
+          sentimentMethod = parsed.summary ? `claude-ai: ${parsed.summary}` : "claude-ai";
         }
       }
     } catch { /* fallback */ }
@@ -291,11 +298,13 @@ export default async function handler(req, res) {
   const result = {
     hasBraveKey: true,
     storage: storageDiag,
-    storageWarning: !storageDiag.canWrite ? `Blob storage not working: ${storageDiag.error || "write failed"}. Baseline will not persist.` : undefined,
-    fetchedAt: new Date().toISOString(),
+    storageWarning: !storageDiag.canWrite ? `Blob not working: ${storageDiag.error || "write failed"}` : undefined,
+    fetchedAt: snapshot.date,
     isFirstRun,
-    baselineDate,
+    baselineDate: baseline.date,
     index: overallIndex,
+    totalToday,
+    totalBaseline,
     platforms: platformList,
     queryScores,
     totalSources: uniqueItems.length,
@@ -311,19 +320,25 @@ export default async function handler(req, res) {
     queriesUsed: QUERIES.length,
   };
 
+  // ── Persist everything ──
   await kvSet(CACHE_KEY, result, CACHE_TTL);
 
-  // Store daily snapshot
-  if (refresh) {
-    await kvListPush("social:trend-history", {
-      date: result.fetchedAt,
-      index: overallIndex,
-      totalSources: uniqueItems.length,
-      platforms: Object.fromEntries(platformList.map((p) => [p.id, { count: p.totalCount, change: p.avgChange }])),
-      sentiment: result.sentiment,
-    }, 365);
-  }
+  // Store this run as a history snapshot — full data persisted
+  await kvListPush(HISTORY_KEY, {
+    date: snapshot.date,
+    index: overallIndex,
+    totalToday,
+    totalBaseline,
+    totalSources: uniqueItems.length,
+    platforms: Object.fromEntries(platformList.map((p) => [p.id, {
+      count: p.totalCount,
+      baseline: p.baselineTotal,
+      change: p.avgChange,
+      items: p.items.length,
+    }])),
+    sentiment: result.sentiment,
+  }, 365);
 
-  result.history = await kvListGet("social:trend-history", 0, 364);
+  result.history = await kvListGet(HISTORY_KEY, 0, 364);
   res.status(200).json(result);
 }
