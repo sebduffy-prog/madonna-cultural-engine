@@ -93,12 +93,27 @@ export default function GraphRAG() {
           </h2>
           <span style={{ fontSize: 11, color: MUTED }}>YouTube intelligence</span>
         </div>
-        <button onClick={() => fetchData(true)} disabled={loading} style={{
-          padding: "4px 12px", fontSize: 10, fontWeight: 600,
-          color: loading ? MUTED : BG, background: loading ? BORDER : RED,
-          border: "none", borderRadius: 4, cursor: loading ? "default" : "pointer",
-          fontFamily: "'Inter Tight', sans-serif",
-        }}>{loading ? "Scanning..." : "Scan YouTube"}</button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={async () => {
+            setLoading(true);
+            try {
+              const r = await fetch("/api/youtube-rag?retheme=1");
+              if (r.ok) setData(await r.json());
+            } catch {}
+            setLoading(false);
+          }} disabled={loading} style={{
+            padding: "4px 12px", fontSize: 10, fontWeight: 600,
+            color: loading ? MUTED : BG, background: loading ? BORDER : AMBER,
+            border: "none", borderRadius: 4, cursor: loading ? "default" : "pointer",
+            fontFamily: "'Inter Tight', sans-serif",
+          }}>Redo Themes</button>
+          <button onClick={() => fetchData(true)} disabled={loading} style={{
+            padding: "4px 12px", fontSize: 10, fontWeight: 600,
+            color: loading ? MUTED : BG, background: loading ? BORDER : RED,
+            border: "none", borderRadius: 4, cursor: loading ? "default" : "pointer",
+            fontFamily: "'Inter Tight', sans-serif",
+          }}>{loading ? "Scanning..." : "Search"}</button>
+        </div>
       </div>
 
       {/* Tabs */}
