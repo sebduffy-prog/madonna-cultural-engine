@@ -327,7 +327,8 @@ export default async function handler(req, res) {
     });
   }
 
-  const maxItems = category === "madonna" ? 100 : 60;
+  // No limit on Madonna results — show everything found
+  const maxItems = category === "madonna" ? combined.length : 60;
 
   const result = {
     category,

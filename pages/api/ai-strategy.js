@@ -1,41 +1,30 @@
-// AI-powered strategic recommendations using Claude
-// Analyses the week's feeds, Spotify data, and social mentions
-// Generates fresh recommendations per category
+// AI Strategy Recommendations — reads prompt from strategy-prompt.md
+// Edit that file to train the AI as a media strategist
 
 import { kvGet, kvSet, kvListPush } from "../../lib/kv";
+import fs from "fs";
+import path from "path";
 
-const CACHE_KEY = "ai:recommendations";
+const CACHE_KEY = "ai_recommendations";
 const CACHE_TTL = 604800; // 7 days
 
-const SYSTEM_PROMPT = `You are a senior cultural strategist at a leading media agency, advising Madonna's management team. You are sharp, specific, and never generic. Your recommendations must reference actual current events, trends, and data points.
-
-You will receive this week's intelligence data: RSS/search results from fashion, LGBTQ, and cultural outlets, plus Spotify streaming data and social media mentions.
-
-Generate exactly 3 strategic recommendations for each of these 4 categories:
-1. MADONNA (cross-platform, her brand overall)
-2. FASHION (fashion press, designer partnerships, style positioning)
-3. GAY COMMUNITY (LGBTQ culture, Pride, ballroom, queer media)
-4. CULTURE (club culture, music scene, underground, broader cultural trends)
-
-Each recommendation must have:
-- "type": one of "Media", "Strategic", or "Partnership"
-- "title": punchy, actionable title (max 8 words)
-- "description": 2-3 sentences explaining the recommendation with specific references to this week's data
-
-Respond in valid JSON format:
-{
-  "madonna": [{"type":"...","title":"...","description":"..."},...],
-  "fashion": [...],
-  "gay": [...],
-  "culture": [...]
-}`;
+function loadPrompt() {
+  try {
+    const filePath = path.join(process.cwd(), "strategy-prompt.md");
+    const content = fs.readFileSync(filePath, "utf-8");
+    // Extract everything after the --- frontmatter delimiter
+    const parts = content.split("---");
+    return parts.length > 2 ? parts.slice(2).join("---").trim() : content.trim();
+  } catch {
+    return "You are a senior cultural strategist advising Madonna's management team. Generate strategic recommendations.";
+  }
+}
 
 async function gatherIntelligence() {
   const parts = [];
 
-  // Gather cached feed data
   for (const cat of ["madonna", "fashion", "gay", "culture"]) {
-    const feed = await kvGet(`feeds:${cat}`);
+    const feed = await kvGet(`feeds_${cat}`);
     if (feed?.items) {
       parts.push(`\n## ${cat.toUpperCase()} FEED (${feed.items.length} articles):`);
       feed.items.slice(0, 15).forEach((item) => {
@@ -44,28 +33,24 @@ async function gatherIntelligence() {
     }
   }
 
-  // Spotify data
-  const spotify = await kvGet("spotify:snapshot");
+  const spotify = await kvGet("spotify_snapshot");
   if (spotify?.artist) {
     parts.push("\n## SPOTIFY DATA:");
-    parts.push(`Artist popularity: ${spotify.artist.popularity}/100, Followers: ${spotify.artist.followers?.toLocaleString()}`);
+    parts.push(`Artist: ${spotify.artist.name}, Popularity: ${spotify.artist.popularity}/100`);
     if (spotify.topTracks?.length) {
       parts.push("Top tracks: " + spotify.topTracks.slice(0, 5).map((t) => `${t.name} (${t.popularity})`).join(", "));
     }
   }
 
-  // Social mentions
-  const social = await kvGet("social:pulse");
-  if (social?.platforms) {
-    parts.push("\n## SOCIAL MENTIONS:");
-    if (social.sentiment) {
-      parts.push(`Sentiment: ${social.sentiment.positive}% positive, ${social.sentiment.neutral}% neutral, ${social.sentiment.negative}% negative (${social.sentiment.total} mentions)`);
+  const mediaIndex = await kvGet("media_trend_cache");
+  if (mediaIndex) {
+    parts.push("\n## MEDIA TREND INDEX:");
+    parts.push(`Overall index: ${mediaIndex.index}% vs baseline`);
+    if (mediaIndex.queryScores) {
+      mediaIndex.queryScores.forEach((q) => {
+        parts.push(`- ${q.label}: ${q.todayCount} results (${q.pctChange > 0 ? "+" : ""}${q.pctChange}%)`);
+      });
     }
-    social.platforms.forEach((p) => {
-      if (p.items.length > 0) {
-        parts.push(`${p.label}: ${p.items.slice(0, 5).map((i) => i.title).join(" | ")}`);
-      }
-    });
   }
 
   return parts.length > 0 ? parts.join("\n") : null;
@@ -78,11 +63,10 @@ export default async function handler(req, res) {
   if (!apiKey) {
     return res.status(200).json({
       hasApiKey: false,
-      error: "Anthropic API key not configured. Add ANTHROPIC_API_KEY to .env.local",
+      error: "Anthropic API key not configured. Add ANTHROPIC_API_KEY to Vercel Environment Variables.",
     });
   }
 
-  // Check cache
   if (!refresh) {
     const cached = await kvGet(CACHE_KEY);
     if (cached) {
@@ -90,13 +74,13 @@ export default async function handler(req, res) {
     }
   }
 
-  // Gather intelligence
   const intelligence = await gatherIntelligence();
+  const systemPrompt = loadPrompt();
 
   if (!intelligence) {
     return res.status(200).json({
       hasApiKey: true,
-      error: "No feed data available yet. Run a New Search in the Cultural Feed first, then generate recommendations.",
+      error: "No feed data available yet. Run a New Search in the Media tab first.",
     });
   }
 
@@ -111,7 +95,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 2000,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [
           { role: "user", content: `Here is this week's intelligence data. Generate strategic recommendations based on what's actually happening:\n\n${intelligence}` },
         ],
@@ -127,7 +111,6 @@ export default async function handler(req, res) {
     const data = await anthropicRes.json();
     const text = data.content?.[0]?.text || "";
 
-    // Extract JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return res.status(200).json({ hasApiKey: true, error: "Could not parse AI response" });
@@ -139,16 +122,10 @@ export default async function handler(req, res) {
       hasApiKey: true,
       generatedAt: new Date().toISOString(),
       recommendations,
+      promptFile: "strategy-prompt.md",
     };
 
-    // Cache for 7 days
     await kvSet(CACHE_KEY, result, CACHE_TTL);
-
-    // Store in history
-    await kvListPush("ai:recommendations:history", {
-      date: result.generatedAt,
-      recommendations,
-    });
 
     res.status(200).json(result);
   } catch (err) {

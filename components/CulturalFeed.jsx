@@ -684,53 +684,6 @@ export default function CulturalFeed() {
         )}
       </div>
 
-      {/* Strategic Recommendations */}
-      <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 2, height: 14, background: Y, borderRadius: 1 }} />
-            <span style={{
-              fontSize: 12, fontWeight: 600, color: Y,
-              textTransform: "uppercase", letterSpacing: "0.04em",
-              fontFamily: "'Inter Tight', sans-serif",
-            }}>
-              Madonna: Strategic Recommendations
-            </span>
-            {aiRecs?.generatedAt && (
-              <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
-                AI-generated {new Date(aiRecs.generatedAt).toLocaleDateString("en-GB")}
-              </span>
-            )}
-          </div>
-          <button
-            onClick={async () => {
-              setAiLoading(true);
-              try {
-                const r = await fetch("/api/ai-strategy?refresh=1");
-                if (r.ok) { const d = await r.json(); if (d.recommendations) setAiRecs(d); }
-              } catch { /* ignore */ }
-              setAiLoading(false);
-            }}
-            disabled={aiLoading}
-            style={{
-              padding: "4px 12px", fontSize: 11, fontWeight: 600,
-              color: aiLoading ? MUTED : BG, background: aiLoading ? BORDER : CORAL,
-              border: "none", borderRadius: 5, cursor: aiLoading ? "default" : "pointer",
-              fontFamily: "'Inter Tight', sans-serif",
-            }}
-          >
-            {aiLoading ? "Generating..." : "Generate AI Recommendations"}
-          </button>
-        </div>
-        <p style={{ fontSize: 13, color: DIM, margin: "0 0 12px", lineHeight: 1.5, fontStyle: "italic" }}>
-          {aiRecs?.recommendations ? "AI-generated based on this week's intelligence data." : "What could Madonna do right now to own this space?"}
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {recs.map((rec, i) => (
-            <RecommendationCard key={i} rec={rec} />
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
