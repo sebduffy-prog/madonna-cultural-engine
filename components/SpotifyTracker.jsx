@@ -80,11 +80,10 @@ export default function SpotifyTracker() {
     setLoading(true);
     try {
       const res = await fetch(`/api/spotify${refresh ? "?refresh=1" : ""}`, { signal: AbortSignal.timeout(15000) });
-      if (res.ok) {
-        const d = await res.json();
-        setData(d);
+      const d = await res.json();
+      setData(d);
+      if (res.ok && d.artist) {
         setLastRefresh(new Date());
-        // Schedule next auto-refresh based on cache TTL
         const ttl = (d.cacheTTL || 120) * 1000;
         setNextRefresh(new Date(Date.now() + ttl));
       }

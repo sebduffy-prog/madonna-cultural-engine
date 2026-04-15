@@ -5,12 +5,12 @@
 
 import { kvGet, kvSet, kvListPush, kvListGet } from "../../lib/kv";
 
-const BASELINE_KEY = "media_trend_baseline";
 const HISTORY_KEY = "media_trend_history";
 const CACHE_KEY = "media_trend_cache";
 const FEED_KEY = "media_feed_pool";
 const CACHE_TTL = 86400;
 const MAX_FEED = 200;
+const MENTION_BASELINE = 60;
 
 // Focused queries — Madonna and the new album only
 const QUERIES = [
@@ -71,7 +71,6 @@ export default async function handler(req, res) {
   const apiKey = process.env.BRAVE_API_KEY || "";
 
   if (reset) {
-    await kvSet(BASELINE_KEY, null);
     await kvSet(CACHE_KEY, null);
   }
 
@@ -91,27 +90,20 @@ export default async function handler(req, res) {
     return res.status(200).json({ error: "No Brave API key" });
   }
 
-  // Load baseline
-  let baseline = await kvGet(BASELINE_KEY);
-  const isFirstRun = !baseline || !baseline.queries;
-  const freshness = isFirstRun ? "pw" : "pd";
-
   // Run all queries — paginate until exhausted
   const raw = await Promise.all(
-    QUERIES.map((q) => braveSearchAll(q.q, apiKey, freshness))
+    QUERIES.map((q) => braveSearchAll(q.q, apiKey, "pd"))
   );
 
   // Count total API calls used (for budget tracking)
   let apiCallsUsed = 0;
   raw.forEach((items) => {
-    // Each page of 50 = 1 call. Estimate from item count.
     apiCallsUsed += Math.max(1, Math.ceil(items.length / 50));
   });
 
   // Build snapshot
   const snapshot = {
     date: new Date().toISOString(),
-    freshness,
     queries: QUERIES.map((q, i) => ({
       label: q.label,
       query: q.q,
@@ -119,24 +111,17 @@ export default async function handler(req, res) {
     })),
   };
 
-  if (isFirstRun) {
-    baseline = snapshot;
-    await kvSet(BASELINE_KEY, baseline);
-  }
-
-  // Per-query % change
+  // Per-query % change against fixed baseline of 60 mentions
+  const perQueryBaseline = MENTION_BASELINE / QUERIES.length;
   const queryScores = QUERIES.map((q, i) => {
     const today = raw[i].length;
-    const base = baseline.queries?.[i]?.count || 0;
-    const pct = base > 0 ? Math.round(((today - base) / base) * 1000) / 10 : (today > 0 ? 100 : 0);
-    return { label: q.label, todayCount: today, baselineCount: base, pctChange: isFirstRun ? 0 : pct };
+    const pct = Math.round(((today - perQueryBaseline) / perQueryBaseline) * 1000) / 10;
+    return { label: q.label, todayCount: today, baselineCount: perQueryBaseline, pctChange: pct };
   });
 
   const totalToday = queryScores.reduce((s, q) => s + q.todayCount, 0);
-  const totalBaseline = queryScores.reduce((s, q) => s + q.baselineCount, 0);
-  const overallIndex = totalBaseline > 0 && !isFirstRun
-    ? Math.round(((totalToday - totalBaseline) / totalBaseline) * 1000) / 10
-    : 0;
+  const totalBaseline = MENTION_BASELINE;
+  const overallIndex = Math.round(((totalToday - totalBaseline) / totalBaseline) * 1000) / 10;
 
   // Dedup all items
   const seen = new Set();
@@ -203,8 +188,9 @@ export default async function handler(req, res) {
 
   const result = {
     fetchedAt: snapshot.date,
-    isFirstRun,
-    baselineDate: baseline.date,
+    isFirstRun: false,
+    baselineDate: null,
+    baseline: MENTION_BASELINE,
     index: overallIndex,
     totalToday,
     totalBaseline,
