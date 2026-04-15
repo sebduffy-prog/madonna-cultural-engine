@@ -1,7 +1,7 @@
-// Media Trend Index — tracks Madonna media mention volume over time
-// Uses Brave Search with count=50 + pagination for deep results
-// Baseline set on first run (pw = past week), daily runs use pd (past day)
-// Persistent feed pool: always 100 items, newest in, oldest out
+// Media Trend Index — tracks Madonna media mention volume
+// Focused queries: Madonna, COADF2, Confessions II only
+// Paginates until no more results — gets everything Brave has
+// Feed pool: 200 items, newest in, oldest out
 
 import { kvGet, kvSet, kvListPush, kvListGet } from "../../lib/kv";
 
@@ -10,22 +10,14 @@ const HISTORY_KEY = "media_trend_history";
 const CACHE_KEY = "media_trend_cache";
 const FEED_KEY = "media_feed_pool";
 const CACHE_TTL = 86400;
-const MAX_FEED = 100;
+const MAX_FEED = 200;
 
-// Media mention queries — news, features, coverage
+// Focused queries — Madonna and the new album only
 const QUERIES = [
-  { q: "Madonna", label: "General" },
-  { q: "Madonna news 2026", label: "News" },
-  { q: "Madonna interview OR profile OR feature", label: "Features" },
-  { q: "Madonna album OR tour OR concert OR comeback", label: "Album/Tour" },
-  { q: 'Madonna "Confessions on a Dance Floor 2" OR COADF2 OR "Confessions II"', label: "COADF2" },
-  { q: 'Madonna "Stuart Price" OR "Warner Records" OR "new album"', label: "Stuart Price" },
-  { q: "Madonna Netflix OR biopic OR documentary OR series", label: "Netflix" },
-  { q: 'Madonna fashion OR style OR "Met Gala" OR Vogue OR campaign', label: "Fashion" },
-  { q: "Madonna LGBTQ OR pride OR queer OR ballroom", label: "LGBTQ" },
-  { q: "Madonna legacy OR influence OR icon OR pioneer", label: "Legacy" },
-  { q: "Madonna viral OR trending OR moment OR reaction", label: "Viral" },
-  { q: "Madonna Coachella OR festival OR live OR performance", label: "Live" },
+  { q: "Madonna", label: "Madonna" },
+  { q: "Madonna COADF2", label: "COADF2" },
+  { q: '"Confessions on a Dance Floor 2"', label: "Confessions 2" },
+  { q: 'Madonna "Confessions II"', label: "Confessions II" },
 ];
 
 function isMadonnaRelevant(item) {
@@ -34,11 +26,13 @@ function isMadonnaRelevant(item) {
     text.includes("confessions on a dance floor") || text.includes("confessions ii");
 }
 
-async function braveSearchDeep(query, apiKey, freshness = "pd") {
+// Paginate until Brave returns no more results
+async function braveSearchAll(query, apiKey, freshness = "pd") {
   if (!apiKey) return [];
   const allItems = [];
+  let offset = 0;
 
-  for (const offset of [0, 50]) {
+  while (true) {
     try {
       const params = new URLSearchParams({
         q: query, count: "50", freshness, offset: String(offset),
@@ -61,7 +55,11 @@ async function braveSearchDeep(query, apiKey, freshness = "pd") {
       }));
 
       allItems.push(...items);
-      if (items.length < 50) break;
+
+      // Stop if fewer than 50 returned (no more pages) or hit 500 cap
+      if (items.length < 50 || allItems.length >= 500) break;
+
+      offset += 50;
     } catch { break; }
   }
 
@@ -94,10 +92,17 @@ export default async function handler(req, res) {
   const isFirstRun = !baseline || !baseline.queries;
   const freshness = isFirstRun ? "pw" : "pd";
 
-  // Run all queries in parallel (12 queries × 2 pages = 24 API calls)
+  // Run all queries — paginate until exhausted
   const raw = await Promise.all(
-    QUERIES.map((q) => braveSearchDeep(q.q, apiKey, freshness))
+    QUERIES.map((q) => braveSearchAll(q.q, apiKey, freshness))
   );
+
+  // Count total API calls used (for budget tracking)
+  let apiCallsUsed = 0;
+  raw.forEach((items) => {
+    // Each page of 50 = 1 call. Estimate from item count.
+    apiCallsUsed += Math.max(1, Math.ceil(items.length / 50));
+  });
 
   // Build snapshot
   const snapshot = {
@@ -137,7 +142,7 @@ export default async function handler(req, res) {
     return true;
   });
 
-  // Persistent feed pool
+  // Persistent feed pool — 200 items, newest in, oldest out
   let feedPool = await kvGet(FEED_KEY) || [];
   const poolUrls = new Set(feedPool.map((i) => i.url));
   const newItems = todaysItems.filter((i) => i.url && !poolUrls.has(i.url));
@@ -209,7 +214,7 @@ export default async function handler(req, res) {
       positiveCount: pos, negativeCount: neg, neutralCount: neu,
       method: sentimentMethod,
     },
-    queriesUsed: QUERIES.length * 2,
+    apiCallsUsed,
   };
 
   await kvSet(CACHE_KEY, result, CACHE_TTL);
