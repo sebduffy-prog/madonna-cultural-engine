@@ -234,7 +234,7 @@ export default async function handler(req, res) {
     const t = `${v.title} ${v.description} ${v.channel}`.toLowerCase();
     return t.includes("madonna") || t.includes("coadf") || t.includes("confessions on a dance floor") ||
       t.includes("confessions ii") || t.includes("material girl") || t.includes("hung up") ||
-      t.includes("like a prayer") || t.includes("vogue") || v.channel === "Madonna";
+      t.includes("like a prayer") || v.channel === "Madonna";
   }).sort((a, b) => b.viewCount - a.viewCount);
 
   // Step 3: Pull comments at depth
