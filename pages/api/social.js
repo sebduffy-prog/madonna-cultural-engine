@@ -23,37 +23,60 @@ const CACHE_TTL = IS_DEV ? 300 : 86400;
 // ── Fixed query battery ──
 // Every query runs every day. Result count tracked over time.
 const QUERIES = [
-  // Reddit (5)
+  // Reddit (10)
   { platform: "reddit", q: "site:reddit.com Madonna" },
   { platform: "reddit", q: "site:reddit.com Madonna COADF2" },
   { platform: "reddit", q: 'site:reddit.com Madonna "Confessions on a Dance Floor 2"' },
   { platform: "reddit", q: 'site:reddit.com Madonna "Confessions II"' },
   { platform: "reddit", q: "site:reddit.com madonna music 2026" },
-  // TikTok (4)
+  { platform: "reddit", q: "site:reddit.com madonna album new single" },
+  { platform: "reddit", q: "site:reddit.com madonna tour concert live" },
+  { platform: "reddit", q: "site:reddit.com madonna Netflix documentary" },
+  { platform: "reddit", q: 'site:reddit.com madonna "Stuart Price"' },
+  { platform: "reddit", q: "site:reddit.com madonna warner records" },
+  // TikTok (8)
   { platform: "tiktok", q: "site:tiktok.com Madonna" },
   { platform: "tiktok", q: "site:tiktok.com Madonna COADF2" },
   { platform: "tiktok", q: "site:tiktok.com madonna confessions" },
   { platform: "tiktok", q: 'site:tiktok.com Madonna "confessions II"' },
-  // YouTube (4)
+  { platform: "tiktok", q: "site:tiktok.com madonna dance trend" },
+  { platform: "tiktok", q: "site:tiktok.com madonna hung up vogue" },
+  { platform: "tiktok", q: "site:tiktok.com madonna material girl sound" },
+  { platform: "tiktok", q: "site:tiktok.com madonna 2026" },
+  // YouTube (8)
   { platform: "youtube", q: "site:youtube.com Madonna" },
   { platform: "youtube", q: "site:youtube.com Madonna COADF2" },
   { platform: "youtube", q: "site:youtube.com madonna 2026" },
   { platform: "youtube", q: 'site:youtube.com Madonna "confessions on a dance floor 2"' },
-  // Instagram (3)
+  { platform: "youtube", q: "site:youtube.com madonna reaction" },
+  { platform: "youtube", q: "site:youtube.com madonna live performance concert" },
+  { platform: "youtube", q: "site:youtube.com madonna interview documentary" },
+  { platform: "youtube", q: "site:youtube.com madonna music video official" },
+  // Instagram (6)
   { platform: "instagram", q: "site:instagram.com Madonna" },
   { platform: "instagram", q: "site:instagram.com Madonna COADF2" },
   { platform: "instagram", q: "site:instagram.com madonna confessions" },
-  // News (6)
+  { platform: "instagram", q: "site:instagram.com madonna fashion style" },
+  { platform: "instagram", q: "site:instagram.com madonna fan" },
+  { platform: "instagram", q: "site:instagram.com madonna 2026" },
+  // News (10)
   { platform: "news", q: "Madonna", freshness: "pd" },
   { platform: "news", q: "Madonna COADF2", freshness: "pd" },
   { platform: "news", q: 'Madonna "Confessions II"', freshness: "pd" },
   { platform: "news", q: '"Confessions on a Dance Floor 2"', freshness: "pd" },
   { platform: "news", q: "madonna album 2026", freshness: "pd" },
   { platform: "news", q: "madonna warner records", freshness: "pd" },
-  // Video (3)
+  { platform: "news", q: "madonna Netflix series biopic", freshness: "pd" },
+  { platform: "news", q: 'madonna "Stuart Price" new music', freshness: "pd" },
+  { platform: "news", q: "madonna tour concert announcement", freshness: "pd" },
+  { platform: "news", q: "madonna interview profile feature 2026", freshness: "pd" },
+  // Video (6)
   { platform: "video", q: "Madonna Confessions video", freshness: "pw" },
   { platform: "video", q: "Madonna COADF2 video", freshness: "pw" },
   { platform: "video", q: "Madonna 2026 video", freshness: "pw" },
+  { platform: "video", q: "Madonna new album music video", freshness: "pw" },
+  { platform: "video", q: "Madonna live performance 2026", freshness: "pw" },
+  { platform: "video", q: "Madonna documentary Netflix trailer", freshness: "pw" },
 ];
 
 const PLATFORM_META = {
