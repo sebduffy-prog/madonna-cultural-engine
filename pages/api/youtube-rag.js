@@ -53,8 +53,13 @@ const YT_BASE = "https://www.googleapis.com/youtube/v3";
 
 async function ytGet(path, apiKey) {
   try {
-    const r = await fetch(`${YT_BASE}${path}&key=${apiKey}`, { signal: AbortSignal.timeout(10000) });
-    if (!r.ok) { console.error(`[yt] ${r.status}`); return null; }
+    const url = `${YT_BASE}${path}&key=${apiKey}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) {
+      const errBody = await r.text().catch(() => "");
+      console.error(`[yt] ${r.status} for ${path.split("?")[0]}: ${errBody.slice(0, 200)}`);
+      return null;
+    }
     return r.json();
   } catch (err) { console.error(`[yt] ${err.message}`); return null; }
 }
@@ -187,7 +192,7 @@ export default async function handler(req, res) {
   const searchResults = [];
   for (const q of SEARCH_QUERIES) {
     const data = await ytGet(
-      `/search?part=snippet&q=${encodeURIComponent(q)}&type=video&order=date&maxResults=25&publishedAfter=${new Date(Date.now() - 14 * 86400000).toISOString()}`,
+      `/search?part=snippet&q=${encodeURIComponent(q)}&type=video&order=date&maxResults=25&publishedAfter=${new Date(Date.now() - 14 * 86400000).toISOString().split(".")[0]}Z`,
       apiKey
     );
     if (data?.items) searchResults.push(...data.items);
