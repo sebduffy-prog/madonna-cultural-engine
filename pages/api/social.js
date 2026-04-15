@@ -101,15 +101,24 @@ async function braveCount(query, apiKey, freshness = "pd") {
       const text = `${item.title} ${item.description} ${item.url}`.toLowerCase();
       return text.includes("madonna") || text.includes("coadf") || text.includes("confessions on a dance floor") || text.includes("confessions ii");
     });
-    return { count: allItems.length, items: allItems };
+    // Use Brave's estimated total_count — the real volume, not capped at 20
+    const estimatedTotal = data.web?.total_count || allItems.length;
+    return { count: estimatedTotal, items: allItems };
   } catch {
     return { count: 0, items: [] };
   }
 }
 
 export default async function handler(req, res) {
-  const { refresh } = req.query;
+  const { refresh, reset } = req.query;
   const apiKey = process.env.BRAVE_API_KEY || "";
+
+  // Reset baseline — forces a fresh start from now
+  if (reset) {
+    await kvSet(BASELINE_KEY, null);
+    await kvSet(CACHE_KEY, null);
+    // Fall through to re-fetch with new baseline
+  }
 
   // Serve cache if not refreshing
   if (!refresh) {
