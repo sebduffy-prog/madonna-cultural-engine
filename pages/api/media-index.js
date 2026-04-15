@@ -86,59 +86,52 @@ export default async function handler(req, res) {
     } catch {}
   }
 
-  if (!apiKey) {
-    return res.status(200).json({ error: "No Brave API key" });
+  // Pull total madonna coverage from the news feed cache (same data as Cultural Feed)
+  let newsFeedTotal = 0;
+  let newsFeedItems = [];
+  try {
+    const newsCache = await Promise.race([kvGet("feeds:madonna"), new Promise((_, r) => setTimeout(() => r(), 3000))]);
+    if (newsCache) {
+      newsFeedTotal = newsCache.totalFound || newsCache.items?.length || 0;
+      newsFeedItems = newsCache.items || [];
+    }
+  } catch {}
+
+  // If no cached news data and we have an API key, trigger a fresh news pull
+  if (newsFeedTotal === 0 && apiKey) {
+    const raw = await Promise.all(
+      QUERIES.map((q) => braveSearchAll(q.q, apiKey, "pw"))
+    );
+    newsFeedItems = raw.flat();
+    // Dedup
+    const seen = new Set();
+    newsFeedItems = newsFeedItems.filter((item) => {
+      if (!item.url || seen.has(item.url)) return false;
+      seen.add(item.url);
+      return true;
+    });
+    newsFeedTotal = newsFeedItems.length;
   }
 
-  // Run all queries — past week to match the 60-mention baseline
-  const raw = await Promise.all(
-    QUERIES.map((q) => braveSearchAll(q.q, apiKey, "pw"))
-  );
-
-  // Count total API calls used (for budget tracking)
-  let apiCallsUsed = 0;
-  raw.forEach((items) => {
-    apiCallsUsed += Math.max(1, Math.ceil(items.length / 50));
-  });
-
-  // Build snapshot
-  const snapshot = {
-    date: new Date().toISOString(),
-    queries: QUERIES.map((q, i) => ({
-      label: q.label,
-      query: q.q,
-      count: raw[i].length,
-    })),
-  };
-
-  // Per-query % change against fixed baseline of 60 mentions
-  const perQueryBaseline = MENTION_BASELINE / QUERIES.length;
-  const queryScores = QUERIES.map((q, i) => {
-    const today = raw[i].length;
-    const pct = Math.round(((today - perQueryBaseline) / perQueryBaseline) * 1000) / 10;
-    return { label: q.label, todayCount: today, baselineCount: perQueryBaseline, pctChange: pct };
-  });
-
-  const totalToday = queryScores.reduce((s, q) => s + q.todayCount, 0);
+  const totalToday = newsFeedTotal;
   const totalBaseline = MENTION_BASELINE;
   const overallIndex = Math.round(((totalToday - totalBaseline) / totalBaseline) * 1000) / 10;
 
-  // Dedup all items
-  const seen = new Set();
-  const todaysItems = raw.flat().filter((item) => {
-    if (!item.url || seen.has(item.url)) return false;
-    seen.add(item.url);
-    return true;
+  // Build query-level breakdown from news items (keyword matching)
+  const queryScores = QUERIES.map((q) => {
+    const qLower = q.q.replace(/"/g, "").toLowerCase();
+    const count = newsFeedItems.filter((item) => {
+      const text = `${item.title} ${item.description}`.toLowerCase();
+      return qLower.split(/\s+/).every((w) => text.includes(w));
+    }).length;
+    const perQueryBaseline = MENTION_BASELINE / QUERIES.length;
+    const pct = Math.round(((count - perQueryBaseline) / perQueryBaseline) * 1000) / 10;
+    return { label: q.label, todayCount: count, baselineCount: perQueryBaseline, pctChange: pct };
   });
 
-  // Persistent feed pool — 200 items, newest in, oldest out
-  let feedPool = [];
-  try { feedPool = await Promise.race([kvGet(FEED_KEY), new Promise((_, r) => setTimeout(() => r(), 3000))]) || []; } catch {}
-  const poolUrls = new Set(feedPool.map((i) => i.url));
-  const newItems = todaysItems.filter((i) => i.url && !poolUrls.has(i.url));
-  feedPool = [...newItems, ...feedPool];
-  if (feedPool.length > MAX_FEED) feedPool = feedPool.slice(0, MAX_FEED);
-  try { await Promise.race([kvSet(FEED_KEY, feedPool), new Promise((_, r) => setTimeout(() => r(), 5000))]); } catch {}
+  // Feed pool = news feed items (already deduped by news endpoint)
+  let feedPool = newsFeedItems.slice(0, MAX_FEED);
+  const newItems = feedPool;
 
   // AI Sentiment
   let pos = 0, neg = 0, neu = 0;
@@ -187,7 +180,7 @@ export default async function handler(req, res) {
   const sentTotal = Math.max(pos + neg + neu, 1);
 
   const result = {
-    fetchedAt: snapshot.date,
+    fetchedAt: new Date().toISOString(),
     isFirstRun: false,
     baselineDate: null,
     baseline: MENTION_BASELINE,
@@ -205,7 +198,6 @@ export default async function handler(req, res) {
       positiveCount: pos, negativeCount: neg, neutralCount: neu,
       method: sentimentMethod,
     },
-    apiCallsUsed,
   };
 
   await kvSet(CACHE_KEY, result, CACHE_TTL);

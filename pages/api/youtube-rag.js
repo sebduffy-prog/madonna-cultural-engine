@@ -178,7 +178,7 @@ export default async function handler(req, res) {
         acc[t.id] = existingComments.filter((c) => c.theme === t.id).slice(0, 15);
         return acc;
       }, { general: existingComments.filter((c) => c.theme === "general").slice(0, 15) }),
-      latestComments: existingComments.slice(0, 50),
+      latestComments: existingComments,
       viralHighlights: existingVideos.filter((v) => v.isViral).slice(0, 10),
       stats: { totalViews: 0, totalLikes: 0, avgViews: 0 },
     };
@@ -326,7 +326,7 @@ export default async function handler(req, res) {
       acc[t.id] = genuinelyNew.filter((c) => c.theme === t.id).slice(0, 15);
       return acc;
     }, { general: genuinelyNew.filter((c) => c.theme === "general").slice(0, 15) }),
-    latestComments: genuinelyNew.slice(0, 50),
+    latestComments: merged,
     viralHighlights: madonnaVideos.filter((v) => v.isViral).slice(0, 10),
     stats: {
       totalViews: madonnaVideos.reduce((s, v) => s + v.viewCount, 0),

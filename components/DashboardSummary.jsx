@@ -80,7 +80,7 @@ export default function DashboardSummary() {
     return <div style={{ color: MUTED, padding: 40, textAlign: "center", fontFamily: "'Inter Tight', sans-serif" }}>Loading dashboard...</div>;
   }
 
-  const madonnaArticles = (media?.items || []).filter((i) => /madonna/i.test(i.title));
+  const madonnaArticles = media?.items || [];
   const socialIndex = social?.index || 0;
   const isBaseline = social?.isFirstRun;
   const sentiment = social?.sentiment;

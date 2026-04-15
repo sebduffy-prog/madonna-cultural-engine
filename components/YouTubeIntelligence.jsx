@@ -67,14 +67,15 @@ export default function YouTubeIntelligence({ comments, fullThemeCounts, totalCo
       setLiveData(data);
 
       // Transform YouTube RAG comments into the format AudienceCommentsGraph expects
+      // Always reclassify with local keywords — AI themes from RAG use different IDs
       const allComments = (data.latestComments || []).map((c) => {
-        const theme = c.theme || classifyLiveComment(c.text);
+        const cleanText = (c.text || "").replace(/<[^>]+>/g, "");
         return {
           username: c.author || "",
           date: c.publishedAt || "",
-          content: (c.text || "").replace(/<[^>]+>/g, ""), // strip HTML tags
+          content: cleanText,
           video_title: c.videoTitle || "",
-          _theme: theme,
+          _theme: classifyLiveComment(cleanText),
         };
       });
 
