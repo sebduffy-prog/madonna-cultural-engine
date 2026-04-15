@@ -294,6 +294,29 @@ export default function SpotifyTracker() {
           </div>
         </Panel>
 
+        {/* Connected Artists via Playlist Analysis */}
+        {data.connectedArtists?.length > 0 && (
+          <Panel title={`Connected Artists (${data.connectedArtists.length})`} color={TEAL} span={3}>
+            <div style={{ fontSize: 9, color: DIM, marginBottom: 8, fontStyle: "italic" }}>
+              Artists who appear alongside Madonna in curated playlists · {data.playlistsAnalysed} playlists · {data.totalPlaylistTracks} tracks analysed
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+              {data.connectedArtists.slice(0, 12).map((a) => (
+                <div key={a.id} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "8px 10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: WHITE }}>{a.name}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: TEAL, fontFamily: "'Inter Tight', sans-serif" }}>{a.connectivity}%</span>
+                  </div>
+                  <div style={{ fontSize: 9, color: DIM }}>
+                    {a.count} co-occurrences
+                    {a.tracks?.length > 0 && ` · ${a.tracks.slice(0, 2).join(", ")}`}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        )}
+
         {/* Trend history panel */}
         {data.history && data.history.length > 1 && (
           <Panel title="Popularity History" color={GREEN} span={3}>
