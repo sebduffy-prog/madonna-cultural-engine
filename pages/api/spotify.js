@@ -1,14 +1,12 @@
 // Spotify Tracker — Madonna
-// Client Credentials flow. Correct artist ID: 6tbjWDEIzxoDsBA1FuhfPW
-// Per OpenAPI spec: search limit=10, albums limit=10, paginate for more
-// 5 staggered API calls total
+// NO Blob dependency — in-memory cache only to avoid Blob SDK hangs
+// 5 staggered API calls, all with 8-second timeouts
+// Verified artist ID: 6tbjWDEIzxoDsBA1FuhfPW
 
-import { kvGet, kvSet, kvListPush, kvListGet } from "../../lib/kv";
+const MADONNA_ID = "6tbjWDEIzxoDsBA1FuhfPW";
+const CACHE_TTL = 43200000; // 12 hours in ms
 
-const CACHE_KEY = "spotify_snapshot";
-const CACHE_TTL = 43200; // 12 hours
-const MADONNA_ID = "6tbjWDEIzxoDsBA1FuhfPW"; // verified correct
-
+let cache = { data: null, expires: 0 };
 let tokenCache = { token: null, expires: 0 };
 
 async function getToken() {
@@ -24,26 +22,33 @@ async function getToken() {
         Authorization: "Basic " + Buffer.from(`${id}:${secret}`).toString("base64"),
       },
       body: "grant_type=client_credentials",
+      signal: AbortSignal.timeout(8000),
     });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      console.error("[spotify] token failed:", r.status);
+      return null;
+    }
     const d = await r.json();
     tokenCache = { token: d.access_token, expires: Date.now() + (d.expires_in - 60) * 1000 };
     return d.access_token;
-  } catch { return null; }
+  } catch (err) {
+    console.error("[spotify] token error:", err.message);
+    return null;
+  }
 }
 
 async function spGet(path, token) {
   try {
     const r = await fetch(`https://api.spotify.com/v1${path}`, {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(8000),
     });
     if (r.status === 429) {
-      const wait = parseInt(r.headers.get("retry-after") || "3", 10);
+      const wait = Math.min(parseInt(r.headers.get("retry-after") || "3", 10), 10);
       await new Promise((resolve) => setTimeout(resolve, wait * 1000));
       const r2 = await fetch(`https://api.spotify.com/v1${path}`, {
         headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(8000),
       });
       return r2.ok ? r2.json() : null;
     }
@@ -53,82 +58,70 @@ async function spGet(path, token) {
     }
     return r.json();
   } catch (err) {
-    console.error(`[spotify] error for ${path}:`, err.message);
+    console.error(`[spotify] error ${path}:`, err.message);
     return null;
   }
 }
 
 export default async function handler(req, res) {
-  const { refresh } = req.query;
-
-  if (!refresh) {
-    const cached = await kvGet(CACHE_KEY);
-    if (cached && cached.artist) {
-      cached.history = await kvListGet("spotify_history", 0, 11);
-      return res.status(200).json(cached);
-    }
+  // Serve memory cache
+  if (cache.data && Date.now() < cache.expires) {
+    return res.status(200).json(cache.data);
   }
 
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
-    console.error("[spotify] Missing credentials:", { hasClientId: !!clientId, hasClientSecret: !!clientSecret });
     return res.status(200).json({
       hasCredentials: false,
-      error: "Spotify credentials missing. Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to Vercel Environment Variables.",
+      error: "Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to Vercel Environment Variables.",
+      debug: { hasClientId: !!clientId, hasClientSecret: !!clientSecret },
     });
   }
 
   const token = await getToken();
   if (!token) {
-    return res.status(200).json({ hasCredentials: false, error: "Could not get access token" });
+    return res.status(200).json({ hasCredentials: false, error: "Token request failed" });
   }
 
-  // ── Call 1: Get Madonna's artist profile directly (known ID) ──
+  // Call 1: Artist profile
   const artist = await spGet(`/artists/${MADONNA_ID}`, token);
   if (!artist) {
     return res.status(200).json({
       hasCredentials: true, artist: null,
-      debug: { error: "Could not fetch artist profile" },
+      debug: { error: "Could not fetch artist — check logs" },
       topTracks: [], albums: [], playlists: [],
-      fetchedAt: new Date().toISOString(), cacheTTL: CACHE_TTL,
+      fetchedAt: new Date().toISOString(), cacheTTL: CACHE_TTL / 1000,
     });
   }
 
-  // ── Call 2: Search for tracks (limit=10 per spec) ──
+  // Calls 2-5: staggered
   await new Promise((r) => setTimeout(r, 300));
-  const trackSearch = await spGet(`/search?q=artist:Madonna&type=track&limit=10&market=GB`, token);
+  const [tracks1, tracks2] = await Promise.all([
+    spGet("/search?q=artist:Madonna&type=track&limit=10&market=GB", token),
+    spGet("/search?q=artist:Madonna&type=track&limit=10&offset=10&market=GB", token),
+  ]);
 
-  // ── Call 3: More tracks page 2 ──
   await new Promise((r) => setTimeout(r, 300));
-  const trackSearch2 = await spGet(`/search?q=artist:Madonna&type=track&limit=10&offset=10&market=GB`, token);
+  const [albums1, albums2] = await Promise.all([
+    spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=10&offset=0`, token),
+    spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=10&offset=10`, token),
+  ]);
 
-  // ── Call 4: Albums (limit=10, paginate) ──
-  await new Promise((r) => setTimeout(r, 300));
-  const albums1 = await spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=10&offset=0`, token);
-
-  // ── Call 5: Albums page 2 ──
-  await new Promise((r) => setTimeout(r, 300));
-  const albums2 = await spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=10&offset=10`, token);
-
-  // Merge tracks, filter to Madonna's, dedup
-  const allTrackItems = [
-    ...(trackSearch?.tracks?.items || []),
-    ...(trackSearch2?.tracks?.items || []),
-  ];
-  const seenTracks = new Set();
-  const tracks = allTrackItems.filter(t => {
-    if (seenTracks.has(t.id)) return false;
-    seenTracks.add(t.id);
-    return t.artists?.some(a => a.id === MADONNA_ID);
-  }).sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
-
-  const allAlbums = [...(albums1?.items || []), ...(albums2?.items || [])];
+  // Process tracks
+  const seen = new Set();
+  const tracks = [...(tracks1?.tracks?.items || []), ...(tracks2?.tracks?.items || [])]
+    .filter(t => {
+      if (seen.has(t.id)) return false;
+      seen.add(t.id);
+      return t.artists?.some(a => a.id === MADONNA_ID);
+    })
+    .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
 
   const result = {
     hasCredentials: true,
     fetchedAt: new Date().toISOString(),
-    cacheTTL: CACHE_TTL,
+    cacheTTL: CACHE_TTL / 1000,
     artist: {
       name: artist.name,
       followers: artist.followers?.total || 0,
@@ -147,7 +140,7 @@ export default async function handler(req, res) {
       durationMs: t.duration_ms,
       releaseDate: t.album?.release_date || "",
     })),
-    albums: allAlbums.map(a => ({
+    albums: [...(albums1?.items || []), ...(albums2?.items || [])].map(a => ({
       name: a.name,
       type: a.album_type,
       releaseDate: a.release_date || "",
@@ -159,18 +152,11 @@ export default async function handler(req, res) {
     playlists: [],
     relatedArtists: [],
     audienceTrending: [],
+    history: [],
   };
 
-  if (result.topTracks.length > 0 || result.albums.length > 0) {
-    await kvSet(CACHE_KEY, result, CACHE_TTL);
-  }
+  // Memory cache only — no Blob
+  cache = { data: result, expires: Date.now() + CACHE_TTL };
 
-  await kvListPush("spotify_history", {
-    date: result.fetchedAt,
-    popularity: result.artist.popularity,
-    followers: result.artist.followers,
-  });
-
-  result.history = await kvListGet("spotify_history", 0, 11);
   res.status(200).json(result);
 }
