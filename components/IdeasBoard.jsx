@@ -142,6 +142,33 @@ export default function IdeasBoard() {
                 </>
               )}
             </div>
+            <button type="button" onClick={async () => {
+              try {
+                const items = await navigator.clipboard.read();
+                for (const item of items) {
+                  const imageType = item.types.find(t => t.startsWith("image/"));
+                  if (imageType) {
+                    const blob = await item.getType(imageType);
+                    const reader = new FileReader();
+                    reader.onload = (e) => setFormMockup(e.target.result);
+                    reader.readAsDataURL(blob);
+                    return;
+                  }
+                }
+                alert("No image found in clipboard. Copy an image first (from Google Slides, PowerPoint, browser, etc).");
+              } catch (err) {
+                if (err.name === "NotAllowedError") {
+                  alert("Clipboard access denied. Please allow clipboard access when prompted, or use Ctrl+V on the image area above.");
+                } else {
+                  alert("Could not read clipboard: " + err.message);
+                }
+              }
+            }} style={{
+              marginTop: 8, padding: "8px 20px", fontSize: 12, fontWeight: 600,
+              color: TEAL, background: "transparent", border: `1px solid ${TEAL}`,
+              borderRadius: 6, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif",
+              width: "100%",
+            }}>Paste image from clipboard</button>
           </div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>EXTENSIONS (Channels & Formats)</label>
