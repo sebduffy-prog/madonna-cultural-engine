@@ -21,6 +21,7 @@ export default function IdeasBoard() {
   const [showForm, setShowForm] = useState(false);
   const [expandedComments, setExpandedComments] = useState({});
   const [commentTexts, setCommentTexts] = useState({});
+  const [commentNames, setCommentNames] = useState({});
   const [expandedDesc, setExpandedDesc] = useState({});
   const [dragOver, setDragOver] = useState(false);
 
@@ -96,17 +97,35 @@ export default function IdeasBoard() {
 
   async function addComment(ideaId) {
     const text = commentTexts[ideaId];
+    const name = commentNames[ideaId];
     if (!text?.trim()) return;
-    const userId = getUserId();
+    if (!name?.trim()) { alert("Please enter your name to comment"); return; }
+    // Save name for next time
+    localStorage.setItem("sweettooth_user", name);
     await fetch("/api/ideas", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "comment", ideaId, author: userId, text }),
+      body: JSON.stringify({ action: "comment", ideaId, author: name, text }),
     });
     setCommentTexts({ ...commentTexts, [ideaId]: "" });
     load();
   }
 
+  const [selectedIdea, setSelectedIdea] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  async function handleDelete(ideaId) {
+    await fetch("/api/ideas", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", ideaId }),
+    });
+    setSelectedIdea(null);
+    setConfirmDelete(false);
+    load();
+  }
+
   if (loading) return <p style={{ color: MUTED, fontSize: 14 }}>Loading ideas...</p>;
+
+  const activeIdea = selectedIdea ? ideas.find(i => i.id === selectedIdea) : null;
 
   return (
     <div>
@@ -274,124 +293,193 @@ export default function IdeasBoard() {
         </form>
       )}
 
+      {/* ═══ CARD GRID: title, image, votes ═══ */}
       {ideas.length === 0 ? (
         <div style={{ background: CARD, borderRadius: 10, padding: "60px 24px", border: `1px solid ${BORDER}`, textAlign: "center" }}>
           <p style={{ fontSize: 16, color: MUTED, margin: "0 0 8px" }}>No ideas yet</p>
           <p style={{ fontSize: 13, color: DIM }}>Click "+ New Idea" to add the first one</p>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(480px, 1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
           {ideas.map(idea => {
             const userId = typeof window !== "undefined" ? localStorage.getItem("sweettooth_user") : "";
             const hasLiked = idea.likedBy?.includes(userId);
             const hasDisliked = idea.dislikedBy?.includes(userId);
-            const isExpanded = expandedDesc[idea.id];
-            const showComments = expandedComments[idea.id];
-
             return (
-              <div key={idea.id} style={{ background: CARD, borderRadius: 10, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
-                {idea.mockupUrl && (
-                  <div style={{ width: "100%", height: 200, overflow: "hidden", borderBottom: `1px solid ${BORDER}` }}>
-                    <img src={idea.mockupUrl} alt={idea.name} style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      onError={e => { e.target.style.display = "none"; }} />
-                  </div>
-                )}
-                <div style={{ padding: "16px 20px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, color: WHITE, margin: 0, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{idea.name}</h3>
-                    <span style={{ fontSize: 10, color: MUTED, whiteSpace: "nowrap" }}>
-                      {idea.createdBy} &middot; {new Date(idea.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-
-                  {idea.description && (
-                    <div style={{ marginBottom: 12 }}>
-                      <p style={{ fontSize: 13, color: DIM, lineHeight: 1.7, margin: 0 }}>
-                        {isExpanded ? idea.description : idea.description.slice(0, 200)}
-                        {idea.description.length > 200 && (
-                          <button onClick={() => setExpandedDesc({ ...expandedDesc, [idea.id]: !isExpanded })} style={{
-                            background: "none", border: "none", color: TEAL, cursor: "pointer", fontSize: 12, padding: "0 4px",
-                          }}>{isExpanded ? "Show less" : "...more"}</button>
-                        )}
-                      </p>
+              <div key={idea.id} style={{ background: CARD, borderRadius: 10, border: `1px solid ${BORDER}`, overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s" }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = Y}
+                onMouseLeave={e => e.currentTarget.style.borderColor = BORDER}>
+                {/* Clickable image + title area */}
+                <div onClick={() => { setSelectedIdea(idea.id); setConfirmDelete(false); }}>
+                  {idea.mockupUrl ? (
+                    <div style={{ width: "100%", height: 180, overflow: "hidden", borderBottom: `1px solid ${BORDER}` }}>
+                      <img src={idea.mockupUrl} alt={idea.name} style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        onError={e => { e.target.style.display = "none"; }} />
+                    </div>
+                  ) : (
+                    <div style={{ width: "100%", height: 80, background: `${Y}08`, display: "flex", alignItems: "center", justifyContent: "center", borderBottom: `1px solid ${BORDER}` }}>
+                      <span style={{ fontSize: 24, color: MUTED }}>&#128161;</span>
                     </div>
                   )}
-
-                  {idea.extensions?.length > 0 && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-                      {idea.extensions.map((ext, i) => (
-                        <div key={i} title={ext.description || `${ext.channel}: ${ext.format}`} style={{
-                          padding: "3px 10px", fontSize: 10, fontWeight: 600, borderRadius: 20,
-                          background: `${CHANNEL_COLORS[ext.channel] || MUTED}22`,
-                          color: CHANNEL_COLORS[ext.channel] || MUTED,
-                          fontFamily: "'Inter Tight', system-ui, sans-serif",
-                          cursor: ext.description ? "help" : "default",
-                        }}>
-                          {ext.channel}{ext.format ? ` / ${ext.format}` : ""}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 10, borderTop: `1px solid ${BORDER}` }}>
-                    <button onClick={(e) => { e.stopPropagation(); react(idea.id, "like"); }} style={{
-                      display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", fontSize: 14, fontWeight: 700,
-                      color: hasLiked ? BG : MUTED, background: hasLiked ? GREEN : `${GREEN}10`,
-                      border: `1px solid ${hasLiked ? GREEN : BORDER}`, borderRadius: 8, cursor: "pointer",
-                      transition: "all 0.15s ease",
-                    }}>&#9650; {idea.likes || 0}</button>
-
-                    <button onClick={(e) => { e.stopPropagation(); react(idea.id, "dislike"); }} style={{
-                      display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", fontSize: 14, fontWeight: 700,
-                      color: hasDisliked ? BG : MUTED, background: hasDisliked ? RED : `${RED}10`,
-                      border: `1px solid ${hasDisliked ? RED : BORDER}`, borderRadius: 8, cursor: "pointer",
-                      transition: "all 0.15s ease",
-                    }}>&#9660; {idea.dislikes || 0}</button>
-
-                    <div onClick={(e) => { e.stopPropagation(); setExpandedComments({ ...expandedComments, [idea.id]: !showComments }); }} style={{
-                      marginLeft: "auto", padding: "6px 14px", fontSize: 12, fontWeight: 600, color: showComments ? Y : WHITE,
-                      background: showComments ? `${Y}15` : `${WHITE}08`, border: `1px solid ${showComments ? Y + "44" : BORDER}`,
-                      borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s ease",
-                    }}>
-                      <span style={{
-                        display: "inline-flex", alignItems: "center", justifyContent: "center",
-                        minWidth: 20, height: 20, borderRadius: 10, fontSize: 11, fontWeight: 700,
-                        background: (idea.comments || []).length > 0 ? Y : BORDER,
-                        color: (idea.comments || []).length > 0 ? BG : MUTED,
-                      }}>{(idea.comments || []).length}</span>
-                      comment{(idea.comments || []).length !== 1 ? "s" : ""}
-                    </div>
+                  <div style={{ padding: "12px 16px 8px" }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 700, color: WHITE, margin: 0, fontFamily: "'Inter Tight', system-ui, sans-serif", lineHeight: 1.3 }}>{idea.name}</h3>
+                    <span style={{ fontSize: 9, color: MUTED }}>{idea.createdBy} &middot; {new Date(idea.createdAt).toLocaleDateString()}</span>
                   </div>
-
-                  {showComments && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${BORDER}` }}>
-                      {(idea.comments || []).map(c => (
-                        <div key={c.id} style={{ marginBottom: 10 }}>
-                          <div style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: WHITE }}>{c.author}</span>
-                            <span style={{ fontSize: 10, color: MUTED }}>{new Date(c.date).toLocaleDateString()}</span>
-                          </div>
-                          <p style={{ fontSize: 13, color: DIM, margin: "2px 0 0", lineHeight: 1.5 }}>{c.text}</p>
-                        </div>
-                      ))}
-                      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                        <input value={commentTexts[idea.id] || ""} onChange={e => setCommentTexts({ ...commentTexts, [idea.id]: e.target.value })}
-                          onKeyDown={e => { if (e.key === "Enter") addComment(idea.id); }}
-                          placeholder="Add a comment..." style={{
-                            flex: 1, padding: "8px 12px", fontSize: 12, color: WHITE, background: BG,
-                            border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none",
-                          }} />
-                        <button onClick={() => addComment(idea.id)} style={{
-                          padding: "8px 14px", fontSize: 11, fontWeight: 700, color: BG, background: TEAL,
-                          border: "none", borderRadius: 6, cursor: "pointer",
-                        }}>Post</button>
-                      </div>
-                    </div>
-                  )}
+                </div>
+                {/* Votes + comment count — always visible */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px 12px" }}>
+                  <button onClick={(e) => { e.stopPropagation(); react(idea.id, "like"); }} style={{
+                    display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: 12, fontWeight: 700,
+                    color: hasLiked ? BG : MUTED, background: hasLiked ? GREEN : `${GREEN}10`,
+                    border: `1px solid ${hasLiked ? GREEN : BORDER}`, borderRadius: 6, cursor: "pointer",
+                  }}>&#9650; {idea.likes || 0}</button>
+                  <button onClick={(e) => { e.stopPropagation(); react(idea.id, "dislike"); }} style={{
+                    display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: 12, fontWeight: 700,
+                    color: hasDisliked ? BG : MUTED, background: hasDisliked ? RED : `${RED}10`,
+                    border: `1px solid ${hasDisliked ? RED : BORDER}`, borderRadius: 6, cursor: "pointer",
+                  }}>&#9660; {idea.dislikes || 0}</button>
+                  <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                    {(idea.comments || []).length} comment{(idea.comments || []).length !== 1 ? "s" : ""}
+                  </span>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ═══ IDEA DETAIL POPUP ═══ */}
+      {activeIdea && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+          onClick={() => { setSelectedIdea(null); setConfirmDelete(false); }}>
+          <div style={{ background: CARD, borderRadius: 12, border: `1px solid ${BORDER}`, width: "100%", maxWidth: 680, maxHeight: "90vh", overflowY: "auto", position: "relative" }}
+            onClick={e => e.stopPropagation()}>
+            {/* Close button */}
+            <button onClick={() => { setSelectedIdea(null); setConfirmDelete(false); }} style={{
+              position: "absolute", top: 12, right: 12, width: 32, height: 32, borderRadius: 16,
+              background: `${BG}cc`, color: WHITE, border: `1px solid ${BORDER}`, cursor: "pointer",
+              fontSize: 16, lineHeight: "30px", zIndex: 2, textAlign: "center",
+            }}>&times;</button>
+
+            {/* Image */}
+            {activeIdea.mockupUrl && (
+              <div style={{ width: "100%", maxHeight: 360, overflow: "hidden", borderRadius: "12px 12px 0 0" }}>
+                <img src={activeIdea.mockupUrl} alt={activeIdea.name} style={{ width: "100%", objectFit: "cover" }} />
+              </div>
+            )}
+
+            <div style={{ padding: "20px 24px" }}>
+              {/* Title + meta */}
+              <h2 style={{ fontSize: 22, fontWeight: 800, color: WHITE, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{activeIdea.name}</h2>
+              <div style={{ fontSize: 11, color: MUTED, marginBottom: 16 }}>{activeIdea.createdBy} &middot; {new Date(activeIdea.createdAt).toLocaleDateString()}</div>
+
+              {/* Description */}
+              {activeIdea.description && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Description</div>
+                  <p style={{ fontSize: 14, color: DIM, lineHeight: 1.8, margin: 0 }}>{activeIdea.description}</p>
+                </div>
+              )}
+
+              {/* Extensions */}
+              {activeIdea.extensions?.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Extensions</div>
+                  {activeIdea.extensions.map((ext, i) => (
+                    <div key={i} style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "6px 0", borderBottom: `1px solid ${BORDER}22` }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: CHANNEL_COLORS[ext.channel] || Y, minWidth: 80, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                        {ext.channel}{ext.format ? ` / ${ext.format}` : ""}
+                      </span>
+                      {ext.description && <span style={{ fontSize: 12, color: DIM }}>{ext.description}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Votes */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${BORDER}` }}>
+                {(() => {
+                  const userId = typeof window !== "undefined" ? localStorage.getItem("sweettooth_user") : "";
+                  const hasLiked = activeIdea.likedBy?.includes(userId);
+                  const hasDisliked = activeIdea.dislikedBy?.includes(userId);
+                  return <>
+                    <button onClick={() => react(activeIdea.id, "like")} style={{
+                      display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", fontSize: 14, fontWeight: 700,
+                      color: hasLiked ? BG : MUTED, background: hasLiked ? GREEN : `${GREEN}10`,
+                      border: `1px solid ${hasLiked ? GREEN : BORDER}`, borderRadius: 8, cursor: "pointer",
+                    }}>&#9650; {activeIdea.likes || 0}</button>
+                    <button onClick={() => react(activeIdea.id, "dislike")} style={{
+                      display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", fontSize: 14, fontWeight: 700,
+                      color: hasDisliked ? BG : MUTED, background: hasDisliked ? RED : `${RED}10`,
+                      border: `1px solid ${hasDisliked ? RED : BORDER}`, borderRadius: 8, cursor: "pointer",
+                    }}>&#9660; {activeIdea.dislikes || 0}</button>
+                  </>;
+                })()}
+              </div>
+
+              {/* Comments */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                  Comments ({(activeIdea.comments || []).length})
+                </div>
+                {(activeIdea.comments || []).length === 0 && (
+                  <p style={{ fontSize: 12, color: MUTED, margin: "0 0 10px" }}>No comments yet. Be the first.</p>
+                )}
+                {(activeIdea.comments || []).map(c => (
+                  <div key={c.id} style={{ marginBottom: 12, paddingBottom: 10, borderBottom: `1px solid ${BORDER}22` }}>
+                    <div style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: WHITE }}>{c.author}</span>
+                      <span style={{ fontSize: 10, color: MUTED }}>{new Date(c.date).toLocaleDateString()}</span>
+                    </div>
+                    <p style={{ fontSize: 13, color: DIM, margin: "4px 0 0", lineHeight: 1.6 }}>{c.text}</p>
+                  </div>
+                ))}
+                {/* Add comment */}
+                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  <input value={commentNames[activeIdea.id] ?? (typeof window !== "undefined" ? localStorage.getItem("sweettooth_user") || "" : "")}
+                    onChange={e => setCommentNames({ ...commentNames, [activeIdea.id]: e.target.value })}
+                    placeholder="Your name *" style={{
+                      width: 120, padding: "10px 12px", fontSize: 12, color: WHITE, background: BG,
+                      border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", fontFamily: "'Inter Tight', system-ui, sans-serif",
+                    }} />
+                  <input value={commentTexts[activeIdea.id] || ""} onChange={e => setCommentTexts({ ...commentTexts, [activeIdea.id]: e.target.value })}
+                    onKeyDown={e => { if (e.key === "Enter") addComment(activeIdea.id); }}
+                    placeholder="Add a comment..." style={{
+                      flex: 1, padding: "10px 14px", fontSize: 13, color: WHITE, background: BG,
+                      border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none",
+                    }} />
+                  <button onClick={() => addComment(activeIdea.id)} style={{
+                    padding: "10px 18px", fontSize: 12, fontWeight: 700, color: BG, background: TEAL,
+                    border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif",
+                  }}>Post</button>
+                </div>
+              </div>
+
+              {/* Delete idea */}
+              <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${BORDER}` }}>
+                {!confirmDelete ? (
+                  <button onClick={() => setConfirmDelete(true)} style={{
+                    padding: "8px 16px", fontSize: 11, color: RED, background: "transparent",
+                    border: `1px solid ${RED}44`, borderRadius: 6, cursor: "pointer",
+                    fontFamily: "'Inter Tight', system-ui, sans-serif",
+                  }}>Delete this idea</button>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 12, color: RED, fontWeight: 600 }}>Are you sure?</span>
+                    <button onClick={() => handleDelete(activeIdea.id)} style={{
+                      padding: "8px 18px", fontSize: 12, fontWeight: 700, color: WHITE, background: RED,
+                      border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif",
+                    }}>Yes, delete</button>
+                    <button onClick={() => setConfirmDelete(false)} style={{
+                      padding: "8px 18px", fontSize: 12, color: MUTED, background: "transparent",
+                      border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+                      fontFamily: "'Inter Tight', system-ui, sans-serif",
+                    }}>Cancel</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
