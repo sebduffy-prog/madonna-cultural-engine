@@ -22,12 +22,13 @@ export default function IdeasBoard() {
   const [expandedComments, setExpandedComments] = useState({});
   const [commentTexts, setCommentTexts] = useState({});
   const [expandedDesc, setExpandedDesc] = useState({});
+  const [dragOver, setDragOver] = useState(false);
 
   // Form state
   const [formName, setFormName] = useState("");
   const [formDesc, setFormDesc] = useState("");
   const [formMockup, setFormMockup] = useState("");
-  const [formExtensions, setFormExtensions] = useState([{ channel: "Social", format: "", description: "" }]);
+  const [formExtensions, setFormExtensions] = useState([{ channel: "", format: "", description: "" }]);
 
   const load = useCallback(async () => {
     try {
@@ -53,7 +54,7 @@ export default function IdeasBoard() {
     if ((await r.json()).ok) {
       setShowForm(false);
       setFormName(""); setFormDesc(""); setFormMockup("");
-      setFormExtensions([{ channel: "Social", format: "", description: "" }]);
+      setFormExtensions([{ channel: "", format: "", description: "" }]);
       load();
     }
   }
@@ -111,21 +112,44 @@ export default function IdeasBoard() {
             }} />
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>MOCKUP URL (image link)</label>
-            <input value={formMockup} onChange={e => setFormMockup(e.target.value)} placeholder="https://..." style={{
-              width: "100%", padding: "10px 14px", fontSize: 13, color: WHITE, background: BG,
-              border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", fontFamily: "'Inter Tight', system-ui, sans-serif", boxSizing: "border-box",
-            }} />
+            <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>MOCKUP IMAGE</label>
+            <div
+              onClick={() => { const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.onchange = (ev) => { const file = ev.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = (re) => setFormMockup(re.target.result); reader.readAsDataURL(file); } }; inp.click(); }}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); const file = e.dataTransfer.files[0]; if (file && file.type.startsWith("image/")) { const reader = new FileReader(); reader.onload = (re) => setFormMockup(re.target.result); reader.readAsDataURL(file); } }}
+              style={{
+                width: "100%", minHeight: 120, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                border: `2px dashed ${dragOver ? Y : BORDER}`, borderRadius: 8, background: dragOver ? `${Y}08` : BG,
+                cursor: "pointer", transition: "border-color 0.2s, background 0.2s", boxSizing: "border-box", padding: 16,
+              }}
+            >
+              {formMockup ? (
+                <div style={{ position: "relative", width: "100%", textAlign: "center" }}>
+                  <img src={formMockup} alt="Preview" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 6, objectFit: "contain" }} />
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setFormMockup(""); }} style={{
+                    position: "absolute", top: 4, right: 4, width: 24, height: 24, borderRadius: 12, background: RED,
+                    color: WHITE, border: "none", cursor: "pointer", fontSize: 14, lineHeight: "24px", padding: 0,
+                  }}>&times;</button>
+                </div>
+              ) : (
+                <>
+                  <span style={{ fontSize: 28, color: MUTED, marginBottom: 8 }}>&#128247;</span>
+                  <span style={{ fontSize: 12, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Drop image here or click to upload</span>
+                </>
+              )}
+            </div>
           </div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>EXTENSIONS (Channels & Formats)</label>
             {formExtensions.map((ext, i) => (
               <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-                <select value={ext.channel} onChange={e => {
+                <input value={ext.channel} onChange={e => {
                   const n = [...formExtensions]; n[i].channel = e.target.value; setFormExtensions(n);
-                }} style={{ padding: "8px 10px", fontSize: 12, color: WHITE, background: BG, border: `1px solid ${BORDER}`, borderRadius: 6, width: 130 }}>
-                  {Object.keys(CHANNEL_COLORS).map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                }} placeholder="Channel (e.g. Social, OOH)" style={{
+                  padding: "8px 10px", fontSize: 12, color: WHITE, background: BG,
+                  border: `1px solid ${BORDER}`, borderRadius: 6, width: 130, outline: "none",
+                }} />
                 <input value={ext.format} onChange={e => {
                   const n = [...formExtensions]; n[i].format = e.target.value; setFormExtensions(n);
                 }} placeholder="Format (e.g. Reel, A3 poster)" style={{
@@ -140,7 +164,7 @@ export default function IdeasBoard() {
                 }} />
               </div>
             ))}
-            <button type="button" onClick={() => setFormExtensions([...formExtensions, { channel: "Social", format: "", description: "" }])} style={{
+            <button type="button" onClick={() => setFormExtensions([...formExtensions, { channel: "", format: "", description: "" }])} style={{
               padding: "4px 12px", fontSize: 11, color: TEAL, background: "transparent",
               border: `1px solid ${TEAL}44`, borderRadius: 4, cursor: "pointer", marginTop: 4,
             }}>+ Add extension</button>
@@ -211,25 +235,34 @@ export default function IdeasBoard() {
                     </div>
                   )}
 
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 8, borderTop: `1px solid ${BORDER}` }}>
-                    <button onClick={() => react(idea.id, "like")} style={{
-                      display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: 12,
-                      color: hasLiked ? GREEN : MUTED, background: hasLiked ? `${GREEN}15` : "transparent",
-                      border: `1px solid ${hasLiked ? GREEN + "44" : BORDER}`, borderRadius: 6, cursor: "pointer",
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 10, borderTop: `1px solid ${BORDER}` }}>
+                    <button onClick={(e) => { e.stopPropagation(); react(idea.id, "like"); }} style={{
+                      display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", fontSize: 14, fontWeight: 700,
+                      color: hasLiked ? BG : MUTED, background: hasLiked ? GREEN : `${GREEN}10`,
+                      border: `1px solid ${hasLiked ? GREEN : BORDER}`, borderRadius: 8, cursor: "pointer",
+                      transition: "all 0.15s ease",
                     }}>&#9650; {idea.likes || 0}</button>
 
-                    <button onClick={() => react(idea.id, "dislike")} style={{
-                      display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: 12,
-                      color: hasDisliked ? RED : MUTED, background: hasDisliked ? `${RED}15` : "transparent",
-                      border: `1px solid ${hasDisliked ? RED + "44" : BORDER}`, borderRadius: 6, cursor: "pointer",
+                    <button onClick={(e) => { e.stopPropagation(); react(idea.id, "dislike"); }} style={{
+                      display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", fontSize: 14, fontWeight: 700,
+                      color: hasDisliked ? BG : MUTED, background: hasDisliked ? RED : `${RED}10`,
+                      border: `1px solid ${hasDisliked ? RED : BORDER}`, borderRadius: 8, cursor: "pointer",
+                      transition: "all 0.15s ease",
                     }}>&#9660; {idea.dislikes || 0}</button>
 
-                    <button onClick={() => setExpandedComments({ ...expandedComments, [idea.id]: !showComments })} style={{
-                      marginLeft: "auto", padding: "4px 10px", fontSize: 11, color: MUTED,
-                      background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+                    <div onClick={(e) => { e.stopPropagation(); setExpandedComments({ ...expandedComments, [idea.id]: !showComments }); }} style={{
+                      marginLeft: "auto", padding: "6px 14px", fontSize: 12, fontWeight: 600, color: showComments ? Y : WHITE,
+                      background: showComments ? `${Y}15` : `${WHITE}08`, border: `1px solid ${showComments ? Y + "44" : BORDER}`,
+                      borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s ease",
                     }}>
-                      {(idea.comments || []).length} comment{(idea.comments || []).length !== 1 ? "s" : ""}
-                    </button>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        minWidth: 20, height: 20, borderRadius: 10, fontSize: 11, fontWeight: 700,
+                        background: (idea.comments || []).length > 0 ? Y : BORDER,
+                        color: (idea.comments || []).length > 0 ? BG : MUTED,
+                      }}>{(idea.comments || []).length}</span>
+                      comment{(idea.comments || []).length !== 1 ? "s" : ""}
+                    </div>
                   </div>
 
                   {showComments && (

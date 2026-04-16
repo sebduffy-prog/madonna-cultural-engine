@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState, useCallback } from "react";
 
 function haversineDistance(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -38,6 +38,19 @@ const COLORS = {
   PINK: "#F472B6",
 };
 
+const PIN_COLORS = [
+  { name: "Yellow", hex: "#FFD500" },
+  { name: "Teal", hex: "#2DD4BF" },
+  { name: "Purple", hex: "#A78BFA" },
+  { name: "Pink", hex: "#F472B6" },
+  { name: "Coral", hex: "#FB923C" },
+  { name: "Green", hex: "#34D399" },
+  { name: "Red", hex: "#EF4444" },
+  { name: "Blue", hex: "#60A5FA" },
+];
+
+const LOCALSTORAGE_KEY = "madonna-cultural-engine-custom-pins";
+
 const popupStyle = `
   .leaflet-popup-content-wrapper {
     background: ${COLORS.CARD} !important;
@@ -66,6 +79,35 @@ const popupStyle = `
 export default function StreetArtMap({ murals, venues }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const customMarkersRef = useRef([]);
+
+  // Custom pin state
+  const [customPins, setCustomPins] = useState(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem(LOCALSTORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isPlacingPin, setIsPlacingPin] = useState(false);
+  const [pendingPin, setPendingPin] = useState(null); // { lat, lng }
+  const [formData, setFormData] = useState({
+    address: "",
+    description: "",
+    color: PIN_COLORS[0].hex,
+  });
+  const [showForm, setShowForm] = useState(false);
+
+  // Persist custom pins to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(customPins));
+    } catch {
+      // ignore storage errors
+    }
+  }, [customPins]);
 
   const venueLinks = useMemo(() => {
     if (!venues || !murals || murals.length === 0) return [];
@@ -210,6 +252,142 @@ export default function StreetArtMap({ murals, venues }) {
       mapInstanceRef.current = null;
     };
   }, [murals, venues, venueLinks]);
+
+  // Handle map click when placing a pin
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    function onMapClick(e) {
+      if (!isPlacingPin) return;
+      const { lat, lng } = e.latlng;
+      setPendingPin({ lat, lng });
+      setFormData((prev) => ({
+        ...prev,
+        address: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+      }));
+      setShowForm(true);
+      setIsPlacingPin(false);
+      // Change cursor back
+      map.getContainer().style.cursor = "";
+    }
+
+    map.on("click", onMapClick);
+    return () => {
+      map.off("click", onMapClick);
+    };
+  }, [isPlacingPin]);
+
+  // Update cursor when placing pin
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    map.getContainer().style.cursor = isPlacingPin ? "crosshair" : "";
+  }, [isPlacingPin]);
+
+  // Render custom pin markers
+  useEffect(() => {
+    const L = window.L;
+    const map = mapInstanceRef.current;
+    if (!L || !map) return;
+
+    // Clear old custom markers
+    customMarkersRef.current.forEach((m) => map.removeLayer(m));
+    customMarkersRef.current = [];
+
+    customPins.forEach((pin) => {
+      const marker = L.circleMarker([pin.lat, pin.lng], {
+        radius: 8,
+        fillColor: pin.color,
+        color: COLORS.BG,
+        weight: 2,
+        fillOpacity: 0.9,
+      }).addTo(map);
+
+      const popupContent = `
+        <div>
+          <strong style="color:${pin.color}">${pin.address || "Custom Pin"}</strong><br/>
+          <span style="color:${COLORS.MUTED}">${pin.description || ""}</span>
+          <div style="margin-top:8px;">
+            <button
+              onclick="window.__deleteCustomPin__('${pin.id}')"
+              style="
+                background:none;
+                border:1px solid ${COLORS.BORDER};
+                color:${COLORS.MUTED};
+                cursor:pointer;
+                font-size:11px;
+                padding:2px 8px;
+                border-radius:4px;
+              "
+              onmouseover="this.style.color='${COLORS.WHITE}';this.style.borderColor='${COLORS.MUTED}'"
+              onmouseout="this.style.color='${COLORS.MUTED}';this.style.borderColor='${COLORS.BORDER}'"
+            >&#x2715; Delete</button>
+          </div>
+        </div>`;
+      marker.bindPopup(popupContent);
+      customMarkersRef.current.push(marker);
+    });
+  }, [customPins]);
+
+  // Render the pending pin (temporary marker while form is open)
+  useEffect(() => {
+    const L = window.L;
+    const map = mapInstanceRef.current;
+    if (!L || !map || !pendingPin) return;
+
+    const tempMarker = L.circleMarker([pendingPin.lat, pendingPin.lng], {
+      radius: 10,
+      fillColor: formData.color,
+      color: COLORS.WHITE,
+      weight: 2,
+      fillOpacity: 0.7,
+      dashArray: "4 4",
+    }).addTo(map);
+
+    return () => {
+      map.removeLayer(tempMarker);
+    };
+  }, [pendingPin, formData.color]);
+
+  // Expose delete function globally for popup button clicks
+  useEffect(() => {
+    window.__deleteCustomPin__ = (id) => {
+      setCustomPins((prev) => prev.filter((p) => p.id !== id));
+    };
+    return () => {
+      delete window.__deleteCustomPin__;
+    };
+  }, []);
+
+  const handleStartPlacing = useCallback(() => {
+    setIsPlacingPin(true);
+    setShowForm(false);
+    setPendingPin(null);
+    setFormData({ address: "", description: "", color: PIN_COLORS[0].hex });
+  }, []);
+
+  const handleCancelPlacing = useCallback(() => {
+    setIsPlacingPin(false);
+    setShowForm(false);
+    setPendingPin(null);
+  }, []);
+
+  const handleSavePin = useCallback(() => {
+    if (!pendingPin) return;
+    const newPin = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      lat: pendingPin.lat,
+      lng: pendingPin.lng,
+      address: formData.address,
+      description: formData.description,
+      color: formData.color,
+    };
+    setCustomPins((prev) => [...prev, newPin]);
+    setPendingPin(null);
+    setShowForm(false);
+    setFormData({ address: "", description: "", color: PIN_COLORS[0].hex });
+  }, [pendingPin, formData]);
 
   const muralCount = murals ? murals.length : 0;
   const venueCount = venues ? venues.length : 0;

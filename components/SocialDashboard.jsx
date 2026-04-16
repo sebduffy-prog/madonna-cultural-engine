@@ -736,50 +736,97 @@ export default function SocialDashboard() {
 
       {/* ═══ DEMOGRAPHICS ═══ */}
       {view === "demographics" && hasB24 && b24.demographics && (() => {
-        // Demographics data is nested: b24.demographics.demographics or direct
         const demo = b24.demographics?.demographics || b24.demographics;
+        // Sex data is an array: [{name: "female", reachPercent: 49.45}, {name: "male", reachPercent: 50.6}]
+        const sexArr = Array.isArray(demo.sex) ? demo.sex : [];
+        const femalePct = sexArr.find(s => s.name === "female")?.reachPercent || 0;
+        const malePct = sexArr.find(s => s.name === "male")?.reachPercent || 0;
+        const totalReachDemo = sexArr.reduce((s, x) => s + (x.reachCount || 0), 0);
+        // Ages: { female: [{name:"18-24", reachPercent:10.4, ...}], male: [...] }
+        const agesFemale = Array.isArray(demo.ages?.female) ? demo.ages.female : [];
+        const agesMale = Array.isArray(demo.ages?.male) ? demo.ages.male : [];
+        const ageBrackets = agesFemale.map(a => a.name);
+        const maxAgePct = Math.max(...agesFemale.map(a => a.reachPercent || 0), ...agesMale.map(a => a.reachPercent || 0), 1);
+
         return <>
+        {/* Age + Gender row */}
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 16 }}>
+          {/* Age chart — grouped bars male/female */}
+          <Section title="Age" color={PURPLE}>
+            {ageBrackets.length > 0 ? (
+              <div>
+                <svg width="100%" viewBox={`0 0 ${ageBrackets.length * 70 + 40} 180`} style={{ display: "block" }}>
+                  {/* Grid lines */}
+                  {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
+                    const y = 10 + (1 - pct) * 130;
+                    const val = Math.round(maxAgePct * pct);
+                    return (
+                      <g key={i}>
+                        <line x1={30} y1={y} x2={ageBrackets.length * 70 + 30} y2={y} stroke={BORDER} strokeWidth={0.5} />
+                        <text x={26} y={y + 3} textAnchor="end" fill={DIM} fontSize={8} fontFamily="'Inter Tight', sans-serif">{val}</text>
+                      </g>
+                    );
+                  })}
+                  {/* Bars */}
+                  {ageBrackets.map((bracket, i) => {
+                    const f = agesFemale[i]?.reachPercent || 0;
+                    const m = agesMale[i]?.reachPercent || 0;
+                    const x = 40 + i * 70;
+                    const fH = (f / maxAgePct) * 130;
+                    const mH = (m / maxAgePct) * 130;
+                    return (
+                      <g key={i}>
+                        <rect x={x} y={140 - fH} width={22} height={fH} fill={GREEN} rx={2} />
+                        <rect x={x + 26} y={140 - mH} width={22} height={mH} fill="#60A5FA" rx={2} />
+                        <text x={x + 24} y={158} textAnchor="middle" fill={DIM} fontSize={9} fontFamily="'Inter Tight', sans-serif">{bracket}</text>
+                      </g>
+                    );
+                  })}
+                </svg>
+                <div style={{ display: "flex", gap: 16, justifyContent: "center", fontSize: 9, fontFamily: "'Inter Tight', sans-serif" }}>
+                  <span><span style={{ color: GREEN }}>●</span> Female</span>
+                  <span><span style={{ color: "#60A5FA" }}>●</span> Male</span>
+                </div>
+              </div>
+            ) : <p style={{ fontSize: 11, color: MUTED }}>No age data</p>}
+          </Section>
+
+          {/* Gender donut */}
+          <Section title="Gender" color={PINK}>
+            <DonutChart size={140} segments={[
+              { label: "Female", value: femalePct, color: GREEN },
+              { label: "Male", value: malePct, color: "#60A5FA" },
+            ]} />
+            {totalReachDemo > 0 && (
+              <div style={{ textAlign: "center", marginTop: 8, fontSize: 9, color: DIM }}>
+                Total reach: {(totalReachDemo / 1000000).toFixed(0)}M
+              </div>
+            )}
+          </Section>
+        </div>
+
+        {/* Interests + Countries + Top occupations */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-          {demo.sex && (
-            <Section title="Gender" color={PINK}>
-              {Object.entries(demo.sex).map(([k, v]) => (
-                <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, color: WHITE, width: 60, textTransform: "capitalize" }}>{k}</span>
-                  <MiniBar value={v} max={Math.max(...Object.values(demo.sex))} color={k === "female" ? PINK : TEAL} />
-                  <span style={{ fontSize: 11, color: WHITE, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>{v}%</span>
-                </div>
-              ))}
-            </Section>
-          )}
-
-          {demo.ages && (
-            <Section title="Age Distribution" color={PURPLE}>
-              {Object.entries(typeof demo.ages === "object" && !Array.isArray(demo.ages) ? demo.ages : {}).slice(0, 6).map(([k, v]) => (
-                <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 10, color: DIM, width: 50 }}>{k}</span>
-                  <MiniBar value={typeof v === "number" ? v : 0} max={100} color={PURPLE} />
-                  <span style={{ fontSize: 10, color: WHITE, fontWeight: 600 }}>{typeof v === "number" ? `${v}%` : JSON.stringify(v).slice(0, 20)}</span>
-                </div>
-              ))}
-            </Section>
-          )}
-
           {demo.interests && (
             <Section title="Interests" color={AMBER}>
-              {(Array.isArray(demo.interests) ? demo.interests : Object.entries(demo.interests).map(([k, v]) => ({ name: k, value: v }))).slice(0, 8).map((item, i) => (
-                <div key={i} style={{ fontSize: 11, color: DIM, padding: "3px 0", borderBottom: `1px solid ${BORDER}22` }}>
-                  {typeof item === "string" ? item : `${item.name}: ${item.value}`}
+              {(Array.isArray(demo.interests) ? demo.interests : []).slice(0, 10).map((item, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: `1px solid ${BORDER}22` }}>
+                  <span style={{ fontSize: 11, color: WHITE }}>{item.name}</span>
+                  <span style={{ fontSize: 10, color: AMBER, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>{item.mentionsPercent || item.reachPercent || ""}%</span>
                 </div>
               ))}
             </Section>
           )}
 
           {demo.countries && (
-            <Section title="Countries" color={TEAL}>
-              {(Array.isArray(demo.countries) ? demo.countries : Object.entries(demo.countries).map(([k, v]) => ({ name: k, value: v }))).slice(0, 8).map((item, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: DIM, padding: "3px 0", borderBottom: `1px solid ${BORDER}22` }}>
-                  <span>{typeof item === "string" ? item : item.name}</span>
-                  {typeof item !== "string" && <span style={{ color: WHITE, fontWeight: 600 }}>{item.value}</span>}
+            <Section title="Top Countries" color={TEAL}>
+              {(Array.isArray(demo.countries) ? demo.countries : []).slice(0, 10).map((item, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: `1px solid ${BORDER}22` }}>
+                  <span style={{ fontSize: 11, color: WHITE }}>{item.name}</span>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <span style={{ fontSize: 9, color: DIM }}>{item.mentionsCount?.toLocaleString()} mentions</span>
+                    <span style={{ fontSize: 10, color: TEAL, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>{item.reachPercent || item.mentionsPercent || ""}%</span>
+                  </div>
                 </div>
               ))}
             </Section>
