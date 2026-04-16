@@ -296,11 +296,13 @@ export function DonutChart({ segments = [], size = 160 }) {
   if (!segments.length) return null;
 
   const total = segments.reduce((sum, s) => sum + s.value, 0);
+  const pad = 20; // padding to prevent clipping
+  const svgSize = size + pad * 2;
   const radius = size / 2 - 10;
   const circumference = 2 * Math.PI * radius;
-  const cx = size / 2;
-  const cy = size / 2;
-  const strokeWidth = radius * 0.35;
+  const cx = svgSize / 2;
+  const cy = svgSize / 2;
+  const strokeWidth = radius * 0.32;
 
   let cumulativeOffset = 0;
 
@@ -316,7 +318,7 @@ export function DonutChart({ segments = [], size = 160 }) {
         gap: 24,
       }}
     >
-      <svg width={size} height={size} style={{ flexShrink: 0 }}>
+      <svg width={svgSize} height={svgSize} viewBox={`0 0 ${svgSize} ${svgSize}`} style={{ flexShrink: 0 }}>
         {segments.map((seg, i) => {
           const pct = total > 0 ? seg.value / total : 0;
           const dash = pct * circumference;
@@ -445,9 +447,9 @@ export function StackedBarChart({ data = [], height = 200 }) {
 
           return (
             <g key={i}>
-              <rect x={x} y={negY} width={barWidth} height={negH} fill="#EF4444" rx={2} />
-              <rect x={x} y={neuY} width={barWidth} height={neuH} fill="#77777744" rx={0} />
-              <rect x={x} y={posY} width={barWidth} height={posH} fill="#34D399" rx={2} />
+              <rect x={x} y={negY} width={barWidth} height={Math.max(negH, negH > 0 ? 2 : 0)} fill="#EF4444" rx={2} />
+              <rect x={x} y={neuY} width={barWidth} height={Math.max(neuH, neuH > 0 ? 2 : 0)} fill="#555" rx={0} />
+              <rect x={x} y={posY} width={barWidth} height={Math.max(posH, posH > 0 ? 2 : 0)} fill="#34D399" rx={2} />
 
               {/* x label */}
               <text
@@ -472,7 +474,7 @@ export function StackedBarChart({ data = [], height = 200 }) {
           <span style={{ color: WHITE }}>Positive</span>
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#77777744" }} />
+          <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#555" }} />
           <span style={{ color: WHITE }}>Neutral</span>
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -485,76 +487,46 @@ export function StackedBarChart({ data = [], height = 200 }) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. WordCloud
+// 5. WordCloud — flex-wrap tag cloud (readable, no overlapping)
 // ---------------------------------------------------------------------------
-export function WordCloud({ words = [], width = 400, height = 250 }) {
+export function WordCloud({ words = [], showSentiment = true }) {
+  const [sentVisible, setSentVisible] = useState(showSentiment);
   if (!words.length) return null;
 
   const maxWeight = Math.max(...words.map((w) => w.weight)) || 1;
-  const minWeight = Math.min(...words.map((w) => w.weight)) || 0;
-  const range = maxWeight - minWeight || 1;
-
-  function deterministicPos(index, total) {
-    // Distribute words in a roughly spiral / grid pattern using index math
-    const golden = 0.618033988749895;
-    const angle = index * golden * 2 * Math.PI;
-    const radius = 0.25 + (index / (total || 1)) * 0.25;
-    const x = 50 + Math.cos(angle + index * 0.3) * radius * 80;
-    const y = 50 + Math.sin(angle + index * 0.5) * radius * 70;
-    return {
-      left: `${Math.max(2, Math.min(85, x))}%`,
-      top: `${Math.max(2, Math.min(88, y))}%`,
-    };
-  }
 
   return (
-    <div
-      style={{
-        background: CARD,
-        borderRadius: 8,
-        border: `1px solid ${BORDER}`,
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          position: "relative",
-          width,
-          height,
-          maxWidth: "100%",
-          overflow: "hidden",
-          fontFamily: FONT,
-        }}
-      >
-        {words.map((w, i) => {
-          const norm = (w.weight - minWeight) / range; // 0..1
-          const fontSize = 10 + norm * 22; // 10..32
-          const opacity = 0.4 + norm * 0.6; // 0.4..1
-          const color =
-            w.sentiment > 0 ? "#34D399" : w.sentiment < 0 ? "#EF4444" : WHITE;
-          const pos = deterministicPos(i, words.length);
+    <div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", justifyContent: "center", padding: "8px 0" }}>
+        {words.slice(0, 30).map((w, i) => {
+          const norm = (w.weight || 0) / maxWeight;
+          const fontSize = Math.max(11, Math.min(28, 11 + norm * 17));
+          const opacity = 0.5 + norm * 0.5;
+          const color = sentVisible
+            ? (w.sentiment > 0 ? "#34D399" : w.sentiment < 0 ? "#EF4444" : WHITE)
+            : WHITE;
+          // Truncate long topic names
+          const label = (w.text || "").length > 25 ? (w.text || "").slice(0, 22) + "..." : (w.text || "");
 
           return (
-            <span
-              key={i}
-              style={{
-                position: "absolute",
-                left: pos.left,
-                top: pos.top,
-                fontSize,
-                opacity,
-                color,
-                fontWeight: norm > 0.6 ? 600 : 400,
-                whiteSpace: "nowrap",
-                transform: "translate(-50%, -50%)",
-                pointerEvents: "none",
-                userSelect: "none",
-              }}
-            >
-              {w.text}
+            <span key={i} title={`${w.text}: ${w.weight} mentions`} style={{
+              fontSize, opacity, color,
+              fontWeight: norm > 0.5 ? 700 : 500,
+              fontFamily: FONT, padding: "2px 4px",
+              lineHeight: 1.2, cursor: "default",
+            }}>
+              {label}
             </span>
           );
         })}
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+        <button onClick={() => setSentVisible(!sentVisible)} style={{
+          fontSize: 9, color: MUTED, background: "none", border: `1px solid ${BORDER}`,
+          borderRadius: 4, padding: "2px 8px", cursor: "pointer", fontFamily: FONT,
+        }}>
+          {sentVisible ? "Hide" : "Show"} sentiment
+        </button>
       </div>
     </div>
   );
