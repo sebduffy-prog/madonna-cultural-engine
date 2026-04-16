@@ -10,7 +10,7 @@ const CACHE_KEY = "media_trend_cache";
 const FEED_KEY = "media_feed_pool";
 const CACHE_TTL = 86400;
 const MAX_FEED = 200;
-const MENTION_BASELINE = 60;
+const MENTION_BASELINE = 59;
 
 // Focused queries — Madonna and the new album only
 const QUERIES = [
@@ -117,6 +117,19 @@ export default async function handler(req, res) {
   const totalBaseline = MENTION_BASELINE;
   const overallIndex = Math.round(((totalToday - totalBaseline) / totalBaseline) * 1000) / 10;
 
+  // Spotify popularity signal
+  let spotifyDelta = 0;
+  let spotifyPopularity = null;
+  try {
+    const spotifyHistory = await kvListGet("spotify_popularity_history", 0, 6);
+    if (spotifyHistory?.length >= 1) {
+      spotifyPopularity = spotifyHistory[0].artistPopularity;
+      if (spotifyHistory.length >= 2) {
+        spotifyDelta = spotifyHistory[0].artistPopularity - spotifyHistory[1].artistPopularity;
+      }
+    }
+  } catch {}
+
   // Build query-level breakdown from news items (keyword matching)
   const queryScores = QUERIES.map((q) => {
     const qLower = q.q.replace(/"/g, "").toLowerCase();
@@ -198,12 +211,14 @@ export default async function handler(req, res) {
       positiveCount: pos, negativeCount: neg, neutralCount: neu,
       method: sentimentMethod,
     },
+    spotifyPopularity,
+    spotifyDelta,
   };
 
   await kvSet(CACHE_KEY, result, CACHE_TTL);
 
   await kvListPush(HISTORY_KEY, {
-    date: snapshot.date,
+    date: new Date().toISOString(),
     index: overallIndex,
     totalToday,
     totalBaseline,

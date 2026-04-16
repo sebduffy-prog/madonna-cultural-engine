@@ -15,6 +15,9 @@ const MentionsTicker = dynamic(() => import("../components/MentionsTicker"), { s
 const StrategyRecommendations = dynamic(() => import("../components/StrategyRecommendations"), { ssr: false });
 const GraphRAG = dynamic(() => import("../components/GraphRAG"), { ssr: false });
 const YouTubeIntelligence = dynamic(() => import("../components/YouTubeIntelligence"), { ssr: false });
+const IdeasBoard = dynamic(() => import("../components/IdeasBoard"), { ssr: false });
+const CampaignCalendar = dynamic(() => import("../components/CampaignCalendar"), { ssr: false });
+const DocUploader = dynamic(() => import("../components/DocUploader"), { ssr: false });
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
@@ -146,50 +149,47 @@ export async function getStaticProps() {
     } catch(e) {}
   }
 
-  // GWI data - extract Index rows
+  // GWI data - extract ALL metric rows (Index, Column %, Row %, Responses)
   // CSV has two column layouts:
   //   Location data (r[0] filled):    r[0]=category, r[1]=entity, r[2]=metric, r[3]=totals, r[4-10]=segments
   //   Non-location data (r[0] empty): r[0]="", r[1]=category, r[2]=entity, r[3]=metric, r[4]=totals, r[5-11]=segments
+  const VALID_METRICS = ["Index", "Column %", "Row %", "Responses"];
   let gwiData = [];
   try {
     const gwiText = fs.readFileSync(path.join(dir, "Project_Sweet_Tooth_Master - All Internet Users (Audience....csv"), "utf-8");
     const rows = parseCSV(gwiText);
     let lastQuestion = "";
     let lastEntityName = "";
-    let isShifted = false; // tracks whether current section uses shifted layout
+    let isShifted = false;
     for (let i = 2; i < rows.length; i++) {
       const r = rows[i];
       if (!r || r.length < 8) continue;
-      // Skip fully empty rows
       if (r.every(c => !c || c.trim() === "")) continue;
 
-      // Detect layout: if r[0] has a known category, it's location format
-      // If r[0] is empty and r[1] has a non-city value, it's shifted format
       if (r[0] && r[0].trim()) {
         lastQuestion = r[0].trim();
         isShifted = false;
-      } else if (r[1] && r[1].trim() && r[2] && r[2].trim() && (r[3] === "Universe" || r[3] === "Responses" || r[3] === "Column %" || r[3] === "Row %" || r[3] === "Index")) {
-        // This is a shifted-format data row with category in r[1], entity in r[2], metric in r[3]
+      } else if (r[1] && r[1].trim() && r[2] && r[2].trim() && VALID_METRICS.includes(r[3])) {
         lastQuestion = r[1].trim();
         isShifted = true;
       }
 
       if (!isShifted) {
-        // Standard layout: r[1]=entity, r[2]=metric, r[4-10]=segments
         if (r[1] && r[1].trim()) lastEntityName = r[1].trim();
-        if (r[2] === "Index" && lastEntityName) {
-          const vals = [r[4],r[5],r[6],r[7],r[8],r[9],r[10]].map(v => parseInt(v?.replace(/,/g, "")) || 0);
-          if (vals.some(v => v > 0 && v !== 100)) {
-            gwiData.push({ question: lastQuestion, name: lastEntityName, genJones: vals[0], millennial: vals[1], genX: vals[2], genZ: vals[3], disco: vals[4], fashion: vals[5], nightlife: vals[6] });
+        const metric = r[2];
+        if (VALID_METRICS.includes(metric) && lastEntityName) {
+          const vals = [r[4],r[5],r[6],r[7],r[8],r[9],r[10]].map(v => parseFloat(v?.replace(/,/g, "").replace(/%/g, "")) || 0);
+          if (vals.some(v => v > 0)) {
+            gwiData.push({ question: lastQuestion, name: lastEntityName, metric, genJones: vals[0], millennial: vals[1], genX: vals[2], genZ: vals[3], disco: vals[4], fashion: vals[5], nightlife: vals[6] });
           }
         }
       } else {
-        // Shifted layout: r[2]=entity, r[3]=metric, r[5-11]=segments
         if (r[2] && r[2].trim()) lastEntityName = r[2].trim();
-        if (r[3] === "Index" && lastEntityName) {
-          const vals = [r[5],r[6],r[7],r[8],r[9],r[10],r[11]].map(v => parseInt(v?.replace(/,/g, "")) || 0);
-          if (vals.some(v => v > 0 && v !== 100)) {
-            gwiData.push({ question: lastQuestion, name: lastEntityName, genJones: vals[0], millennial: vals[1], genX: vals[2], genZ: vals[3], disco: vals[4], fashion: vals[5], nightlife: vals[6] });
+        const metric = r[3];
+        if (VALID_METRICS.includes(metric) && lastEntityName) {
+          const vals = [r[5],r[6],r[7],r[8],r[9],r[10],r[11]].map(v => parseFloat(v?.replace(/,/g, "").replace(/%/g, "")) || 0);
+          if (vals.some(v => v > 0)) {
+            gwiData.push({ question: lastQuestion, name: lastEntityName, metric, genJones: vals[0], millennial: vals[1], genX: vals[2], genZ: vals[3], disco: vals[4], fashion: vals[5], nightlife: vals[6] });
           }
         }
       }
@@ -264,12 +264,13 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
   const [tab, setTab] = useState("dashboard");
   const [authed, setAuthed] = useState(false);
   const [pw, setPw] = useState("");
+  const [researchSubTab, setResearchSubTab] = useState("library");
 
   if (!authed) {
     return (
       <div style={{ background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
         <div style={{ textAlign: "center" }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y }}>VCCPm cultural intelligence</span>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
           <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, margin: "8px 0 24px", letterSpacing: "-0.02em" }}>Sweet Tooth</h1>
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif" }} autoFocus />
           <div style={{ marginTop: 12 }}>
@@ -283,10 +284,10 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Newsreader', 'Georgia', serif", color: WHITE }}>
-      <div style={{ maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","spotify","dashboard","strategy"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
+      <div style={{ maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","spotify","dashboard","ideas","calendar"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCPm cultural intelligence</span>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
         </div>
         <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, lineHeight: 1.1, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Sweet Tooth</h1>
         <p style={{ fontSize: 15, color: MUTED, margin: "0 0 4px", fontStyle: "italic" }}>Madonna cultural tracker</p>
@@ -303,11 +304,8 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "youtube", label: "YouTube" },
             { id: "gwi", label: "Audience" },
             { id: "streetmap", label: "Locations" },
-            { id: "strategy", label: "Strategy" },
-            { id: "audiences", label: "Audience strategy" },
-            { id: "territories", label: "Territories" },
-            { id: "engine", label: "Reactive engine" },
-            { id: "channels", label: "Channels" },
+            { id: "ideas", label: "Ideas" },
+            { id: "calendar", label: "Calendar" },
             { id: "britishgas", label: "Content" },
             { id: "research", label: "Research" },
           ].map(t => (
@@ -358,220 +356,6 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
               <Insight text="Never play defence. The original doesn't explain itself. It doesn't justify its existence. It simply continues to create. The moment the engine starts arguing that Madonna is still relevant, it has already lost. The frame is always offensive: she is the source." color={DIM} />
             </Card>
           </Sect>
-        </>}
-
-        {tab === "audiences" && <>
-          <Sect title="Who these people actually are">
-            <Insight text="These aren't demographic segments. They're emotional relationships. Each cluster has a different reason for caring about Madonna, a different entry point into the catalogue, and a different thing they need from the cultural engine. The content that moves a nostalgia loyalist will bore a Gen Z discoverer. The content that excites a music purist will alienate a fashion follower. One brand truth, six different conversations." color={DIM} />
-          </Sect>
-
-          {[
-            { name: "The nostalgia loyalists", age: "35-55", color: PURPLE, type: "Core base",
-              why: "They don't just like Madonna's music. They are partially made of it. Specific songs are welded to specific memories: the summer of Like a Prayer, the club where they first heard Hung Up, the road trip soundtracked by Ray of Light. This isn't fandom. It's autobiography.",
-              need: "They need the engine to honour what they already feel, not explain it to them. Archive content, vault drops, behind-the-scenes material they haven't seen. The emotional currency is recognition: 'you were there, and that mattered.'",
-              risk: "Over-serving them at the expense of growth. They'll show up anyway. The engine must resist the temptation to make everything a nostalgia play." },
-            { name: "The queer culture custodians", age: "25-50", color: PINK, type: "Core base",
-              why: "For many LGBTQ+ people over 30, Madonna wasn't just an ally. She was the first famous person who made them feel like they weren't broken. The relationship is pre-career: it starts with Christopher Flynn, the gay dance teacher who told a teenage Madonna she was special. It runs through the AIDS crisis, Truth or Dare, Vogue, Stonewall. This isn't brand loyalty. It's a debt of recognition that goes both ways.",
-              need: "Authenticity above everything. This cluster detects corporate Pride in milliseconds. Content must feel like it comes from inside the community, not from a brand addressing the community. The GLAAD speech, not the rainbow logo.",
-              risk: "Tokenisation. The queer community is not a campaign beat. It's a year-round relationship. Activating only around Pride months signals inauthenticity." },
-            { name: "The Gen Z discoverers", age: "16-26", color: TEAL, type: "Growth audience",
-              why: "They didn't grow up with Madonna. They found her through an algorithm, a sample, a TikTok dance challenge, a thrift flip of a Gaultier-inspired outfit. Their relationship is curiosity, not loyalty. They're the most valuable growth audience because they don't have preconceptions. They're meeting the icon for the first time.",
-              need: "Surprise over argument. 'Wait, SHE did that first?' is the reaction that converts curiosity into fandom. Side-by-side content. Short-form. The hook is the discovery itself. Never lecture. Never explain why she matters. Show them, and let the reaction be organic.",
-              risk: "Cringe. A 67-year-old trying to speak Gen Z language will alienate this cluster instantly. The content must be native to their platforms but authored with the confidence of someone who doesn't need their approval." },
-            { name: "The fashion and reinvention set", age: "20-45", color: Y, type: "Growth audience",
-              why: "They see Madonna as a style architect, not primarily a musician. The Gaultier cone bra. The Blond Ambition tour. The Saint Laurent and D&G appearances in 2025-26. They care about the intersection of music and fashion as co-authored cultural moments. For them, Madonna didn't wear fashion. She changed what fashion meant.",
-              need: "Craft content. Design detail. Archive-to-present continuity. The D&G relationship isn't a sponsorship. It's a 30-year creative dialogue. Show the thread across decades. Y2K vintage revival on Depop is her aesthetic being recycled. Own that conversation.",
-              risk: "Reducing fashion to 'looking good.' This cluster cares about design intentionality, not glamour. Focus on the creative relationship, not the red carpet." },
-            { name: "The feminist provocateurs", age: "25-45", color: AMBER, type: "Contested",
-              why: "This is the split cluster. Half see Madonna as a feminist hero: bodily autonomy, sexual agency, refusal to perform ageing on society's terms. Half see her cosmetic choices as undermining the message. Both positions are genuine. Both coexist in the same publications, the same comment sections, sometimes the same person.",
-              need: "The engine doesn't take sides in the debate. It reframes the terms. The question isn't 'has she had work done.' The question is 'why are we still policing women's faces in 2026.' The 'stick around' franchise handles this by making persistence the story, not appearance.",
-              risk: "Engaging the appearance discourse directly. Every response, even a righteous one, amplifies the frame. Flood with artistry. Change the ratio." },
-            { name: "The music purists", age: "30-60", color: GREEN, type: "Core base",
-              why: "They judge Madonna against her own peak. Ray of Light, Confessions, Music. They know the production credits. They know the William Orbit collaboration changed electronic music. They're sceptical of the 2010s output but excited about the Stuart Price reunion because they understand what that partnership means sonically.",
-              need: "Craft signals. Production diaries. Stuart Price in the studio. B-side drops. The Veronica Electronica material. This cluster doesn't want hype. They want evidence that the album is being made with the same care as the work they already love.",
-              risk: "Overpromising. If the album doesn't deliver, this cluster will be the harshest critics. The engine should build anticipation through craft, not through claims. Let the music speak." },
-          ].map((a, i) => (
-            <Card key={i} accent={a.color}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: a.color, margin: 0, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{a.name}</h3>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: `${a.color}22`, color: a.color, fontWeight: 600, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{a.type}</span>
-                  <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: `${MUTED}22`, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{a.age}</span>
-                </div>
-              </div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: WHITE, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Why they care</p>
-              <Insight text={a.why} color={DIM} />
-              <p style={{ fontSize: 13, fontWeight: 700, color: WHITE, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>What they need</p>
-              <Insight text={a.need} color={DIM} />
-              <p style={{ fontSize: 13, fontWeight: 700, color: RED, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Risk</p>
-              <Insight text={a.risk} color={`${RED}BB`} />
-            </Card>
-          ))}
-        </>}
-
-        {tab === "territories" && <>
-          <Sect title="Where to fight and where to walk away">
-            <Insight text="A cultural territory is a space in public discourse where Madonna has permission to show up and be taken seriously. Permission isn't about reach or budget. It's about whether the audience believes she belongs there. Some territories she built. Some she shares. Some she's lost. And some she should never enter." color={DIM} />
-          </Sect>
-
-          {[
-            { name: "Dance and club culture", score: 95, status: "Fortress", color: TEAL, franchise: "The floor remembers",
-              substance: "Madonna has 50 Dance Club number-one singles. Fifty. More than any artist on any single Billboard chart. Confessions on a Dance Floor was a continuous 50-minute DJ set before that was a streaming format. Hung Up topped charts in 41 countries. The new album is a sequel to that record, with the same producer. The entire current dance revival (Beyonce's Renaissance, Charli XCX's brat, the club culture resurgence) traces back to ground she broke. She doesn't enter the revival. She IS what's being revived.",
-              move: "Time the 'floor remembers' franchise to pre-album drop. The narrative isn't 'Madonna returns to dance music.' It's 'dance music returns to Madonna.'" },
-            { name: "Queer liberation and Pride", score: 92, status: "Fortress", color: PURPLE, franchise: "The first friend you had",
-              substance: "CNN's Anderson Cooper called her the ally who's had the biggest impact on LGBTQ+ acceptance. She put HIV education inside Like a Prayer album packaging during the Reagan era when the government was ignoring the crisis. Ellen DeGeneres credited Madonna with helping her come out. Truth or Dare documented gay lives when Hollywood wouldn't touch the subject. The Stonewall surprise performances aren't PR stunts. They're pilgrimages to a place that shaped her. The relationship started with Christopher Flynn, an openly gay dance teacher, when she was a teenager in Michigan. Before the career. Before the fame. Before there was anything to gain from allyship.",
-              move: "This isn't a campaign territory. It's a relationship. The 'first friend you had' franchise treats it accordingly: community-first, year-round, not just Pride month. Content must feel like testimony, not brand activation." },
-            { name: "Pop reinvention and eras", score: 82, status: "Strong", color: GREEN, franchise: "She did it first",
-              substance: "She invented the concept of the pop era as a distinct visual and sonic world. 14 studio albums, each with a completely different identity. Vanity Fair credited her as the origin of what Taylor Swift now calls 'eras.' But the lineage has been buried. Younger audiences associate the concept with Swift, not Madonna. This is a territory she built but is losing credit for. The intelligence data shows 'Madonna eras' searches declining while 'Taylor Swift eras' searches grow. The lineage is being erased in real time.",
-              move: "The 'she did it first' franchise addresses this through discovery, not argument. Never mention Swift. Never compare. Show the archive side by side with the artist she influenced. Let the audience connect the dots. The reaction 'wait, she did that FIRST?' is the conversion moment." },
-            { name: "Ageism and bodily autonomy", score: 50, status: "Contested", color: AMBER, franchise: "Stick around",
-              substance: "This is the hardest territory. It's also the most active conversation about Madonna in 2026. Search is dominated by cosmetic surgery speculation. Her own framing (ageism, misogyny) is accurate but the discourse is louder than the response. The feminist provocateur cluster is split. Some see her choices as undermining the message. Others (correctly) see the scrutiny itself as the problem. Both positions are genuine. The engine cannot resolve this debate. It can only change what dominates the conversation.",
-              move: "DO NOT ENGAGE THE APPEARANCE FRAME DIRECTLY. It's a trap. Every response amplifies it. Instead: flood the zone with artistry content. Production diaries. Fashion collaborations. Archive essays. The Stuart Price reunion. The Netflix series development. Make the narrative about the work so the ratio of 'artistry' content to 'appearance' content shifts over six months. The 'stick around' franchise reframes persistence as the story. Her own quote is the hook: 'The most controversial thing I ever did was stick around.'" },
-            { name: "Chart and streaming dominance", score: 25, status: "Ceded", color: RED, franchise: "None",
-              substance: "Her last Hot 100 top 10 was 2008. Popular (2023) with The Weeknd charted but didn't dominate. This is structural, not a failure. The streaming economy favours younger artists with TikTok-native release cycles. Madonna will not out-chart Sabrina Carpenter or Chappell Roan. But chart position is the wrong metric for brand heat. A critically acclaimed dance album that generates six months of cultural conversation is worth more than a chart-chasing pop single that dilutes the brand.",
-              move: "Accept this. Don't chase chart position with the new album. Measure success by cultural impact, critical reception, and whether it refreshes the brand narrative. Redefine what winning looks like for a legacy artist in 2026." },
-          ].map((t, i) => (
-            <Card key={i} accent={t.color}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <h3 style={{ fontSize: 17, fontWeight: 700, color: t.color, margin: 0, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{t.name}</h3>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 22, fontWeight: 800, color: t.color, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{t.score}%</span>
-                  <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 20, background: `${t.color}22`, color: t.color, fontWeight: 600, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{t.status}</span>
-                </div>
-              </div>
-              <div style={{ width: "100%", height: 4, background: "#2A2A2A", borderRadius: 2, marginBottom: 12 }}>
-                <div style={{ width: `${t.score}%`, height: "100%", background: t.color, borderRadius: 2 }} />
-              </div>
-              <Insight text={t.substance} color={DIM} />
-              <div style={{ background: `${t.color}08`, border: `1px solid ${t.color}22`, borderRadius: 8, padding: "10px 14px", marginTop: 8 }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: t.color, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Strategic move</p>
-                <Insight text={t.move} color={DIM} />
-              </div>
-            </Card>
-          ))}
-
-          <Card accent={RED}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: RED, margin: "0 0 8px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Territories killed</p>
-            {[
-              { name: "Wellness and longevity", reason: "Any celebrity over 60 could run this. Fails the distinctiveness test." },
-              { name: "AI and deepfake discourse", reason: "Makes her a subject of technology, not the icon herself." },
-              { name: "Intergenerational relationship content", reason: "Feeds the ageism frame. Let it exist organically, don't build a franchise." },
-            ].map((k, i) => (
-              <div key={i} style={{ padding: "6px 0", borderBottom: i < 2 ? `1px solid ${BORDER}` : "none" }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: WHITE }}>{k.name}</span>
-                <span style={{ fontSize: 12, color: MUTED, marginLeft: 8 }}>{k.reason}</span>
-              </div>
-            ))}
-          </Card>
-        </>}
-
-        {tab === "engine" && <>
-          <Sect title="The reactive nervous system">
-            <Pull text="The engine doesn't create cultural moments. It detects them, maps them to the right franchise, and responds before the window closes." />
-            <Insight text="Ten trigger types. Four speed tiers. Six era franchises as the content vocabulary. A five-rule kill filter before anything deploys. The intelligence layer (Apify social scraping, SimilarWeb digital footprint, sentiment classification) feeds signals into the system. The creative hierarchy decides what to say. The reactive framework decides when and how fast." color={DIM} />
-          </Sect>
-
-          <Sect title="The six content franchises" accent={CORAL}>
-            <Insight text="Each franchise connects a specific Madonna era to something happening in culture right now. The era is the proof. The present is the point. These aren't throwback posts. They're recurring, formatised content series with established hooks, proof chains, and platform-native executions." color={DIM} />
-            {[
-              { name: "She did it first", era: "1984-86", color: Y, tension: "The lineage has been erased. Younger audiences associate 'eras' and reinvention with Swift, not Madonna. This franchise makes the invisible visible through side-by-side discovery." },
-              { name: "Before you could say it", era: "1989-92", color: CORAL, tension: "Every conversation about female bodies, censorship, and sexual agency in 2026 was a conversation Madonna forced in 1989. The Pope condemned her. Pepsi dropped her. She did it anyway." },
-              { name: "The floor remembers", era: "1990 + 2005", color: TEAL, tension: "Dance culture is resurgent but the conversation starts at 2022, not 1990. Vogue took ballroom to the mainstream. Confessions was an unbroken DJ set before streaming existed. The new album is the sequel." },
-              { name: "When electronica was a risk", era: "1998", color: PURPLE, tension: "The biggest pop star alive abandoned pop for experimental electronica with William Orbit. The label thought she was finished. She won three Grammys. Veronica Electronica just resurfaced the unreleased material." },
-              { name: "The first friend you had", era: "1991-now", color: PINK, tension: "Before corporate Pride, before rainbow logos, before it was safe. HIV inserts in Like a Prayer packaging. Truth or Dare. Stonewall. GLAAD's greatest ally. Not a campaign. A 40-year relationship." },
-              { name: "Stick around", era: "1983-2026", color: WHITE, tension: "Her own words: 'The most controversial thing I ever did was stick around.' This franchise reframes persistence as provocation. In a culture that discards women after 40, she's still here. Still making. Still provoking." },
-            ].map((f, i) => (
-              <Card key={i} accent={f.color}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, color: f.color, margin: 0, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{f.name}</h3>
-                  <span style={{ fontSize: 12, color: MUTED }}>{f.era}</span>
-                </div>
-                <Insight text={f.tension} color={DIM} />
-              </Card>
-            ))}
-          </Sect>
-
-          <Sect title="How the triggers connect" accent={TEAL}>
-            <Insight text="When a cultural moment happens, the intelligence engine identifies which territory it touches, selects the right franchise, and produces content within the pre-assigned speed tier. The creative decisions are pre-made. The only decision in the moment is: deploy or don't." color={DIM} />
-            <Card>
-              {[
-                { trigger: "Artist references Madonna", speed: "2 hours", franchise: "She did it first", why: "The window is narrow. Miss it and you're commenting on old news." },
-                { trigger: "Appearance discourse spikes", speed: "24 hours", franchise: "Stick around", why: "DO NOT ENGAGE. Deploy artistry content. Change the ratio, not the argument." },
-                { trigger: "Pride or LGBTQ+ milestone", speed: "Planned", franchise: "First friend you had", why: "Predictable calendar. Pre-produce. Quality over speed." },
-                { trigger: "Dance culture trends", speed: "4-8 hours", franchise: "Floor remembers", why: "The new album makes every dance moment a content trigger." },
-                { trigger: "Fan content goes viral", speed: "2 hours", franchise: "Match to content", why: "This is the Gen Z acquisition engine. Stitch. Duet. Amplify with paid if 8%+ engagement holds." },
-              ].map((t, i) => (
-                <div key={i} style={{ padding: "12px 0", borderBottom: i < 4 ? `1px solid ${BORDER}` : "none" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: WHITE, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{t.trigger}</span>
-                    <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 20, background: `${Y}22`, color: Y, fontWeight: 600, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{t.speed}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: TEAL, marginBottom: 2, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{t.franchise}</div>
-                  <Insight text={t.why} color={MUTED} />
-                </div>
-              ))}
-            </Card>
-          </Sect>
-        </>}
-
-        {tab === "channels" && <>
-          <Sect title="Where human attention actually lives">
-            <Pull text="Not all reach is equal. A £2 CPM nobody remembers costs more than a £10 CPM that builds the brand." />
-            <Insight text="The channel architecture is weighted by attention, not by platform popularity. YouTube at $0.96 per thousand attentive seconds is the most efficient attention buy in the stack. The 60:40 Binet & Field split separates brand building (memory formation, long-term equity) from activation (conversation, velocity, cultural temperature). Every channel earns its place by delivering real human attention against the right audience cluster." color={DIM} />
-          </Sect>
-
-          <Sect title="Brand building — 60-65% of budget" accent={CORAL}>
-            <Insight text="These are the formats where you earn the 2.5+ seconds needed for memory encoding. The science is clear: below 2.5 seconds of attention, memory encoding is significantly weaker. Brand building requires formats that earn sustained attention and build emotional association over time." color={DIM} />
-            <Card>
-              {[
-                { ch: "YouTube", apm: "5,200", acpm: "$0.96", why: "Most efficient attention buy. Long-form essay and documentary content. Production diaries. 'Before you could say it' and 'When electronica was a risk' franchises live here." },
-                { ch: "Podcasts (host-read)", apm: "11,000", acpm: "$2.27", why: "Highest notice rate (82%). Music, culture, fashion podcast partnerships. Long-form storytelling. The 'first friend you had' franchise gets depth here that social can't provide." },
-                { ch: "CTV and BVOD", apm: "13,800", acpm: "$1.49", why: "TV-level attention in a digital wrapper. Archive-led brand films. Pre-album campaign. The kind of emotional, high-production content that builds memory structures." },
-                { ch: "OOH", apm: "—", acpm: "—", why: "Iconic moments around album launch. Fashion week adjacency. Physical presence signals scale and permanence. A billboard doesn't get scrolled past." },
-              ].map((c, i) => (
-                <div key={i} style={{ padding: "12px 0", borderBottom: i < 3 ? `1px solid ${BORDER}` : "none" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: WHITE, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{c.ch}</span>
-                    <div style={{ display: "flex", gap: 12 }}>
-                      <span style={{ fontSize: 12, color: CORAL }}>{c.apm} APM</span>
-                      <span style={{ fontSize: 12, color: GREEN, fontWeight: 600 }}>{c.acpm}</span>
-                    </div>
-                  </div>
-                  <Insight text={c.why} color={MUTED} />
-                </div>
-              ))}
-            </Card>
-          </Sect>
-
-          <Sect title="Activation — 35-40% of budget" accent={TEAL}>
-            <Insight text="These formats drive conversation, not memory. They feed the earned media machine. They're where the reactive triggers fire. The content is platform-native, lo-fi where appropriate, and designed for saves and shares (the only social metrics that predict cultural velocity)." color={DIM} />
-            <Card>
-              {[
-                { ch: "TikTok", role: "Gen Z discovery engine. Side-by-side content. 'She did it first' franchise. Fan content amplification. 3,400 APM." },
-                { ch: "Instagram Reels + Stories", role: "Fashion and style community. Archive-to-present carousels. Designer collaboration content. 2,100 APM." },
-                { ch: "X / Twitter", role: "Real-time cultural commentary. Archive images deployed during cultural triggers. Restraint as flex. Minimal captions." },
-                { ch: "Spotify", role: "Curated playlists. Algorithmic discovery. Pre-album playlist seeding. Catalogue positioning alongside current artists." },
-              ].map((c, i) => (
-                <div key={i} style={{ padding: "10px 0", borderBottom: i < 3 ? `1px solid ${BORDER}` : "none" }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: TEAL, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{c.ch}</span>
-                  <Insight text={c.role} color={MUTED} />
-                </div>
-              ))}
-            </Card>
-          </Sect>
-
-          <Sect title="The paid-earned-owned loop" accent={PURPLE}>
-            <Card accent={PURPLE}>
-              <Insight text="Owned builds the base: madonna.com as a living cultural archive (not a merch store), email and SMS for superfan community, streaming profiles as curated brand experiences. This is the always-on layer." color={DIM} />
-              <Insight text="Earned is generated by the reactive content system. When the trigger-response framework fires fast enough and sharp enough, publications pick it up. The goal: Madonna's team should be the fastest, sharpest cultural commentator in the music space. Earned becomes predictable, not hoped for." color={DIM} />
-              <Insight text="Paid amplifies winners only. Nothing gets paid budget until it proves organic engagement first (the 8-12% engagement threshold from the virality skill). Paid seeds to adjacent audiences who don't currently follow Madonna. The feedback loop: performance data from paid informs the intelligence engine, which updates territory scores and trigger sensitivity." color={DIM} />
-            </Card>
-          </Sect>
-
-          <Card accent={Y}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: Y, margin: "0 0 6px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Measurement principles</p>
-            <Insight text="Save rate and share rate are the primary social metrics. They predict cultural velocity where views and likes measure activity without impact. Brand lift studies run quarterly to track unprompted association shifts. Incrementality testing (geo holdouts where budget allows) validates that paid activity is driving genuine uplift, not claiming organic demand. Every channel is evaluated on cost per attentive second, not raw CPM, because attention is the gateway to memory and memory is the gateway to brand equity." color={MUTED} />
-          </Card>
         </>}
 
         {tab === "britishgas" && <>
@@ -726,6 +510,20 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         </>}
 
         {tab === "research" && <>
+          <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
+            {[{ id: "library", label: "Research Library" }, { id: "bearhunt", label: "Bear Hunt" }].map(st => (
+              <button key={st.id} onClick={() => setResearchSubTab(st.id)} style={{
+                padding: "6px 14px", fontSize: 11, fontWeight: researchSubTab === st.id ? 700 : 400,
+                color: researchSubTab === st.id ? BG : MUTED, background: researchSubTab === st.id ? TEAL : "transparent",
+                border: researchSubTab === st.id ? "none" : `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+                fontFamily: "'Inter Tight', system-ui, sans-serif"
+              }}>{st.label}</button>
+            ))}
+          </div>
+
+          {researchSubTab === "bearhunt" && <DocUploader apiEndpoint="/api/bear-hunt" title="Bear Hunt" description="Upload market research Word documents for analysis and reference." />}
+
+          {researchSubTab === "library" && <>
           <Sect title="The Imperial Phase">
             <Card accent={Y}>
               <Pull text="No artist before or since has sustained that kind of totalising dominance for so long, across so many simultaneous verticals." color={Y} />
@@ -860,6 +658,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
               <Insight text="The current revival: Dua Lipa's Future Nostalgia, Beyonce's Renaissance (dedicated to her late gay uncle Johnny), Chappell Roan's Grammy-winning queer club artistry, Charli xcx's BRAT — each draws directly from the traditions forged in Black gay clubs. The trajectory from David Mancuso's Loft in 1970 to Chappell Roan's Grammy in 2025 is a case study in how marginalised communities built cultural infrastructure that consumed the mainstream." color={DIM} />
             </Card>
           </Sect>
+          </>}
         </>}
 
         {tab === "youtube" && <YouTubeIntelligence comments={comments} fullThemeCounts={fullThemeCounts} totalCommentCount={totalCommentCount} />}
@@ -871,12 +670,13 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         {tab === "culturalfeed" && <CulturalFeed />}
 
         {tab === "socialpulse" && <SocialDashboard />}
-        {tab === "strategy" && <StrategyRecommendations />}
 
         {tab === "spotify" && <SpotifyTracker />}
+        {tab === "ideas" && <IdeasBoard />}
+        {tab === "calendar" && <CampaignCalendar />}
 
         <div style={{ marginTop: 48, paddingTop: 16, borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media × Cultural intelligence</span>
+          <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
           <span style={{ fontSize: 10, color: MUTED, fontStyle: "italic" }}>The original. Not the comeback.</span>
         </div>
       </div>

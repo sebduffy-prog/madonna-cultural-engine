@@ -9,8 +9,11 @@
 // Spotify + AI: use their own APIs, no Brave cost
 
 import newsHandler from "../news";
-import socialHandler from "../social";
+import mediaIndexHandler from "../media-index";
 import spotifyHandler from "../spotify";
+import socialDashHandler from "../social-dashboard";
+import socialCompositeHandler from "../social";
+import brand24Handler from "../brand24";
 import aiHandler from "../ai-strategy";
 
 function createMockReqRes(query = {}) {
@@ -49,22 +52,62 @@ export default async function handler(req, res) {
     }
   }
 
-  // Step 2: Social trend index (~25 queries)
+  // Step 2: Media trend index (uses feeds + Brave if no cached news)
   try {
     const mock = createMockReqRes({ refresh: "1" });
-    await socialHandler(mock.req, mock.res);
+    await mediaIndexHandler(mock.req, mock.res);
     const r = mock.getResult();
-    const queries = r.data?.queriesUsed || 0;
-    totalQueries += queries;
-    results.steps.social = {
+    results.steps.mediaIndex = {
       ok: r.status === 200,
       index: r.data?.index || 0,
-      isFirstRun: r.data?.isFirstRun || false,
-      totalSources: r.data?.totalSources || 0,
-      queriesUsed: queries,
+      totalToday: r.data?.totalToday || 0,
     };
   } catch (err) {
-    results.steps.social = { ok: false, error: err.message };
+    results.steps.mediaIndex = { ok: false, error: err.message };
+  }
+
+  // Step 2b: Social dashboard (reads Reddit JSONL + YouTube cache, 0 API queries)
+  try {
+    const mock = createMockReqRes({ refresh: "1" });
+    await socialDashHandler(mock.req, mock.res);
+    const r = mock.getResult();
+    results.steps.socialDashboard = {
+      ok: r.status === 200,
+      totalItems: r.data?.totalItems || 0,
+    };
+  } catch (err) {
+    results.steps.socialDashboard = { ok: false, error: err.message };
+  }
+
+  // Step 2c: Social composite index (reads from caches, 0 API queries)
+  try {
+    const mock = createMockReqRes({ refresh: "1" });
+    await socialCompositeHandler(mock.req, mock.res);
+    const r = mock.getResult();
+    results.steps.socialComposite = {
+      ok: r.status === 200,
+      index: r.data?.index || 0,
+      platforms: r.data?.platforms?.length || 0,
+    };
+  } catch (err) {
+    results.steps.socialComposite = { ok: false, error: err.message };
+  }
+
+  // Step 2d: Brand24 social listening (uses Brand24 API, 0 Brave queries)
+  try {
+    const mock = createMockReqRes({ refresh: "1" });
+    await brand24Handler(mock.req, mock.res);
+    const r = mock.getResult();
+    results.steps.brand24 = {
+      ok: r.status === 200 && r.data?.configured,
+      totalMentions: r.data?.totalMentions || 0,
+      totalReach: r.data?.totalReach || 0,
+      platforms: r.data?.platforms?.length || 0,
+      topics: r.data?.topics?.length || 0,
+      configured: r.data?.configured || false,
+    };
+  } catch (err) {
+    results.steps.brand24 = { ok: false, error: err.message };
   }
 
   // Step 3: Spotify (uses Spotify API, 0 Brave queries)

@@ -110,6 +110,8 @@ const BRAVE_QUERIES = {
     "Madonna \"Stuart Price\" OR \"Warner Records\" OR \"new album\" OR \"new single\"",
     "Madonna fashion OR style OR \"Met Gala\" OR Vogue OR campaign OR \"red carpet\"",
     "Madonna legacy OR influence OR \"cultural impact\" OR tribute OR documentary",
+    "Madonna site:reddit.com OR site:forum",
+    "Madonna TikTok viral OR trend",
   ],
   fashion: [
     // Madonna's fashion relevance
@@ -249,7 +251,7 @@ async function fetchBraveSearch(query, apiKey) {
       description: decodeEntities((r.description || "").slice(0, 400)),
       date: r.data?.question_posted_at || r.page_age || "",
       source: r.data?.forum_name || (() => { try { return new URL(r.url).hostname.replace("www.", ""); } catch { return ""; } })(),
-      type: "brave",
+      type: "discussion",
       comments: r.data?.num_answers || 0,
     }));
 

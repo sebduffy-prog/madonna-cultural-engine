@@ -116,6 +116,10 @@ export default async function handler(req, res) {
   await delay(500);
   const albums2 = await spGet(`/artists/${MADONNA_ID}/albums?include_groups=album,single,compilation&limit=20&offset=20`, token);
 
+  // ── Call 6: Related artists ──
+  await delay(500);
+  const relatedData = await spGet(`/artists/${MADONNA_ID}/related-artists`, token);
+
   // Process top tracks — fall back to search if top-tracks endpoint fails
   let tracks = (topTracksData?.tracks || [])
     .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
@@ -218,12 +222,39 @@ export default async function handler(req, res) {
     connectedSongs: connectedSongs.sort((a, b) => b.popularity - a.popularity),
     playlistAnalysed,
     playlistTrackCount,
-    relatedArtists: [],
+    relatedArtists: (relatedData?.artists || []).slice(0, 20).map(a => ({
+      id: a.id, name: a.name, popularity: a.popularity || 0,
+      genres: a.genres || [], followers: a.followers?.total || 0,
+      image: a.images?.[0]?.url || "", imageSmall: a.images?.[1]?.url || "",
+      externalUrl: a.external_urls?.spotify || "",
+    })),
     audienceTrending: [],
     history: [],
   };
 
   try { await Promise.race([kvSet(CACHE_KEY, result, CACHE_TTL), new Promise((_, r) => setTimeout(() => r(), 5000))]); } catch {}
+
+  // Track popularity over time
+  try {
+    await kvListPush("spotify_popularity_history", {
+      date: new Date().toISOString(),
+      artistPopularity: artist.popularity || 0,
+      followers: artist.followers?.total || 0,
+      topTrackAvgPopularity: tracks.length > 0
+        ? Math.round(tracks.slice(0, 10).reduce((s, t) => s + (t.popularity || 0), 0) / Math.min(tracks.length, 10))
+        : 0,
+    }, 365);
+  } catch {}
+
+  // Load history into result
+  let spotifyHistory = [];
+  try { spotifyHistory = await kvListGet("spotify_popularity_history", 0, 364); } catch {}
+  result.history = spotifyHistory;
+  result.audienceTrending = spotifyHistory.slice(0, 7).map(h => ({
+    date: h.date,
+    popularity: h.artistPopularity,
+    avgTrackPopularity: h.topTrackAvgPopularity,
+  }));
 
   res.status(200).json(result);
 }

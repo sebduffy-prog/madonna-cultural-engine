@@ -1,4 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
+
+const DocUploader = dynamic(() => import("./DocUploader"), { ssr: false });
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
@@ -26,12 +29,22 @@ const SEGMENTS = [
 
 const SEGMENT_MAP = Object.fromEntries(SEGMENTS.map((s) => [s.key, s]));
 
-function cleanData(gwiData) {
+const METRIC_OPTIONS = [
+  { key: "Index", label: "Index", suffix: "", description: "How much more/less likely vs average (100 = average)" },
+  { key: "Column %", label: "Column %", suffix: "%", description: "% of segment that matches this statement" },
+  { key: "Row %", label: "Row %", suffix: "%", description: "% of respondents from each segment" },
+  { key: "Responses", label: "Responses", suffix: "", description: "Raw response count per segment" },
+];
+
+function cleanData(gwiData, metricFilter = "Index") {
   if (!gwiData || !Array.isArray(gwiData)) return [];
   return gwiData.filter((row) => {
     if (!row.name || row.name.trim() === "" || row.name === "Totals") return false;
+    if (row.metric && row.metric !== metricFilter) return false;
     const vals = SEGMENTS.map((s) => Number(row[s.key]) || 0);
-    if (vals.every((v) => v === 0 || v === 100)) return false;
+    if (vals.every((v) => v === 0)) return false;
+    // For Index, also filter out all-100 rows
+    if (metricFilter === "Index" && vals.every((v) => v === 0 || v === 100)) return false;
     return true;
   });
 }
@@ -66,7 +79,7 @@ const selectStyle = {
 };
 
 /* ─── View 1: Segment Explorer ─── */
-function SegmentExplorer({ data }) {
+function SegmentExplorer({ data, metricSuffix = "" }) {
   const [segKey, setSegKey] = useState("genZ");
   const seg = SEGMENT_MAP[segKey];
 
@@ -78,7 +91,11 @@ function SegmentExplorer({ data }) {
       .slice(0, 50);
   }, [data, segKey]);
 
-  const maxIndex = useMemo(() => Math.max(...items.map((d) => d.index), 200), [items]);
+  const isIndexMetric = metricSuffix === "";
+  const maxIndex = useMemo(() => {
+    const dataMax = Math.max(...items.map((d) => d.index), 1);
+    return isIndexMetric ? Math.max(dataMax, 200) : Math.max(dataMax, 10);
+  }, [items, isIndexMetric]);
   const barH = 24;
   const gap = 4;
   const maxLabelChars = 55;
@@ -148,7 +165,7 @@ function SegmentExplorer({ data }) {
                       fontFamily: "'Inter Tight', sans-serif",
                       flexShrink: 0,
                     }}>
-                      {d.index}
+                      {d.index}{metricSuffix}
                     </span>
                   </div>
                 </div>
@@ -162,7 +179,7 @@ function SegmentExplorer({ data }) {
 }
 
 /* ─── View 2: Compare Segments (butterfly chart) ─── */
-function CompareSegments({ data }) {
+function CompareSegments({ data, metricSuffix = "" }) {
   const [segA, setSegA] = useState("genZ");
   const [segB, setSegB] = useState("genJones");
 
@@ -177,12 +194,19 @@ function CompareSegments({ data }) {
         valA: Number(row[segA]) || 0,
         valB: Number(row[segB]) || 0,
       }))
-      .filter((d) => (d.valA > 0 && d.valA !== 100) || (d.valB > 0 && d.valB !== 100))
+      .filter((d) => {
+        if (isIndexMetric) return (d.valA > 0 && d.valA !== 100) || (d.valB > 0 && d.valB !== 100);
+        return d.valA > 0 || d.valB > 0;
+      })
       .sort((x, y) => Math.max(y.valA, y.valB) - Math.max(x.valA, x.valB))
       .slice(0, 30);
   }, [data, segA, segB]);
 
-  const maxVal = useMemo(() => Math.max(...items.map((d) => Math.max(d.valA, d.valB)), 200), [items]);
+  const isIndexMetric = metricSuffix === "";
+  const maxVal = useMemo(() => {
+    const dataMax = Math.max(...items.map((d) => Math.max(d.valA, d.valB)), 1);
+    return isIndexMetric ? Math.max(dataMax, 200) : Math.max(dataMax, 10);
+  }, [items, isIndexMetric]);
   const barH = 26;
   const gap = 4;
   const sideW = 200;
@@ -247,7 +271,7 @@ function CompareSegments({ data }) {
                     fontWeight={700}
                     fontFamily="'Inter Tight', sans-serif"
                   >
-                    {d.valA}
+                    {d.valA}{metricSuffix}
                   </text>
                   {/* center label */}
                   <text
@@ -281,7 +305,7 @@ function CompareSegments({ data }) {
                     fontWeight={700}
                     fontFamily="'Inter Tight', sans-serif"
                   >
-                    {d.valB}
+                    {d.valB}{metricSuffix}
                   </text>
                 </g>
               );
@@ -294,26 +318,32 @@ function CompareSegments({ data }) {
 }
 
 /* ─── View 3: Popular Statements (dot plot cards) ─── */
-function PopularStatements({ data }) {
+function PopularStatements({ data, metricSuffix = "" }) {
+  // For Index: "strong" = >130. For %, "strong" = top quartile of values.
+  const isIndex = metricSuffix === "";
+
   const items = useMemo(() => {
+    const allVals = data.flatMap(row => SEGMENTS.map(s => Number(row[s.key]) || 0)).filter(v => v > 0);
+    const threshold = isIndex ? 130 : (allVals.sort((a, b) => b - a)[Math.floor(allVals.length * 0.25)] || 10);
+
     return data
       .map((row) => {
         const vals = SEGMENTS.map((s) => ({ key: s.key, label: s.label, color: s.color, index: Number(row[s.key]) || 0 }));
-        const strong = vals.filter((v) => v.index > 130);
+        const strong = vals.filter((v) => v.index > threshold);
         const avg = vals.reduce((sum, v) => sum + v.index, 0) / vals.length;
-        return { name: row.name, question: row.question, vals, strongCount: strong.length, avg };
+        return { name: row.name, question: row.question, vals, strongCount: strong.length, avg, threshold };
       })
       .filter((d) => d.strongCount >= 2)
       .sort((a, b) => b.avg - a.avg)
       .slice(0, 30);
-  }, [data]);
+  }, [data, isIndex]);
 
-  const axisMax = 350;
+  const axisMax = isIndex ? 350 : Math.max(...(items.flatMap(d => d.vals.map(v => v.index))), 100);
 
   if (items.length === 0) {
     return (
       <p style={{ color: MUTED, fontFamily: "'Newsreader', serif", fontSize: 14 }}>
-        No statements index above 130 across 2 or more segments.
+        No statements strong enough across 2 or more segments.
       </p>
     );
   }
@@ -335,21 +365,19 @@ function PopularStatements({ data }) {
               {d.name}
             </span>
             <span style={{ fontSize: 11, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
-              avg {Math.round(d.avg)}
+              avg {Math.round(d.avg)}{metricSuffix}
             </span>
           </div>
           <svg width="100%" height={28} viewBox={`0 0 ${axisMax + 40} 28`} preserveAspectRatio="xMinYMid meet" style={{ display: "block" }}>
             {/* axis line */}
             <line x1={0} y1={14} x2={axisMax} y2={14} stroke={BORDER} strokeWidth={1} />
-            {/* 100 baseline tick */}
-            <line x1={100} y1={4} x2={100} y2={24} stroke={MUTED} strokeWidth={1} strokeDasharray="2,2" />
-            <text x={100} y={26} textAnchor="middle" fill={MUTED} fontSize={8} fontFamily="'Inter Tight', sans-serif">100</text>
-            {/* 200 tick */}
-            <line x1={200} y1={6} x2={200} y2={22} stroke={BORDER} strokeWidth={1} strokeDasharray="2,2" />
-            <text x={200} y={26} textAnchor="middle" fill={MUTED} fontSize={8} fontFamily="'Inter Tight', sans-serif">200</text>
-            {/* 300 tick */}
-            <line x1={300} y1={6} x2={300} y2={22} stroke={BORDER} strokeWidth={1} strokeDasharray="2,2" />
-            <text x={300} y={26} textAnchor="middle" fill={MUTED} fontSize={8} fontFamily="'Inter Tight', sans-serif">300</text>
+            {/* tick marks — adaptive to metric type */}
+            {(isIndex ? [100, 200, 300] : [Math.round(axisMax * 0.25), Math.round(axisMax * 0.5), Math.round(axisMax * 0.75)]).filter(t => t > 0 && t < axisMax).map(tick => (
+              <g key={tick}>
+                <line x1={tick} y1={tick === 100 && isIndex ? 4 : 6} x2={tick} y2={tick === 100 && isIndex ? 24 : 22} stroke={tick === 100 && isIndex ? MUTED : BORDER} strokeWidth={1} strokeDasharray="2,2" />
+                <text x={tick} y={26} textAnchor="middle" fill={MUTED} fontSize={8} fontFamily="'Inter Tight', sans-serif">{tick}{metricSuffix}</text>
+              </g>
+            ))}
             {/* dots */}
             {d.vals.map((v) => (
               <circle
@@ -362,18 +390,18 @@ function PopularStatements({ data }) {
                 stroke={BG}
                 strokeWidth={1}
               >
-                <title>{v.label}: {v.index}</title>
+                <title>{v.label}: {v.index}{metricSuffix}</title>
               </circle>
             ))}
           </svg>
           {/* legend */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
             {d.vals
-              .filter((v) => v.index > 130)
+              .filter((v) => v.index > (d.threshold || 130))
               .sort((a, b) => b.index - a.index)
               .map((v) => (
                 <span key={v.key} style={{ fontSize: 10, color: v.color, fontFamily: "'Inter Tight', sans-serif", fontWeight: 600 }}>
-                  {v.label} {v.index}
+                  {v.label} {v.index}{metricSuffix}
                 </span>
               ))}
           </div>
@@ -393,8 +421,10 @@ const VIEWS = [
 export default function AudienceIntelligence({ gwiData }) {
   const [view, setView] = useState("explorer");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [metricKey, setMetricKey] = useState("Index");
 
-  const allData = useMemo(() => cleanData(gwiData), [gwiData]);
+  const allData = useMemo(() => cleanData(gwiData, metricKey), [gwiData, metricKey]);
+  const currentMetric = METRIC_OPTIONS.find(m => m.key === metricKey) || METRIC_OPTIONS[0];
 
   const categories = useMemo(() => {
     const cats = new Set();
@@ -406,6 +436,8 @@ export default function AudienceIntelligence({ gwiData }) {
     if (categoryFilter === "all") return allData;
     return allData.filter((row) => row.question === categoryFilter);
   }, [allData, categoryFilter]);
+
+  const [topTab, setTopTab] = useState("gwi");
 
   return (
     <div style={{ background: BG, padding: 24, borderRadius: 12 }}>
@@ -420,7 +452,54 @@ export default function AudienceIntelligence({ gwiData }) {
         </span>
       </div>
 
-      {/* category filter */}
+      {/* top-level sub-tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+        {[{ id: "gwi", label: "GWI Data" }, { id: "bridge", label: "Audience Bridge" }].map(st => (
+          <button key={st.id} onClick={() => setTopTab(st.id)} style={{
+            padding: "6px 14px", fontSize: 11, fontWeight: topTab === st.id ? 700 : 400,
+            color: topTab === st.id ? BG : MUTED, background: topTab === st.id ? TEAL : "transparent",
+            border: topTab === st.id ? "none" : `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+            fontFamily: "'Inter Tight', sans-serif",
+          }}>{st.label}</button>
+        ))}
+      </div>
+
+      {topTab === "bridge" && (
+        <DocUploader
+          apiEndpoint="/api/audience-bridge"
+          title="Audience Bridge"
+          description="Upload synthetic audience conversation documents (Word docs) for team review and reference."
+        />
+      )}
+
+      {topTab === "gwi" && <>
+      {/* metric + category filter row */}
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 11, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Inter Tight', sans-serif" }}>
+          Metric
+        </div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {METRIC_OPTIONS.map((m) => (
+            <button
+              key={m.key}
+              onClick={() => setMetricKey(m.key)}
+              title={m.description}
+              style={{
+                padding: "5px 12px", fontSize: 11, fontWeight: metricKey === m.key ? 700 : 500,
+                color: metricKey === m.key ? BG : DIM,
+                background: metricKey === m.key ? TEAL : "transparent",
+                border: `1px solid ${metricKey === m.key ? TEAL : BORDER}`,
+                borderRadius: 6, cursor: "pointer",
+                fontFamily: "'Inter Tight', sans-serif", transition: "all 0.15s",
+              }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <span style={{ fontSize: 10, color: DIM, fontStyle: "italic" }}>{currentMetric.description}</span>
+      </div>
+
       <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ fontSize: 11, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Inter Tight', sans-serif" }}>
           Category
@@ -458,9 +537,10 @@ export default function AudienceIntelligence({ gwiData }) {
       </div>
 
       {/* active view */}
-      {view === "explorer" && <SegmentExplorer data={data} />}
-      {view === "compare" && <CompareSegments data={data} />}
-      {view === "popular" && <PopularStatements data={data} />}
+      {view === "explorer" && <SegmentExplorer data={data} metricSuffix={currentMetric.suffix} />}
+      {view === "compare" && <CompareSegments data={data} metricSuffix={currentMetric.suffix} />}
+      {view === "popular" && <PopularStatements data={data} metricSuffix={currentMetric.suffix} />}
+      </>}
     </div>
   );
 }

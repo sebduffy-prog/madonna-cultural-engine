@@ -320,6 +320,33 @@ export default function SpotifyTracker() {
           )}
         </Panel>
 
+        {/* Related Artists (Spotify algorithm) */}
+        {data.relatedArtists?.length > 0 && (
+          <Panel title={`Related Artists (${data.relatedArtists.length})`} color={PURPLE} span={3}>
+            <div style={{ fontSize: 9, color: DIM, marginBottom: 8, fontStyle: "italic" }}>
+              Artists Spotify considers similar to Madonna based on listening patterns
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 6 }}>
+              {data.relatedArtists.slice(0, 15).map((a) => (
+                <a key={a.id} href={a.externalUrl} target="_blank" rel="noopener noreferrer" style={{
+                  background: BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "8px 10px",
+                  textDecoration: "none", transition: "border-color 0.15s",
+                }} onMouseEnter={e => e.currentTarget.style.borderColor = PURPLE}
+                   onMouseLeave={e => e.currentTarget.style.borderColor = BORDER}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    {a.imageSmall && <img src={a.imageSmall} alt="" style={{ width: 24, height: 24, borderRadius: "50%" }} />}
+                    <span style={{ fontSize: 11, fontWeight: 600, color: WHITE }}>{a.name}</span>
+                  </div>
+                  <div style={{ fontSize: 9, color: DIM }}>
+                    Popularity: <span style={{ color: PURPLE, fontWeight: 600 }}>{a.popularity}</span>
+                    {a.followers > 0 && ` · ${(a.followers / 1000).toFixed(0)}K followers`}
+                  </div>
+                </a>
+              ))}
+            </div>
+          </Panel>
+        )}
+
         {/* Connected Songs — Madonna collabs found in playlists */}
         {data.connectedSongs?.length > 0 && (
           <Panel title={`Connected Songs (${data.connectedSongs.length})`} color={GREEN} span={3}>

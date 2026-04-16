@@ -174,7 +174,7 @@ export default function DashboardSummary() {
 
         {/* Social snapshot */}
         <Panel title="Social trend snapshot" color={PURPLE}>
-          {!social?.platforms ? (
+          {!social?.signals ? (
             <p style={{ fontSize: 12, color: MUTED }}>No social data yet. Run a scan in the Social Listening tab.</p>
           ) : (
             <>
@@ -193,21 +193,21 @@ export default function DashboardSummary() {
                 </div>
               )}
               <div>
-                {(social.platforms || []).map((p) => {
-                  const change = p.avgChange || 0;
-                  const c = isBaseline ? MUTED : change > 0 ? GREEN : change < 0 ? RED : WHITE;
-                  return (
-                    <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                      <span style={{ fontSize: 9, color: DIM, width: 60, fontFamily: "'Inter Tight', sans-serif" }}>{p.label}</span>
-                      <div style={{ flex: 1, height: 4, background: BORDER, borderRadius: 2, overflow: "hidden" }}>
-                        <div style={{ width: `${Math.min(100, Math.abs(change) + 10)}%`, height: "100%", background: c, borderRadius: 2, transition: "width 0.3s" }} />
-                      </div>
-                      <span style={{ fontSize: 10, color: c, fontWeight: 600, width: 40, textAlign: "right", fontFamily: "'Inter Tight', sans-serif" }}>
-                        {isBaseline ? "—" : `${change > 0 ? "+" : ""}${change}%`}
+                {Object.entries(social.signals || {}).map(([key, sig]) => (
+                  <div key={key} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, padding: "3px 0", borderBottom: `1px solid ${BORDER}22` }}>
+                    <span style={{ fontSize: 9, color: DIM, flex: 1, fontFamily: "'Inter Tight', sans-serif" }}>{sig.label}</span>
+                    <span style={{ fontSize: 11, color: WHITE, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>{typeof sig.value === "number" ? sig.value.toLocaleString() : sig.value}</span>
+                    {sig.delta != null && sig.delta !== 0 && (
+                      <span style={{ fontSize: 9, color: sig.delta > 0 ? GREEN : RED, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>
+                        {sig.delta > 0 ? "+" : ""}{sig.delta}
                       </span>
-                    </div>
-                  );
-                })}
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 9, color: MUTED }}>
+                Composite index: <span style={{ color: social.index > 0 ? GREEN : WHITE, fontWeight: 700 }}>{social.index}</span>
+                {" \u00B7 "}{(social.platforms || []).length} sources active
               </div>
             </>
           )}
@@ -270,6 +270,37 @@ export default function DashboardSummary() {
           )}
         </Panel>
       </div>
+
+      {/* Full strategy recommendations */}
+      {ai?.recommendations && (
+        <div style={{ marginTop: 16 }}>
+          <Panel title="AI Strategy Recommendations" color={AMBER}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {["madonna", "fashion", "gay", "culture"].map(cat => {
+                const recs = ai.recommendations[cat] || [];
+                if (recs.length === 0) return null;
+                const catLabels = { madonna: "Madonna", fashion: "Fashion", gay: "Gay Community", culture: "Culture" };
+                const catColors = { madonna: Y, fashion: PINK, gay: PURPLE, culture: TEAL };
+                return (
+                  <div key={cat}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: catColors[cat], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, fontFamily: "'Inter Tight', sans-serif" }}>{catLabels[cat]}</div>
+                    {recs.slice(0, 3).map((rec, i) => (
+                      <div key={i} style={{ marginBottom: 10, paddingBottom: 8, borderBottom: i < recs.length - 1 ? `1px solid ${BORDER}` : "none" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                          <span style={{ fontSize: 8, fontWeight: 700, color: BG, background: rec.type === "Media" ? PINK : rec.type === "Partnership" ? TEAL : AMBER, padding: "1px 5px", borderRadius: 3, fontFamily: "'Inter Tight', sans-serif" }}>{rec.type}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: WHITE }}>{rec.title}</span>
+                        </div>
+                        <p style={{ fontSize: 11, color: DIM, margin: 0, lineHeight: 1.4 }}>{rec.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+            {ai.generatedAt && <div style={{ fontSize: 9, color: MUTED, marginTop: 8 }}>Generated: {new Date(ai.generatedAt).toLocaleString("en-GB")}</div>}
+          </Panel>
+        </div>
+      )}
 
       {/* Last updated */}
       <div style={{ fontSize: 9, color: MUTED, marginTop: 12, fontFamily: "'Inter Tight', sans-serif" }}>

@@ -24,7 +24,7 @@ async function gatherIntelligence() {
   const parts = [];
 
   for (const cat of ["madonna", "fashion", "gay", "culture"]) {
-    const feed = await kvGet(`feeds_${cat}`);
+    const feed = await kvGet(`feeds:${cat}`);
     if (feed?.items) {
       parts.push(`\n## ${cat.toUpperCase()} FEED (${feed.items.length} articles):`);
       feed.items.slice(0, 15).forEach((item) => {
@@ -33,7 +33,7 @@ async function gatherIntelligence() {
     }
   }
 
-  const spotify = await kvGet("spotify_snapshot");
+  const spotify = await kvGet("spotify_data");
   if (spotify?.artist) {
     parts.push("\n## SPOTIFY DATA:");
     parts.push(`Artist: ${spotify.artist.name}, Popularity: ${spotify.artist.popularity}/100`);

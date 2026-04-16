@@ -117,10 +117,54 @@ export default async function handler(req, res) {
     } catch {}
   }
 
-  // ── Load Reddit data ──
-  const redditItems = loadReddit();
+  // ── Load Brand24 data (preferred source for Reddit + supplements YouTube) ──
+  let brand24Items = [];
+  let brand24Reddit = [];
+  let brand24Youtube = [];
+  let hasBrand24 = false;
+  try {
+    const b24 = await Promise.race([kvGet("brand24_data"), new Promise((_, r) => setTimeout(() => r(), 3000))]);
+    if (b24?.configured && b24.dailyMetrics?.length > 0) {
+      hasBrand24 = true;
+      // Brand24 provides aggregate metrics per platform, not individual mentions.
+      // We create synthetic items from daily metrics for the feed volume calculations.
+      // Platform-level data flows into the stats.
+      (b24.dailyMetrics || []).forEach(d => {
+        (d.bySource || []).forEach(src => {
+          const platform = src.source || "web";
+          const count = src.mentions_count || 0;
+          if (count > 0) {
+            const item = {
+              id: `b24_${platform}_${d.date}`,
+              platform,
+              type: "brand24_metric",
+              author: `Brand24 ${platform}`,
+              text: `${count} mentions on ${platform} on ${d.date}`,
+              title: "",
+              date: d.date,
+              timestamp: d.date ? Math.floor(new Date(d.date).getTime() / 1000) : 0,
+              score: src.reach || 0,
+              comments: 0,
+              url: "",
+              subreddit: "",
+              theme: "general",
+              sentiment: (d.sentiment?.positive || 0) > (d.sentiment?.negative || 0) ? "positive" : (d.sentiment?.negative || 0) > 0 ? "negative" : "neutral",
+              _b24count: count,
+              _b24reach: src.reach || 0,
+            };
+            brand24Items.push(item);
+            if (platform === "reddit") brand24Reddit.push(item);
+            if (platform === "youtube") brand24Youtube.push(item);
+          }
+        });
+      });
+    }
+  } catch {}
 
-  // ── Load YouTube live data from youtube-rag cache ──
+  // ── Load Reddit data: Brand24 if available, fallback to static JSONL ──
+  const redditItems = hasBrand24 && brand24Reddit.length > 0 ? brand24Reddit : loadReddit();
+
+  // ── Load YouTube live data from youtube-rag cache (always, Brand24 supplements) ──
   let youtubeItems = [];
   try {
     const ytData = await Promise.race([kvGet("youtube_rag_comments"), new Promise((_, r) => setTimeout(() => r(), 3000))]);
@@ -145,7 +189,36 @@ export default async function handler(req, res) {
     }
   } catch {}
 
-  const allItems = [...redditItems, ...youtubeItems];
+  // ── Load Brave discussion items from news cache ──
+  let braveDiscussionItems = [];
+  try {
+    const newsCache = await Promise.race([kvGet("feeds:madonna"), new Promise((_, r) => setTimeout(() => r(), 3000))]);
+    if (newsCache?.items) {
+      braveDiscussionItems = newsCache.items
+        .filter(item => item.type === "discussion")
+        .slice(0, 200)
+        .map(item => ({
+          id: `brave_${(item.url || "").slice(0, 40)}`,
+          platform: "brave_discussion",
+          type: "discussion",
+          author: item.source || "",
+          text: (item.description || "").slice(0, 500),
+          title: item.title || "",
+          date: item.date || "",
+          timestamp: item.date ? Math.floor(new Date(item.date).getTime() / 1000) : 0,
+          score: item.comments || 0,
+          comments: item.comments || 0,
+          url: item.url || "",
+          subreddit: "",
+          theme: classify(item.description || item.title || ""),
+          sentiment: sentiment(item.description || item.title || ""),
+        }));
+    }
+  } catch {}
+
+  // Brand24 items for OTHER platforms (not reddit/youtube which are handled above)
+  const brand24OtherItems = brand24Items.filter(i => i.platform !== "reddit" && i.platform !== "youtube");
+  const allItems = [...redditItems, ...youtubeItems, ...braveDiscussionItems, ...brand24OtherItems];
 
   // ── Sort by date (newest first) ──
   allItems.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
@@ -186,7 +259,25 @@ export default async function handler(req, res) {
   allItems.forEach(i => { themeCounts[i.theme] = (themeCounts[i.theme] || 0) + 1; });
 
   // ── Platform breakdown ──
-  const platformCounts = { reddit: redditItems.length, youtube: youtubeItems.length };
+  // Platform counts — use Brand24 aggregate counts if available, otherwise count items
+  const platformCounts = { reddit: redditItems.length, youtube: youtubeItems.length, brave_discussion: braveDiscussionItems.length };
+  // Add Brand24 platform totals
+  if (hasBrand24) {
+    try {
+      const b24 = await kvGet("brand24_data");
+      if (b24?.platforms) {
+        b24.platforms.forEach(p => {
+          if (p.platform === "reddit" && brand24Reddit.length > 0) {
+            platformCounts.reddit = p.mentions; // Use Brand24's count
+          } else if (p.platform === "youtube") {
+            platformCounts.youtube_brand24 = p.mentions; // Separate Brand24 YouTube count
+          } else if (!platformCounts[p.platform]) {
+            platformCounts[p.platform] = p.mentions;
+          }
+        });
+      }
+    } catch {}
+  }
 
   // ── Top authors ──
   const authorMap = {};
@@ -216,7 +307,9 @@ export default async function handler(req, res) {
 
   // ── Sentiment by platform ──
   const sentimentByPlatform = {};
-  ["reddit", "youtube"].forEach(p => {
+  // Build sentiment for all platforms present
+  const allPlatformIds = [...new Set(allItems.map(i => i.platform))];
+  allPlatformIds.forEach(p => {
     const pItems = allItems.filter(i => i.platform === p);
     const total = Math.max(pItems.length, 1);
     sentimentByPlatform[p] = {
@@ -272,6 +365,8 @@ export default async function handler(req, res) {
     redditPosts: redditItems.filter(i => i.type === "post").length,
     redditComments: redditItems.filter(i => i.type === "comment").length,
     youtubeComments: youtubeItems.length,
+    hasBrand24,
+    brand24Platforms: hasBrand24 ? Object.keys(platformCounts).filter(k => !["reddit", "youtube", "brave_discussion", "youtube_brand24"].includes(k)) : [],
   };
 
   try { await Promise.race([kvSet(CACHE_KEY, result, CACHE_TTL), new Promise((_, r) => setTimeout(() => r(), 5000))]); } catch {}
