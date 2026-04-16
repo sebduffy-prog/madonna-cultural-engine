@@ -43,19 +43,45 @@ export default function IdeasBoard() {
   async function handleCreate(e) {
     e.preventDefault();
     const userId = getUserId();
-    const r = await fetch("/api/ideas", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "create", name: formName, description: formDesc,
-        mockupUrl: formMockup, extensions: formExtensions.filter(x => x.format || x.description),
-        createdBy: userId,
-      }),
-    });
-    if ((await r.json()).ok) {
-      setShowForm(false);
-      setFormName(""); setFormDesc(""); setFormMockup("");
-      setFormExtensions([{ channel: "", format: "", description: "" }]);
-      load();
+    try {
+      // Compress image if it's a large data URI (>500KB)
+      let mockup = formMockup;
+      if (mockup && mockup.startsWith("data:") && mockup.length > 500000) {
+        try {
+          const img = new Image();
+          await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = mockup; });
+          const canvas = document.createElement("canvas");
+          const maxDim = 1200;
+          let w = img.width, h = img.height;
+          if (w > maxDim || h > maxDim) {
+            const scale = maxDim / Math.max(w, h);
+            w = Math.round(w * scale);
+            h = Math.round(h * scale);
+          }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          mockup = canvas.toDataURL("image/jpeg", 0.8);
+        } catch {}
+      }
+      const r = await fetch("/api/ideas", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create", name: formName, description: formDesc,
+          mockupUrl: mockup, extensions: formExtensions.filter(x => x.channel || x.format || x.description),
+          createdBy: userId,
+        }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setShowForm(false);
+        setFormName(""); setFormDesc(""); setFormMockup("");
+        setFormExtensions([{ channel: "", format: "", description: "" }]);
+        load();
+      } else {
+        alert("Failed to create idea: " + (data.error || r.status));
+      }
+    } catch (err) {
+      alert("Error creating idea: " + err.message);
     }
   }
 

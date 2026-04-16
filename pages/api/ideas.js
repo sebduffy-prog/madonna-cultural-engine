@@ -9,6 +9,10 @@ function uuid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 }
 
+export const config = {
+  api: { bodyParser: { sizeLimit: "10mb" } },
+};
+
 export default async function handler(req, res) {
   if (req.method === "GET") {
     const ideas = await kvGet(CACHE_KEY) || [];
