@@ -149,11 +149,15 @@ export default function SocialDashboard() {
     ? Math.round(b24.totalMentions / b24.dailyMetrics.length)
     : legacy?.totalItems ? Math.round(legacy.totalItems / 14) : 0;
 
-  // Sentiment — prefer Brand24 if available
-  const sentPos = hasB24 ? b24.sentiment.positive : (legacy?.sentiment?.counts?.positive || 0);
-  const sentNeg = hasB24 ? b24.sentiment.negative : (legacy?.sentiment?.counts?.negative || 0);
-  const sentNeu = hasB24 ? b24.sentiment.neutral : (legacy?.sentiment?.counts?.neutral || 0);
+  // Sentiment — prefer Brand24 if available (use integer counts, not proportions)
+  const sentPos = hasB24 ? Math.round(b24.sentiment?.positive || 0) : (legacy?.sentiment?.counts?.positive || 0);
+  const sentNeg = hasB24 ? Math.round(b24.sentiment?.negative || 0) : (legacy?.sentiment?.counts?.negative || 0);
+  const sentNeu = hasB24 ? Math.round(b24.sentiment?.neutral || 0) : (legacy?.sentiment?.counts?.neutral || 0);
   const sentTotal = Math.max(sentPos + sentNeg + sentNeu, 1);
+  // Use pre-computed percentages from Brand24 if available
+  const sentPosPct = hasB24 ? (b24.sentiment?.positivePercent || Math.round((sentPos / sentTotal) * 100)) : Math.round((sentPos / sentTotal) * 100);
+  const sentNegPct = hasB24 ? (b24.sentiment?.negativePercent || Math.round((sentNeg / sentTotal) * 100)) : Math.round((sentNeg / sentTotal) * 100);
+  const sentNeuPct = 100 - sentPosPct - sentNegPct;
 
   if (loading && !b24 && !legacy) return <div style={{ color: MUTED, padding: 40, textAlign: "center", fontFamily: "'Inter Tight', sans-serif" }}>Loading social intelligence...</div>;
 
@@ -208,15 +212,15 @@ export default function SocialDashboard() {
           <Stat label="Total Mentions" value={totalMentions.toLocaleString()} sub={hasB24 ? `Brand24: ${b24.totalMentions.toLocaleString()} + Legacy: ${(legacy?.totalItems || 0).toLocaleString()}` : `Reddit + YouTube`} color={WHITE} />
           <Stat label="Total Reach" value={totalReach > 0 ? `${(totalReach / 1000).toFixed(0)}K` : "—"} sub={hasB24 ? "estimated impressions" : "requires Brand24"} color={TEAL} />
           <Stat label="Engagement" value={totalEngagement > 0 ? totalEngagement.toLocaleString() : "—"} sub="likes + comments + shares" color={AMBER} />
-          <Stat label="Positive" value={`${Math.round((sentPos / sentTotal) * 100)}%`} color={GREEN} />
-          <Stat label="Negative" value={`${Math.round((sentNeg / sentTotal) * 100)}%`} color={RED} />
+          <Stat label="Positive" value={`${sentPosPct}%`} color={GREEN} />
+          <Stat label="Negative" value={`${sentNegPct}%`} color={RED} />
         </div>
 
         {/* Sentiment arc + Momentum + Events */}
         <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 1fr", gap: 12, marginBottom: 16 }}>
           <Section title="Sentiment Balance" color={GREEN}>
             <div style={{ display: "flex", justifyContent: "center" }}>
-              <SentimentArc positive={sentPos} negative={sentNeg} neutral={sentNeu} />
+              <SentimentArc positive={sentPosPct} negative={sentNegPct} neutral={sentNeuPct} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-around", marginTop: 4 }}>
               <div style={{ textAlign: "center" }}>
@@ -242,7 +246,7 @@ export default function SocialDashboard() {
                   {b24.dailyMetrics.map((d, i) => {
                     const max = Math.max(...b24.dailyMetrics.map(x => x.mentions), 1);
                     const h = Math.max(4, (d.mentions / max) * 70);
-                    const sentColor = (d.sentiment?.positive || 0) > (d.sentiment?.negative || 0) ? GREEN : (d.sentiment?.negative || 0) > 0 ? RED : PURPLE;
+                    const sentColor = (d.sentiment?.positivePct || d.sentiment?.positive || 0) > (d.sentiment?.negativePct || d.sentiment?.negative || 0) ? GREEN : (d.sentiment?.negativePct || d.sentiment?.negative || 0) > 0 ? RED : PURPLE;
                     return (
                       <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }} title={`${d.date}: ${d.mentions} mentions, reach ${d.reach?.toLocaleString()}`}>
                         <span style={{ fontSize: 8, color: WHITE, fontWeight: 600 }}>{d.mentions}</span>
@@ -275,7 +279,7 @@ export default function SocialDashboard() {
                     <span style={{ fontSize: 11, fontWeight: 600, color: WHITE }}>{e.date}</span>
                     <span style={{ fontSize: 9, color: CORAL, fontWeight: 600 }}>+{e.peakMentions} peak</span>
                   </div>
-                  <p style={{ fontSize: 10, color: DIM, margin: "2px 0 0", lineHeight: 1.4 }}>{(e.description || "").slice(0, 120)}</p>
+                  <p style={{ fontSize: 10, color: DIM, margin: "2px 0 0", lineHeight: 1.4 }}>{(e.description || "").replace(/<[^>]+>/g, "").slice(0, 120)}</p>
                 </div>
               ))
             ) : (
@@ -711,23 +715,26 @@ export default function SocialDashboard() {
       </>}
 
       {/* ═══ DEMOGRAPHICS ═══ */}
-      {view === "demographics" && hasB24 && b24.demographics && <>
+      {view === "demographics" && hasB24 && b24.demographics && (() => {
+        // Demographics data is nested: b24.demographics.demographics or direct
+        const demo = b24.demographics?.demographics || b24.demographics;
+        return <>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-          {b24.demographics.sex && (
+          {demo.sex && (
             <Section title="Gender" color={PINK}>
-              {Object.entries(b24.demographics.sex).map(([k, v]) => (
+              {Object.entries(demo.sex).map(([k, v]) => (
                 <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <span style={{ fontSize: 11, color: WHITE, width: 60, textTransform: "capitalize" }}>{k}</span>
-                  <MiniBar value={v} max={Math.max(...Object.values(b24.demographics.sex))} color={k === "female" ? PINK : TEAL} />
+                  <MiniBar value={v} max={Math.max(...Object.values(demo.sex))} color={k === "female" ? PINK : TEAL} />
                   <span style={{ fontSize: 11, color: WHITE, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>{v}%</span>
                 </div>
               ))}
             </Section>
           )}
 
-          {b24.demographics.ages && (
+          {demo.ages && (
             <Section title="Age Distribution" color={PURPLE}>
-              {Object.entries(typeof b24.demographics.ages === "object" && !Array.isArray(b24.demographics.ages) ? b24.demographics.ages : {}).slice(0, 6).map(([k, v]) => (
+              {Object.entries(typeof demo.ages === "object" && !Array.isArray(demo.ages) ? demo.ages : {}).slice(0, 6).map(([k, v]) => (
                 <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                   <span style={{ fontSize: 10, color: DIM, width: 50 }}>{k}</span>
                   <MiniBar value={typeof v === "number" ? v : 0} max={100} color={PURPLE} />
@@ -737,9 +744,9 @@ export default function SocialDashboard() {
             </Section>
           )}
 
-          {b24.demographics.interests && (
+          {demo.interests && (
             <Section title="Interests" color={AMBER}>
-              {(Array.isArray(b24.demographics.interests) ? b24.demographics.interests : Object.entries(b24.demographics.interests).map(([k, v]) => ({ name: k, value: v }))).slice(0, 8).map((item, i) => (
+              {(Array.isArray(demo.interests) ? demo.interests : Object.entries(demo.interests).map(([k, v]) => ({ name: k, value: v }))).slice(0, 8).map((item, i) => (
                 <div key={i} style={{ fontSize: 11, color: DIM, padding: "3px 0", borderBottom: `1px solid ${BORDER}22` }}>
                   {typeof item === "string" ? item : `${item.name}: ${item.value}`}
                 </div>
@@ -747,9 +754,9 @@ export default function SocialDashboard() {
             </Section>
           )}
 
-          {b24.demographics.countries && (
+          {demo.countries && (
             <Section title="Countries" color={TEAL}>
-              {(Array.isArray(b24.demographics.countries) ? b24.demographics.countries : Object.entries(b24.demographics.countries).map(([k, v]) => ({ name: k, value: v }))).slice(0, 8).map((item, i) => (
+              {(Array.isArray(demo.countries) ? demo.countries : Object.entries(demo.countries).map(([k, v]) => ({ name: k, value: v }))).slice(0, 8).map((item, i) => (
                 <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: DIM, padding: "3px 0", borderBottom: `1px solid ${BORDER}22` }}>
                   <span>{typeof item === "string" ? item : item.name}</span>
                   {typeof item !== "string" && <span style={{ color: WHITE, fontWeight: 600 }}>{item.value}</span>}
@@ -758,7 +765,8 @@ export default function SocialDashboard() {
             </Section>
           )}
         </div>
-      </>}
+      </>;
+      })()}
 
       {/* Footer */}
       <div style={{ fontSize: 9, color: MUTED, marginTop: 16, fontFamily: "'Inter Tight', sans-serif" }}>

@@ -122,7 +122,8 @@ export default async function handler(req, res) {
 
   const totalToday = newsFeedTotal + brand24Mentions;
   const totalBaseline = MENTION_BASELINE;
-  const overallIndex = Math.round(((totalToday - totalBaseline) / totalBaseline) * 1000) / 10;
+  // Don't show -100% when we simply have no data — show 0 instead
+  const overallIndex = totalToday === 0 ? 0 : Math.round(((totalToday - totalBaseline) / totalBaseline) * 1000) / 10;
 
   // Spotify popularity signal
   let spotifyDelta = 0;

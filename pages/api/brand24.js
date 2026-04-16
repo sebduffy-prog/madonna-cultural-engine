@@ -130,10 +130,13 @@ export default async function handler(req, res) {
     return s + (e.likes || 0) + (e.comments || 0) + (e.shares || 0);
   }, 0);
 
-  // Sentiment
-  const posTotal = sentimentRaw?.total_positive || days.reduce((s, d) => s + (d.sentiment?.positive || 0), 0);
-  const negTotal = sentimentRaw?.total_negative || days.reduce((s, d) => s + (d.sentiment?.negative || 0), 0);
-  const neuTotal = Math.max(totalMentions - posTotal - negTotal, 0);
+  // Sentiment — Brand24 daily sentiment is proportions (0.0-1.0), not counts
+  // Use the dedicated sentiment endpoint which has actual mention counts
+  const sentimentMentions = sentimentRaw?.total_mentions || sentimentRaw?.mentions?.total || 0;
+  const posTotal = sentimentRaw?.total_positive_mentions || sentimentRaw?.positive_mentions?.total || 0;
+  const negTotal = sentimentRaw?.total_negative_mentions || sentimentRaw?.negative_mentions?.total || 0;
+  const neuTotal = Math.max((sentimentMentions || totalMentions) - posTotal - negTotal, 0);
+  const sentDenominator = Math.max(posTotal + negTotal + neuTotal, 1);
 
   // Platform breakdown
   const platformTotals = {};
@@ -170,8 +173,16 @@ export default async function handler(req, res) {
 
   // Reach daily (from dedicated endpoint — social vs non-social split)
   const reachDaily = reachRaw?.daily || reachRaw?.data || reachRaw;
-  const reachSocial = reachRaw?.total_social_media_reach || 0;
-  const reachNonSocial = reachRaw?.total_non_social_media_reach || 0;
+  // Compute social vs non-social from platform breakdown if dedicated endpoint is empty
+  const socialPlatforms = ["twitter", "facebook", "instagram", "tiktok", "reddit", "youtube", "linkedin"];
+  let reachSocial = reachRaw?.total_social_media_reach || 0;
+  let reachNonSocial = reachRaw?.total_non_social_media_reach || 0;
+  if (reachSocial === 0 && reachNonSocial === 0) {
+    Object.entries(platformTotals).forEach(([p, data]) => {
+      if (socialPlatforms.includes(p)) reachSocial += data.reach;
+      else reachNonSocial += data.reach;
+    });
+  }
 
   // AI Summary
   let aiSummary = null;
@@ -203,13 +214,13 @@ export default async function handler(req, res) {
   const engagementRate = totalReach > 0 ? Math.round((totalEngagement / totalReach) * 10000) / 100 : 0;
 
   // Sentiment-weighted reach = positive reach - negative reach (net positive exposure)
-  const sentimentWeightedReach = totalReach > 0 && totalMentions > 0
-    ? Math.round(totalReach * ((posTotal - negTotal) / totalMentions))
+  const sentimentWeightedReach = totalReach > 0 && sentDenominator > 0
+    ? Math.round(totalReach * ((posTotal - negTotal) / sentDenominator))
     : 0;
 
   // Virality index = shares / total mentions (how shareable is the conversation)
   const totalShares = days.reduce((s, d) => s + (d.engagement?.shares || 0), 0);
-  const viralityIndex = totalMentions > 0 ? Math.round((totalShares / totalMentions) * 1000) / 10 : 0;
+  const viralityIndex = totalMentions > 0 ? Math.round((totalShares / totalMentions) * 100) / 10 : 0; // as a ratio, not %
 
   // Platform diversity score (0-100, higher = more evenly spread across platforms)
   const platformMentions = Object.values(platformTotals).map(p => p.mentions);
@@ -231,12 +242,13 @@ export default async function handler(req, res) {
     ? Math.round((reachSocial / (reachSocial + reachNonSocial)) * 100)
     : 50;
 
-  // Momentum score (composite: velocity trend + sentiment + engagement)
-  const momentumScore = Math.round(
-    (mentionVelocity?.trend > 0 ? 30 : mentionVelocity?.trend < 0 ? -10 : 10) +
-    ((posTotal / Math.max(totalMentions, 1)) * 40) +
-    (Math.min(engagementRate, 5) * 6)
-  );
+  // Momentum score (0-100 composite: velocity + sentiment + engagement)
+  const posPct = posTotal / Math.max(sentDenominator, 1);
+  const momentumScore = Math.min(100, Math.max(0, Math.round(
+    (mentionVelocity?.trend > 0 ? 25 : mentionVelocity?.trend === 0 ? 15 : 5) +
+    (posPct * 50) +
+    (Math.min(engagementRate, 10) * 2.5)
+  )));
 
   const result = {
     configured: true,
@@ -251,18 +263,30 @@ export default async function handler(req, res) {
       positive: posTotal,
       negative: negTotal,
       neutral: neuTotal,
-      positivePercent: totalMentions > 0 ? Math.round((posTotal / totalMentions) * 100) : 0,
-      negativePercent: totalMentions > 0 ? Math.round((negTotal / totalMentions) * 100) : 0,
+      positivePercent: Math.round((posTotal / sentDenominator) * 100),
+      negativePercent: Math.round((negTotal / sentDenominator) * 100),
+      neutralPercent: Math.round((neuTotal / sentDenominator) * 100),
     },
 
-    dailyMetrics: days.map(d => ({
-      date: d.date,
-      mentions: d.mentions_count || 0,
-      reach: d.reach_total || 0,
-      sentiment: d.sentiment || {},
-      engagement: d.engagement || {},
-      bySource: safeArray(d, "by_source"),
-    })),
+    dailyMetrics: days.map(d => {
+      // Convert sentiment proportions to counts for this day
+      const m = d.mentions_count || 0;
+      const sp = d.sentiment || {};
+      return {
+        date: d.date,
+        mentions: m,
+        reach: d.reach_total || 0,
+        sentiment: {
+          positive: Math.round((sp.positive || 0) * m),
+          negative: Math.round((sp.negative || 0) * m),
+          neutral: Math.round((sp.neutral || 0) * m),
+          positivePct: Math.round((sp.positive || 0) * 100),
+          negativePct: Math.round((sp.negative || 0) * 100),
+        },
+        engagement: d.engagement || {},
+        bySource: safeArray(d, "by_source"),
+      };
+    }),
 
     // Sentiment daily breakdown (from dedicated endpoint)
     sentimentDaily: sentimentRaw?.daily || sentimentRaw?.data || null,
