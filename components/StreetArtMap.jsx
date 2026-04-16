@@ -676,7 +676,7 @@ export default function StreetArtMap({ murals, venues }) {
             </button>
           </div>
         </div>
-      )
+      )}
 
       {/* Stats row */}
       <div
