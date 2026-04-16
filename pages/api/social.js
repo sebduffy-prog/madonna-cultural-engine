@@ -102,15 +102,15 @@ export default async function handler(req, res) {
     if (brand24?.configured && brand24.totalMentions > 0) {
       signals.brand24Mentions = {
         value: brand24.totalMentions,
-        label: "Brand24 mentions (7d)",
+        label: "Social mentions (7d)",
         reach: brand24.totalReach,
         engagement: brand24.totalEngagement,
       };
       signals.brand24Sentiment = {
         value: brand24.sentiment?.positivePercent || 0,
-        label: "Brand24 positive sentiment",
+        label: "Positive sentiment",
       };
-      platforms.push("brand24");
+      platforms.push("social_listening");
 
       // Brand24 sentiment — use integer counts from the corrected API
       if (brand24.sentiment && brand24.sentiment.positive > 1) {
@@ -142,27 +142,12 @@ export default async function handler(req, res) {
     }
   } catch {}
 
-  // Composite index — normalize all signals to 0-100 scale before averaging
-  let compositeIndex = 0;
-  let weights = 0;
-
-  if (signals.mediaIndex && signals.mediaIndex.value !== 0) {
-    // Clamp media trend to -100..+200 range, then normalize to 0-100
-    const clamped = Math.max(-100, Math.min(200, signals.mediaIndex.value));
-    compositeIndex += ((clamped + 100) / 3) * 2; // -100→0, 0→33, 200→100
-    weights += 2;
-  }
-  if (signals.spotifyPopularity) {
-    compositeIndex += (signals.spotifyPopularity.value || 0); // already 0-100
-    weights += 1;
-  }
-  if (signals.brand24Mentions) {
-    // Brand24 sentiment percent as the signal (0-100)
-    compositeIndex += (signals.brand24Sentiment?.value || 0);
-    weights += 1;
-  }
-
-  const index = weights > 0 ? Math.round((compositeIndex / weights) * 10) / 10 : 0;
+  // Social Health — simple actionable reading
+  // Positive sentiment % (from Brand24 or legacy) + mention trend direction
+  const healthSentiment = signals.brand24Sentiment?.value || Math.round((totalSentiment.positive / Math.max(totalSentiment.positive + totalSentiment.negative + totalSentiment.neutral, 1)) * 100);
+  const healthMentionTrend = signals.brand24Mentions?.value > 0 ? "active" : signals.mediaMentions?.value > 0 ? "active" : "quiet";
+  const healthLabel = healthSentiment >= 30 ? "Strong" : healthSentiment >= 15 ? "Moderate" : healthSentiment > 0 ? "Weak" : "No data";
+  const index = healthSentiment;
 
   // Sentiment totals
   const sentTotal = Math.max(totalSentiment.positive + totalSentiment.negative + totalSentiment.neutral, 1);
@@ -179,6 +164,11 @@ export default async function handler(req, res) {
       counts: totalSentiment,
     },
     isFirstRun: platforms.length === 0,
+    health: {
+      score: healthSentiment,
+      label: healthLabel,
+      mentionTrend: healthMentionTrend,
+    },
   };
 
   try { await Promise.race([kvSet(CACHE_KEY, result, CACHE_TTL), new Promise((_, r) => setTimeout(() => r(), 5000))]); } catch {}

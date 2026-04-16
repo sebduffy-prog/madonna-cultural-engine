@@ -210,8 +210,7 @@ export default function DashboardSummary() {
                 ))}
               </div>
               <div style={{ marginTop: 8, fontSize: 9, color: MUTED }}>
-                Composite index: <span style={{ color: social.index > 0 ? GREEN : WHITE, fontWeight: 700 }}>{social.index}</span>
-                {" \u00B7 "}{(social.platforms || []).length} sources active
+                {(social.platforms || []).length} sources active
               </div>
             </>
           )}
@@ -246,8 +245,8 @@ export default function DashboardSummary() {
           )}
         </Panel>
 
-        {/* Brand24 snapshot */}
-        <Panel title="Brand24 Social" color={AMBER}>
+        {/* Social pulse */}
+        <Panel title="Social pulse" color={AMBER}>
           {social?.signals?.brand24Mentions ? (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
@@ -273,7 +272,7 @@ export default function DashboardSummary() {
             </div>
           ) : (
             <div>
-              <p style={{ fontSize: 12, color: MUTED, margin: 0 }}>Brand24 data loading. Check Social Listening tab for full analytics.</p>
+              <p style={{ fontSize: 12, color: MUTED, margin: 0 }}>Social data loading. Check Social Listening tab for full analytics.</p>
             </div>
           )}
         </Panel>

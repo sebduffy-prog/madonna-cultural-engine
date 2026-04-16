@@ -177,7 +177,7 @@ export default function SocialDashboard() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 3, height: 18, background: PURPLE, borderRadius: 2 }} />
           <h2 style={{ fontSize: 14, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase", margin: 0, fontFamily: "'Inter Tight', sans-serif" }}>Social Listening</h2>
-          {hasB24 && <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: `${GREEN}22`, color: GREEN, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>Brand24 Live</span>}
+          {hasB24 && <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: `${GREEN}22`, color: GREEN, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>Live</span>}
         </div>
         <button onClick={() => fetchAll(true)} disabled={loading} style={{
           padding: "6px 16px", fontSize: 10, fontWeight: 700, color: loading ? MUTED : BG, background: loading ? BORDER : PURPLE,
@@ -209,8 +209,8 @@ export default function SocialDashboard() {
       {view === "overview" && <>
         {/* Hero stats */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
-          <Stat label="Total Mentions" value={totalMentions.toLocaleString()} sub={hasB24 ? `Brand24: ${b24.totalMentions.toLocaleString()} + Legacy: ${(legacy?.totalItems || 0).toLocaleString()}` : `Reddit + YouTube`} color={WHITE} />
-          <Stat label="Total Reach" value={totalReach > 0 ? `${(totalReach / 1000).toFixed(0)}K` : "—"} sub={hasB24 ? "estimated impressions" : "requires Brand24"} color={TEAL} />
+          <Stat label="Total Mentions" value={totalMentions.toLocaleString()} sub={hasB24 ? `across ${b24.platforms?.length || 0} platforms (7d)` : `Reddit + YouTube`} color={WHITE} />
+          <Stat label="Total Reach" value={totalReach > 0 ? `${(totalReach / 1000).toFixed(0)}K` : "—"} sub={totalReach > 0 ? "estimated impressions" : "no reach data"} color={TEAL} />
           <Stat label="Engagement" value={totalEngagement > 0 ? totalEngagement.toLocaleString() : "—"} sub="likes + comments + shares" color={AMBER} />
           <Stat label="Positive" value={`${sentPosPct}%`} color={GREEN} />
           <Stat label="Negative" value={`${sentNegPct}%`} color={RED} />
@@ -283,7 +283,7 @@ export default function SocialDashboard() {
                 </div>
               ))
             ) : (
-              <p style={{ fontSize: 11, color: MUTED }}>No anomalies detected{!hasB24 ? " — requires Brand24" : ""}</p>
+              <p style={{ fontSize: 11, color: MUTED }}>No anomalies detected</p>
             )}
           </Section>
         </div>
@@ -335,7 +335,7 @@ export default function SocialDashboard() {
                   </div>
                 );
               })
-            ) : <p style={{ fontSize: 11, color: MUTED }}>Requires Brand24</p>}
+            ) : <p style={{ fontSize: 11, color: MUTED }}>No source data yet</p>}
           </Section>
         </div>
 
@@ -611,7 +611,7 @@ export default function SocialDashboard() {
       {view === "influencers" && <>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {hasB24 && b24.influencers?.length > 0 && (
-            <Section title="Top Influencers (Brand24)" color={AMBER}>
+            <Section title="Top Influencers" color={AMBER}>
               {b24.influencers.map((inf, i) => (
                 <a key={i} href={inf.url} target="_blank" rel="noopener noreferrer" style={{
                   display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: `1px solid ${BORDER}22`, textDecoration: "none",
@@ -770,12 +770,11 @@ export default function SocialDashboard() {
 
       {/* Footer */}
       <div style={{ fontSize: 9, color: MUTED, marginTop: 16, fontFamily: "'Inter Tight', sans-serif" }}>
-        Sources: {hasB24 ? `Brand24 (${b24.period?.from} to ${b24.period?.to}) · ` : ""}
-        Reddit ({legacy?.hasBrand24 ? "Brand24 live" : `${legacy?.redditPosts || 0} posts, ${legacy?.redditComments || 0} comments`}) ·
-        YouTube ({legacy?.youtubeComments || 0} API comments{hasB24 ? " + Brand24" : ""})
-        {legacy?.hasBrand24 && legacy.brand24Platforms?.length > 0 && ` · Also tracking: ${legacy.brand24Platforms.join(", ")}`}
-        {hasB24 && b24.fetchedAt && ` · Brand24: ${new Date(b24.fetchedAt).toLocaleString("en-GB")}`}
-        {legacy?.fetchedAt && ` · Data: ${new Date(legacy.fetchedAt).toLocaleString("en-GB")}`}
+        {hasB24 && `${b24.period?.from} to ${b24.period?.to} · `}
+        {hasB24 && b24.platforms?.length > 0 && `Tracking: ${b24.platforms.map(p => p.platform).join(", ")} · `}
+        YouTube ({legacy?.youtubeComments || 0} comments) ·
+        Reddit ({legacy?.redditPosts || 0} posts, {legacy?.redditComments || 0} comments)
+        {hasB24 && b24.fetchedAt && ` · Updated: ${new Date(b24.fetchedAt).toLocaleString("en-GB")}`}
       </div>
     </div>
   );
