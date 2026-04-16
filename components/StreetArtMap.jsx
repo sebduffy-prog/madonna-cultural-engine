@@ -94,11 +94,15 @@ export default function StreetArtMap({ murals, venues }) {
   const [isPlacingPin, setIsPlacingPin] = useState(false);
   const [pendingPin, setPendingPin] = useState(null); // { lat, lng }
   const [formData, setFormData] = useState({
+    title: "",
     address: "",
     description: "",
     color: PIN_COLORS[0].hex,
   });
   const [showForm, setShowForm] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [addressSearching, setAddressSearching] = useState(false);
+  const addressTimeout = useRef(null);
 
   // Persist custom pins to localStorage
   useEffect(() => {
@@ -306,8 +310,9 @@ export default function StreetArtMap({ murals, venues }) {
 
       const popupContent = `
         <div>
-          <strong style="color:${pin.color}">${pin.address || "Custom Pin"}</strong><br/>
-          <span style="color:${COLORS.MUTED}">${pin.description || ""}</span>
+          <strong style="color:${pin.color}">${pin.title || "Custom Pin"}</strong><br/>
+          ${pin.address ? `<span style="color:${COLORS.MUTED};font-size:10px">${pin.address}</span><br/>` : ""}
+          ${pin.description ? `<span style="color:${COLORS.MUTED}">${pin.description}</span>` : ""}
           <div style="margin-top:8px;">
             <button
               onclick="window.__deleteCustomPin__('${pin.id}')"
@@ -360,25 +365,61 @@ export default function StreetArtMap({ murals, venues }) {
     };
   }, []);
 
+  // UK address autosuggest via Nominatim (OpenStreetMap, free, no key)
+  function searchAddress(query) {
+    if (addressTimeout.current) clearTimeout(addressTimeout.current);
+    if (!query || query.length < 3) { setAddressSuggestions([]); return; }
+    addressTimeout.current = setTimeout(async () => {
+      setAddressSearching(true);
+      try {
+        const params = new URLSearchParams({ q: query, format: "json", addressdetails: "1", limit: "6", countrycodes: "gb" });
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+          headers: { "User-Agent": "MadonnaCulturalEngine/1.0" },
+        });
+        if (r.ok) {
+          const results = await r.json();
+          setAddressSuggestions(results.map(r => ({
+            display: r.display_name,
+            lat: parseFloat(r.lat),
+            lng: parseFloat(r.lon),
+          })));
+        }
+      } catch {}
+      setAddressSearching(false);
+    }, 400);
+  }
+
   const handleStartPlacing = useCallback(() => {
     setIsPlacingPin(true);
     setShowForm(false);
     setPendingPin(null);
-    setFormData({ address: "", description: "", color: PIN_COLORS[0].hex });
+    setFormData({ title: "", address: "", description: "", color: PIN_COLORS[0].hex });
+    setAddressSuggestions([]);
+  }, []);
+
+  // Start in address-entry mode (no map click needed)
+  const handleStartAddressEntry = useCallback(() => {
+    setShowForm(true);
+    setIsPlacingPin(false);
+    setPendingPin(null);
+    setFormData({ title: "", address: "", description: "", color: PIN_COLORS[0].hex });
+    setAddressSuggestions([]);
   }, []);
 
   const handleCancelPlacing = useCallback(() => {
     setIsPlacingPin(false);
     setShowForm(false);
     setPendingPin(null);
+    setAddressSuggestions([]);
   }, []);
 
   const handleSavePin = useCallback(() => {
-    if (!pendingPin) return;
+    if (!pendingPin && !formData.address) return;
     const newPin = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
-      lat: pendingPin.lat,
-      lng: pendingPin.lng,
+      lat: pendingPin?.lat || 51.515,
+      lng: pendingPin?.lng || -0.09,
+      title: formData.title,
       address: formData.address,
       description: formData.description,
       color: formData.color,
@@ -386,7 +427,8 @@ export default function StreetArtMap({ murals, venues }) {
     setCustomPins((prev) => [...prev, newPin]);
     setPendingPin(null);
     setShowForm(false);
-    setFormData({ address: "", description: "", color: PIN_COLORS[0].hex });
+    setFormData({ title: "", address: "", description: "", color: PIN_COLORS[0].hex });
+    setAddressSuggestions([]);
   }, [pendingPin, formData]);
 
   const muralCount = murals ? murals.length : 0;
@@ -437,10 +479,11 @@ export default function StreetArtMap({ murals, venues }) {
           venue to its nearest mural location.
         </p>
 
-        {/* Add Location button */}
+        {/* Add Location buttons */}
         {!isPlacingPin && !showForm && (
+          <div style={{ display: "flex", gap: 8 }}>
           <button
-            onClick={handleStartPlacing}
+            onClick={handleStartAddressEntry}
             style={{
               background: COLORS.Y,
               color: COLORS.BG,
@@ -456,6 +499,24 @@ export default function StreetArtMap({ murals, venues }) {
           >
             + Add Location
           </button>
+          <button
+            onClick={handleStartPlacing}
+            style={{
+              background: "none",
+              color: COLORS.MUTED,
+              border: `1px solid ${COLORS.BORDER}`,
+              borderRadius: 6,
+              padding: "8px 18px",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              letterSpacing: "0.02em",
+              textTransform: "uppercase",
+            }}
+          >
+            Pin on Map
+          </button>
+          </div>
         )}
         {(isPlacingPin || showForm) && (
           <button
@@ -508,7 +569,7 @@ export default function StreetArtMap({ murals, venues }) {
       />
 
       {/* Form panel for new pin */}
-      {showForm && pendingPin && (
+      {showForm && (
         <div
           style={{
             background: COLORS.CARD,
@@ -531,37 +592,40 @@ export default function StreetArtMap({ murals, venues }) {
             New Custom Pin
           </div>
 
-          {/* Address */}
+          {/* Title */}
           <div style={{ marginBottom: 12 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 12,
-                color: COLORS.MUTED,
-                marginBottom: 4,
-              }}
-            >
-              Address
-            </label>
-            <input
-              type="text"
-              value={formData.address}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, address: e.target.value }))
-              }
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                background: COLORS.BG,
-                border: `1px solid ${COLORS.BORDER}`,
-                borderRadius: 6,
-                padding: "8px 12px",
-                fontSize: 13,
-                color: COLORS.WHITE,
-                outline: "none",
-              }}
-              placeholder="e.g. 221B Baker Street"
-            />
+            <label style={{ display: "block", fontSize: 12, color: COLORS.MUTED, marginBottom: 4 }}>Title</label>
+            <input type="text" value={formData.title} onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+              style={{ width: "100%", boxSizing: "border-box", background: COLORS.BG, border: `1px solid ${COLORS.BORDER}`, borderRadius: 6, padding: "8px 12px", fontSize: 13, color: COLORS.WHITE, outline: "none" }}
+              placeholder="e.g. Camden Market Mural" />
+          </div>
+
+          {/* Address with UK autosuggest */}
+          <div style={{ marginBottom: 12, position: "relative" }}>
+            <label style={{ display: "block", fontSize: 12, color: COLORS.MUTED, marginBottom: 4 }}>Address {addressSearching && <span style={{ color: COLORS.Y, fontSize: 10 }}>searching...</span>}</label>
+            <input type="text" value={formData.address}
+              onChange={(e) => { setFormData((prev) => ({ ...prev, address: e.target.value })); searchAddress(e.target.value); }}
+              style={{ width: "100%", boxSizing: "border-box", background: COLORS.BG, border: `1px solid ${COLORS.BORDER}`, borderRadius: 6, padding: "8px 12px", fontSize: 13, color: COLORS.WHITE, outline: "none" }}
+              placeholder="Start typing a UK address..." />
+            {addressSuggestions.length > 0 && (
+              <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: COLORS.CARD, border: `1px solid ${COLORS.BORDER}`, borderRadius: "0 0 6px 6px", zIndex: 100, maxHeight: 200, overflowY: "auto" }}>
+                {addressSuggestions.map((s, i) => (
+                  <div key={i} onClick={() => {
+                    setFormData(prev => ({ ...prev, address: s.display }));
+                    setPendingPin({ lat: s.lat, lng: s.lng });
+                    setAddressSuggestions([]);
+                    // Pan map to the selected address
+                    if (mapInstanceRef.current) mapInstanceRef.current.setView([s.lat, s.lng], 16);
+                  }} style={{
+                    padding: "8px 12px", fontSize: 11, color: COLORS.WHITE, cursor: "pointer",
+                    borderBottom: `1px solid ${COLORS.BORDER}22`,
+                  }} onMouseEnter={e => e.currentTarget.style.background = COLORS.BG}
+                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    {s.display}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Description */}

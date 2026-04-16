@@ -87,12 +87,15 @@ export default function IdeasBoard() {
   }
 
   async function react(ideaId, action) {
-    let name = prompt("Your name to vote:");
-    if (!name?.trim()) return;
-    name = name.trim();
+    // Anonymous voting — no name prompt, uses a device fingerprint
+    const visitorId = (() => {
+      let id = localStorage.getItem("sweettooth_voter");
+      if (!id) { id = "v_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); localStorage.setItem("sweettooth_voter", id); }
+      return id;
+    })();
     await fetch("/api/ideas", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, ideaId, userId: name }),
+      body: JSON.stringify({ action, ideaId, userId: visitorId }),
     });
     load();
   }
@@ -406,13 +409,6 @@ export default function IdeasBoard() {
                   color: (activeIdea.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
                   border: `1px solid ${(activeIdea.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 8, cursor: "pointer",
                 }}>&#9660; {activeIdea.dislikes || 0}</button>
-                {(activeIdea.likedBy?.length > 0 || activeIdea.dislikedBy?.length > 0) && (
-                  <span style={{ fontSize: 9, color: MUTED, marginLeft: 8 }}>
-                    {activeIdea.likedBy?.length > 0 && <span style={{ color: GREEN }}>Liked: {activeIdea.likedBy.join(", ")}</span>}
-                    {activeIdea.likedBy?.length > 0 && activeIdea.dislikedBy?.length > 0 && " · "}
-                    {activeIdea.dislikedBy?.length > 0 && <span style={{ color: RED }}>Disliked: {activeIdea.dislikedBy.join(", ")}</span>}
-                  </span>
-                )}
               </div>
 
               {/* Comments */}
