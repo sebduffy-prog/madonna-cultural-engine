@@ -306,7 +306,8 @@ export default function IdeasBoard() {
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-          {ideas.map(idea => (
+          {ideas.map(idea => {
+            return (
               <div key={idea.id} style={{ background: CARD, borderRadius: 10, border: `1px solid ${BORDER}`, overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s" }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = Y}
                 onMouseLeave={e => e.currentTarget.style.borderColor = BORDER}>
@@ -345,7 +346,8 @@ export default function IdeasBoard() {
                 </div>
               </div>
             );
-          })}
+          }
+          )}
         </div>
       )}
 
