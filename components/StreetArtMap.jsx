@@ -81,16 +81,8 @@ export default function StreetArtMap({ murals, venues }) {
   const mapInstanceRef = useRef(null);
   const customMarkersRef = useRef([]);
 
-  // Custom pin state
-  const [customPins, setCustomPins] = useState(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const stored = localStorage.getItem(LOCALSTORAGE_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Custom pin state — loaded from server API (shared across all users)
+  const [customPins, setCustomPins] = useState([]);
   const [isPlacingPin, setIsPlacingPin] = useState(false);
   const [pendingPin, setPendingPin] = useState(null); // { lat, lng }
   const [formData, setFormData] = useState({
@@ -104,14 +96,12 @@ export default function StreetArtMap({ murals, venues }) {
   const [addressSearching, setAddressSearching] = useState(false);
   const addressTimeout = useRef(null);
 
-  // Persist custom pins to localStorage
+  // Load custom pins from server on mount
   useEffect(() => {
-    try {
-      localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(customPins));
-    } catch {
-      // ignore storage errors
-    }
-  }, [customPins]);
+    fetch("/api/map-pins").then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.pins) setCustomPins(d.pins);
+    }).catch(() => {});
+  }, []);
 
   const venueLinks = useMemo(() => {
     if (!venues || !murals || murals.length === 0) return [];
@@ -357,7 +347,13 @@ export default function StreetArtMap({ murals, venues }) {
 
   // Expose delete function globally for popup button clicks
   useEffect(() => {
-    window.__deleteCustomPin__ = (id) => {
+    window.__deleteCustomPin__ = async (id) => {
+      try {
+        await fetch("/api/map-pins", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "delete", pinId: id }),
+        });
+      } catch {}
       setCustomPins((prev) => prev.filter((p) => p.id !== id));
     };
     return () => {
@@ -413,18 +409,24 @@ export default function StreetArtMap({ murals, venues }) {
     setAddressSuggestions([]);
   }, []);
 
-  const handleSavePin = useCallback(() => {
+  const handleSavePin = useCallback(async () => {
     if (!pendingPin && !formData.address) return;
-    const newPin = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
-      lat: pendingPin?.lat || 51.515,
-      lng: pendingPin?.lng || -0.09,
-      title: formData.title,
-      address: formData.address,
-      description: formData.description,
-      color: formData.color,
-    };
-    setCustomPins((prev) => [...prev, newPin]);
+    try {
+      const r = await fetch("/api/map-pins", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add",
+          lat: pendingPin?.lat || 51.515,
+          lng: pendingPin?.lng || -0.09,
+          title: formData.title,
+          address: formData.address,
+          description: formData.description,
+          color: formData.color,
+        }),
+      });
+      const d = await r.json();
+      if (d.ok && d.pin) setCustomPins((prev) => [...prev, d.pin]);
+    } catch {}
     setPendingPin(null);
     setShowForm(false);
     setFormData({ title: "", address: "", description: "", color: PIN_COLORS[0].hex });
