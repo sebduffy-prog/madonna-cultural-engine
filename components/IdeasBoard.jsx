@@ -29,7 +29,7 @@ export default function IdeasBoard() {
   const [formName, setFormName] = useState("");
   const [formDesc, setFormDesc] = useState("");
   const [formMockup, setFormMockup] = useState("");
-  const [formExtensions, setFormExtensions] = useState([{ channel: "", format: "", description: "" }]);
+  const [formTactics, setFormTactics] = useState([""]);
 
   const load = useCallback(async () => {
     try {
@@ -68,7 +68,7 @@ export default function IdeasBoard() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "create", name: formName, description: formDesc,
-          mockupUrl: mockup, extensions: formExtensions.filter(x => x.channel || x.format || x.description),
+          mockupUrl: mockup, tactics: formTactics.filter(t => t.trim()),
           createdBy: userId,
         }),
       });
@@ -76,7 +76,7 @@ export default function IdeasBoard() {
       if (data.ok) {
         setShowForm(false);
         setFormName(""); setFormDesc(""); setFormMockup("");
-        setFormExtensions([{ channel: "", format: "", description: "" }]);
+        setFormTactics([""]);
         load();
       } else {
         alert("Failed to create idea: " + (data.error || r.status));
@@ -137,7 +137,7 @@ export default function IdeasBoard() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h2 style={{ fontSize: 14, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase", margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Ideas Board</h2>
-          <p style={{ fontSize: 13, color: DIM, margin: 0 }}>Campaign ideas with mockups, extensions, and team reactions</p>
+          <p style={{ fontSize: 13, color: DIM, margin: 0 }}>Campaign ideas with mockups, tactics, and team reactions</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} style={{
           padding: "8px 20px", fontSize: 12, fontWeight: 700, color: BG, background: Y,
@@ -263,33 +263,21 @@ export default function IdeasBoard() {
             >Click here, then Ctrl+V to paste image</div>
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>EXTENSIONS (Channels & Formats)</label>
-            {formExtensions.map((ext, i) => (
+            <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>TACTICS</label>
+            {formTactics.map((tactic, i) => (
               <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-                <input value={ext.channel} onChange={e => {
-                  const n = [...formExtensions]; n[i].channel = e.target.value; setFormExtensions(n);
-                }} placeholder="Channel (e.g. Social, OOH)" style={{
-                  padding: "8px 10px", fontSize: 12, color: WHITE, background: BG,
-                  border: `1px solid ${BORDER}`, borderRadius: 6, width: 130, outline: "none",
-                }} />
-                <input value={ext.format} onChange={e => {
-                  const n = [...formExtensions]; n[i].format = e.target.value; setFormExtensions(n);
-                }} placeholder="Format (e.g. Reel, A3 poster)" style={{
+                <input value={tactic} onChange={e => {
+                  const n = [...formTactics]; n[i] = e.target.value; setFormTactics(n);
+                }} placeholder="e.g. Flyposting in Camden, 30s Instagram Reel, OOH billboard..." style={{
                   flex: 1, padding: "8px 10px", fontSize: 12, color: WHITE, background: BG,
-                  border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none",
-                }} />
-                <input value={ext.description} onChange={e => {
-                  const n = [...formExtensions]; n[i].description = e.target.value; setFormExtensions(n);
-                }} placeholder="Description" style={{
-                  flex: 2, padding: "8px 10px", fontSize: 12, color: WHITE, background: BG,
                   border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none",
                 }} />
               </div>
             ))}
-            <button type="button" onClick={() => setFormExtensions([...formExtensions, { channel: "", format: "", description: "" }])} style={{
+            <button type="button" onClick={() => setFormTactics([...formTactics, ""])} style={{
               padding: "4px 12px", fontSize: 11, color: TEAL, background: "transparent",
               border: `1px solid ${TEAL}44`, borderRadius: 4, cursor: "pointer", marginTop: 4,
-            }}>+ Add extension</button>
+            }}>+ Add tactic</button>
           </div>
           <button type="submit" style={{
             padding: "10px 28px", fontSize: 13, fontWeight: 700, color: BG, background: Y,
@@ -384,16 +372,25 @@ export default function IdeasBoard() {
                 </div>
               )}
 
-              {/* Extensions */}
-              {activeIdea.extensions?.length > 0 && (
+              {/* Tactics */}
+              {activeIdea.tactics?.length > 0 && (
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Extensions</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Tactics</div>
+                  {activeIdea.tactics.map((tactic, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${BORDER}22` }}>
+                      <span style={{ fontSize: 10, color: Y, fontWeight: 700 }}>{i + 1}</span>
+                      <span style={{ fontSize: 13, color: DIM }}>{tactic}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Legacy: show extensions if idea was created before tactics rename */}
+              {!activeIdea.tactics?.length && activeIdea.extensions?.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Tactics</div>
                   {activeIdea.extensions.map((ext, i) => (
-                    <div key={i} style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "6px 0", borderBottom: `1px solid ${BORDER}22` }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: CHANNEL_COLORS[ext.channel] || Y, minWidth: 80, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
-                        {ext.channel}{ext.format ? ` / ${ext.format}` : ""}
-                      </span>
-                      {ext.description && <span style={{ fontSize: 12, color: DIM }}>{ext.description}</span>}
+                    <div key={i} style={{ padding: "6px 0", borderBottom: `1px solid ${BORDER}22`, fontSize: 13, color: DIM }}>
+                      {ext.channel}{ext.format ? ` / ${ext.format}` : ""}{ext.description ? ` — ${ext.description}` : ""}
                     </div>
                   ))}
                 </div>
