@@ -63,7 +63,8 @@ async function spGet(path, token) {
       return r2.json();
     }
     if (!r.ok) {
-      console.error(`[spotify] ${r.status} on ${path.split("?")[0]}`);
+      const errBody = await r.text().catch(() => "");
+      console.error(`[spotify] ${r.status} on ${path.split("?")[0]}: ${errBody.slice(0, 300)}`);
       return null;
     }
     return r.json();
@@ -117,6 +118,9 @@ export default async function handler(req, res) {
       error: "Artist fetch failed — check Spotify credentials or Spotify may be down",
     });
   }
+
+  // Detect restricted mode: artist returns but with 0 popularity and 0 followers
+  const isRestricted = artist.popularity === 0 && (artist.followers?.total || 0) === 0 && artist.name;
 
   const tracks = (topTracksData?.tracks || []).sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
   const allAlbums = albumsData?.items || [];
@@ -187,7 +191,11 @@ export default async function handler(req, res) {
     hasCredentials: true,
     fetchedAt: new Date().toISOString(),
     cacheTTL: CACHE_TTL,
-    apiCalls: 4, // track efficiency
+    apiCalls: 4,
+    isRestricted,
+    ...(isRestricted ? {
+      restrictedWarning: "Spotify app appears to be in Development Mode or has restricted permissions. Artist data returns but top tracks, albums, and related artists are blocked (403). Go to developer.spotify.com/dashboard > your app > Settings and check: 1) App status is not in Development Mode, 2) Client ID and Secret are correct, 3) You may need to request Extended Quota Mode.",
+    } : {}),
 
     artist: {
       name: artist.name,

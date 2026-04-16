@@ -194,6 +194,20 @@ export default function SpotifyTracker() {
         </div>
       </div>
 
+      {/* Restricted mode warning */}
+      {data.isRestricted && (
+        <div style={{
+          background: `${AMBER}15`, border: `1px solid ${AMBER}44`, borderRadius: 8,
+          padding: "12px 16px", marginBottom: 16,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: AMBER, marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Spotify App Restricted</div>
+          <p style={{ fontSize: 12, color: DIM, margin: 0, lineHeight: 1.5 }}>
+            Your Spotify app appears to be in Development Mode. Artist profile loads but top tracks, albums, and related artists are blocked (403).
+            Go to <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer" style={{ color: AMBER }}>developer.spotify.com/dashboard</a> &rarr; your app &rarr; Settings and check that the app is not restricted. You may need to request Extended Quota Mode or regenerate your Client Secret.
+          </p>
+        </div>
+      )}
+
       {/* Artist hero card */}
       {data.artist && (
         <div style={{
