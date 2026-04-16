@@ -290,9 +290,16 @@ export default async function handler(req, res) {
   let allRss = rssResults.flat();
   const allBrave = braveResults.flat();
 
+  // Filter out noise: Wikipedia, shop.madonna, and other non-editorial sources
+  const BLOCKED_DOMAINS = ["wikipedia.org", "shop.madonna.com", "madonna.com/shop", "discogs.com", "setlist.fm", "genius.com"];
+  const filtered = [...allBrave, ...allRss].filter(item => {
+    const url = (item.url || "").toLowerCase();
+    return !BLOCKED_DOMAINS.some(d => url.includes(d));
+  });
+
   // Deduplicate by URL
   const seen = new Set();
-  const combined = [...allBrave, ...allRss].filter((item) => {
+  const combined = filtered.filter((item) => {
     if (!item.url || seen.has(item.url)) return false;
     seen.add(item.url);
     return true;

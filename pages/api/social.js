@@ -112,11 +112,12 @@ export default async function handler(req, res) {
       };
       platforms.push("brand24");
 
-      // Brand24 sentiment is more accurate — use it as primary if available
-      if (brand24.sentiment) {
-        totalSentiment.positive += brand24.sentiment.positive || 0;
-        totalSentiment.negative += brand24.sentiment.negative || 0;
-        totalSentiment.neutral += brand24.sentiment.neutral || 0;
+      // Brand24 sentiment — use integer counts from the corrected API
+      if (brand24.sentiment && brand24.sentiment.positive > 1) {
+        // These are actual mention counts (post-fix)
+        totalSentiment.positive += Math.round(brand24.sentiment.positive);
+        totalSentiment.negative += Math.round(brand24.sentiment.negative);
+        totalSentiment.neutral += Math.round(brand24.sentiment.neutral);
       }
 
       // Add platform breakdown
@@ -141,24 +142,23 @@ export default async function handler(req, res) {
     }
   } catch {}
 
-  // Compute composite index (weighted average of available signals)
+  // Composite index — normalize all signals to 0-100 scale before averaging
   let compositeIndex = 0;
   let weights = 0;
 
-  if (signals.mediaIndex) {
-    compositeIndex += (signals.mediaIndex.value || 0) * 3;
-    weights += 3;
+  if (signals.mediaIndex && signals.mediaIndex.value !== 0) {
+    // Clamp media trend to -100..+200 range, then normalize to 0-100
+    const clamped = Math.max(-100, Math.min(200, signals.mediaIndex.value));
+    compositeIndex += ((clamped + 100) / 3) * 2; // -100→0, 0→33, 200→100
+    weights += 2;
   }
   if (signals.spotifyPopularity) {
-    compositeIndex += (signals.spotifyPopularity.value || 0) * 1;
+    compositeIndex += (signals.spotifyPopularity.value || 0); // already 0-100
     weights += 1;
   }
-  if (signals.redditVolume) {
-    compositeIndex += Math.min(signals.redditVolume.value / 10, 100) * 1;
-    weights += 1;
-  }
-  if (signals.youtubeEngagement) {
-    compositeIndex += Math.min(signals.youtubeEngagement.value / 50, 100) * 1;
+  if (signals.brand24Mentions) {
+    // Brand24 sentiment percent as the signal (0-100)
+    compositeIndex += (signals.brand24Sentiment?.value || 0);
     weights += 1;
   }
 

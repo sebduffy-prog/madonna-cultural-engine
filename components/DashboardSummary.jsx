@@ -246,30 +246,34 @@ export default function DashboardSummary() {
           )}
         </Panel>
 
-        {/* Recommended actions */}
-        <Panel title="Recommended actions" color={AMBER}>
-          {aiRecs.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {aiRecs.slice(0, 3).map((rec, i) => (
-                <div key={i}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: BG, background: rec.type === "Media" ? PINK : rec.type === "Partnership" ? TEAL : AMBER, padding: "1px 6px", borderRadius: 3, fontFamily: "'Inter Tight', sans-serif" }}>{rec.type}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: WHITE }}>{rec.title}</span>
-                  </div>
-                  <p style={{ fontSize: 11, color: DIM, margin: 0, lineHeight: 1.4 }}>{rec.description?.slice(0, 150)}{rec.description?.length > 150 ? "..." : ""}</p>
+        {/* Brand24 snapshot */}
+        <Panel title="Brand24 Social" color={AMBER}>
+          {social?.signals?.brand24Mentions ? (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }}>{social.signals.brand24Mentions.value?.toLocaleString()}</div>
+                  <div style={{ fontSize: 9, color: DIM }}>mentions (7 days)</div>
                 </div>
-              ))}
+                {social.signals.brand24Mentions.reach > 0 && (
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: TEAL }}>{(social.signals.brand24Mentions.reach / 1000).toFixed(0)}K</div>
+                    <div style={{ fontSize: 9, color: DIM }}>reach</div>
+                  </div>
+                )}
+              </div>
+              {social.signals.brand24Sentiment && (
+                <div style={{ fontSize: 10, color: social.signals.brand24Sentiment.value > 20 ? GREEN : DIM }}>
+                  Sentiment: {social.signals.brand24Sentiment.value}% positive
+                </div>
+              )}
+              <div style={{ fontSize: 9, color: MUTED, marginTop: 6 }}>
+                Platforms: {(social.platforms || []).filter(p => !["reddit", "youtube", "brave_discussions"].includes(p)).join(", ") || "loading..."}
+              </div>
             </div>
           ) : (
             <div>
-              <p style={{ fontSize: 12, color: MUTED, margin: "0 0 8px" }}>No AI recommendations generated yet. Run feed searches first, then generate recommendations in the Media tab.</p>
-              <div style={{ fontSize: 11, color: DIM, lineHeight: 1.5 }}>
-                Actions to take:<br />
-                1. Run a search in the Media tab to pull latest coverage<br />
-                2. Run a scan in Social Listening for current mentions<br />
-                3. Connect Spotify in the Streaming tab<br />
-                4. Generate AI recommendations from the Media tab
-              </div>
+              <p style={{ fontSize: 12, color: MUTED, margin: 0 }}>Brand24 data loading. Check Social Listening tab for full analytics.</p>
             </div>
           )}
         </Panel>

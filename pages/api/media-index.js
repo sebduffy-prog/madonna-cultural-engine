@@ -10,7 +10,10 @@ const CACHE_KEY = "media_trend_cache";
 const FEED_KEY = "media_feed_pool";
 const CACHE_TTL = 86400;
 const MAX_FEED = 200;
-const MENTION_BASELINE = 59;
+// Baseline = typical week of Madonna media coverage from Brave + RSS
+// 29 RSS feeds × ~5 relevant articles each = ~145, plus ~80 Brave results = ~225
+// Adjust this after collecting a few weeks of data
+const MENTION_BASELINE = 225;
 
 // Focused queries — Madonna and the new album only
 const QUERIES = [
@@ -113,16 +116,9 @@ export default async function handler(req, res) {
     newsFeedTotal = newsFeedItems.length;
   }
 
-  // Include Brand24 mention count if available
-  let brand24Mentions = 0;
-  try {
-    const b24 = await kvGet("brand24_data");
-    if (b24?.totalMentions) brand24Mentions = b24.totalMentions;
-  } catch {}
-
-  const totalToday = newsFeedTotal + brand24Mentions;
+  // Trend index = Brave search + RSS mentions ONLY (not Brand24 — that's a separate metric)
+  const totalToday = newsFeedTotal;
   const totalBaseline = MENTION_BASELINE;
-  // Don't show -100% when we simply have no data — show 0 instead
   const overallIndex = totalToday === 0 ? 0 : Math.round(((totalToday - totalBaseline) / totalBaseline) * 1000) / 10;
 
   // Spotify popularity signal
