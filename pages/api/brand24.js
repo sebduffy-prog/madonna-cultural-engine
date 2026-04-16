@@ -300,7 +300,9 @@ export default async function handler(req, res) {
       .sort((a, b) => b.mentions - a.mentions),
 
     topics: topicsArr.map(t => ({
-      id: t.topic_id, name: t.name, description: t.description,
+      id: t.topic_id,
+      name: t.name || (t.description || "").split(/[.,;!?]/).filter(Boolean)[0]?.trim().slice(0, 50) || `Topic ${t.topic_id}`,
+      description: t.description,
       mentions: t.mentions, reach: t.reach, sentiment: t.sentiment,
       shareOfVoice: t.share_of_voice,
     })),

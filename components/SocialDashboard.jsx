@@ -596,7 +596,7 @@ export default function SocialDashboard() {
                   borderLeft: `3px solid ${PURPLE}`, transition: "all 0.15s",
                 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{t.name}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{t.name || (t.description || "").slice(0, 50)}</span>
                     {t.shareOfVoice != null && <span style={{ fontSize: 10, color: PURPLE, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>{t.shareOfVoice}% SOV</span>}
                   </div>
                   <div style={{ display: "flex", gap: 12, fontSize: 10, color: DIM, marginBottom: 8 }}>
