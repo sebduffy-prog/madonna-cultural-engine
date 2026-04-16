@@ -256,7 +256,7 @@ export default function DashboardSummary() {
                 </div>
                 {social.signals.brand24Mentions.reach > 0 && (
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: TEAL }}>{(social.signals.brand24Mentions.reach / 1000).toFixed(0)}K</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: TEAL }}>{social.signals.brand24Mentions.reach >= 1000000 ? `${(social.signals.brand24Mentions.reach / 1000000).toFixed(1)}M` : `${(social.signals.brand24Mentions.reach / 1000).toFixed(0)}K`}</div>
                     <div style={{ fontSize: 9, color: DIM }}>reach</div>
                   </div>
                 )}

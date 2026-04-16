@@ -10,6 +10,12 @@ const PLATFORM_COLORS = {
   forum: CORAL, linkedin: "#0A66C2", brave_discussion: "#FB542B",
 };
 
+function fmtNum(n) {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K`;
+  return String(n);
+}
+
 function highlightMadonna(text) {
   if (!text) return text;
   const parts = text.split(/(madonna)/gi);
@@ -228,7 +234,7 @@ export default function SocialDashboard() {
         {/* Hero stats */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
           <Stat label="Total Mentions" value={totalMentions.toLocaleString()} sub={hasB24 ? `across ${b24.platforms?.length || 0} platforms (7d)` : `Reddit + YouTube`} color={WHITE} />
-          <Stat label="Total Reach" value={totalReach > 0 ? `${(totalReach / 1000).toFixed(0)}K` : "—"} sub={totalReach > 0 ? "estimated impressions" : "no reach data"} color={TEAL} />
+          <Stat label="Total Reach" value={totalReach > 0 ? `${fmtNum(totalReach)}` : "—"} sub={totalReach > 0 ? "estimated impressions" : "no reach data"} color={TEAL} />
           <Stat label="Engagement" value={totalEngagement > 0 ? totalEngagement.toLocaleString() : "—"} sub="likes + comments + shares" color={AMBER} />
           <Stat label="Positive" value={`${sentPosPct}%`} color={GREEN} />
           <Stat label="Negative" value={`${sentNegPct}%`} color={RED} />
@@ -300,7 +306,7 @@ export default function SocialDashboard() {
                     <span style={{ fontSize: 9, color: CORAL, fontWeight: 700 }}>+{e.peakMentions?.toLocaleString()} mentions</span>
                   </div>
                   <p style={{ fontSize: 10, color: DIM, margin: 0, lineHeight: 1.4 }}>{(e.description || "").replace(/<[^>]+>/g, "").slice(0, 150)}</p>
-                  {e.peakReach > 0 && <div style={{ fontSize: 9, color: MUTED, marginTop: 4 }}>Peak reach: {(e.peakReach / 1000).toFixed(0)}K</div>}
+                  {e.peakReach > 0 && <div style={{ fontSize: 9, color: MUTED, marginTop: 4 }}>Peak reach: {fmtNum(e.peakReach || 0)}</div>}
                 </div>
               ))}
             </div>
@@ -446,7 +452,7 @@ export default function SocialDashboard() {
                   <span style={{ color: PURPLE }}>Media {100 - b24.reachBreakdown.socialPct}%</span>
                 </div>
                 <div style={{ fontSize: 9, color: DIM, marginTop: 6 }}>
-                  {(b24.reachBreakdown.social / 1000).toFixed(0)}K social · {(b24.reachBreakdown.nonSocial / 1000).toFixed(0)}K non-social
+                  {fmtNum(b24.reachBreakdown.social)} social · {fmtNum(b24.reachBreakdown.nonSocial)} non-social
                 </div>
               </Section>
             )}
@@ -456,7 +462,7 @@ export default function SocialDashboard() {
               <div style={{ fontSize: 20, fontWeight: 800, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }}>{b24.derived?.influenceConcentration || 0}%</div>
               <div style={{ fontSize: 9, color: DIM, marginTop: 4 }}>of reach from top 5 voices</div>
               <div style={{ fontSize: 10, color: WHITE, marginTop: 6 }}>
-                Net sentiment reach: <span style={{ color: b24.derived?.sentimentWeightedReach > 0 ? GREEN : RED, fontWeight: 700 }}>{((b24.derived?.sentimentWeightedReach || 0) / 1000).toFixed(0)}K</span>
+                Net sentiment reach: <span style={{ color: b24.derived?.sentimentWeightedReach > 0 ? GREEN : RED, fontWeight: 700 }}>{fmtNum(Math.abs(b24.derived?.sentimentWeightedReach || 0))}</span>
               </div>
             </Section>
 
@@ -532,7 +538,7 @@ export default function SocialDashboard() {
                     <div style={{ height: 4, background: BORDER, borderRadius: 2, overflow: "hidden" }}>
                       <div style={{ width: `${pct}%`, height: "100%", background: pc, borderRadius: 2 }} />
                     </div>
-                    {p.reach > 0 && <div style={{ fontSize: 9, color: DIM, marginTop: 6 }}>Reach: {(p.reach / 1000).toFixed(0)}K</div>}
+                    {p.reach > 0 && <div style={{ fontSize: 9, color: DIM, marginTop: 6 }}>Reach: {fmtNum(p.reach || 0)}</div>}
                   </div>
                 );
               })}
@@ -595,7 +601,7 @@ export default function SocialDashboard() {
                   </div>
                   <div style={{ display: "flex", gap: 12, fontSize: 10, color: DIM, marginBottom: 8 }}>
                     <span>{t.mentions} mentions</span>
-                    {t.reach > 0 && <span>Reach: {(t.reach / 1000).toFixed(0)}K</span>}
+                    {t.reach > 0 && <span>Reach: {fmtNum(t.reach || 0)}</span>}
                     <span style={{ color: GREEN }}>{Math.round((sentPosT / sentTotalT) * 100)}% pos</span>
                   </div>
                   {/* Sentiment mini-bar */}
@@ -642,7 +648,7 @@ export default function SocialDashboard() {
                     <div style={{ fontSize: 9, color: DIM }}>{inf.mentions} mentions · reach {inf.reach?.toLocaleString()}</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }}>{(inf.followers / 1000).toFixed(0)}K</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }}>{fmtNum(inf.followers || 0)}</div>
                     <div style={{ fontSize: 8, color: DIM }}>followers</div>
                   </div>
                 </a>
