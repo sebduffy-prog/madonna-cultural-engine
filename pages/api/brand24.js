@@ -6,25 +6,11 @@
 // 1. Get API key from app.brand24.com/account/integrations-api-data
 // 2. Get project ID from your Brand24 Madonna project URL
 // 3. Add BRAND24_API_KEY and BRAND24_PROJECT_ID to Vercel Environment Variables
-//
-// Endpoints used:
-// - /daily-metrics (mentions, reach, sentiment, engagement by day + by source)
-// - /mentions/sentiment (positive/negative daily breakdown)
-// - /topics (AI-detected discussion topics)
-// - /trending-hashtags (top hashtags with reach + sentiment)
-// - /most-followers (top influencers)
-// - /project_events (anomaly detection - spikes)
-// - /ai-summary (auto-generated text summary)
-// - /demographics (audience age, gender, interests)
-// - /domains (top sources)
-//
-// NOTE: Existing Reddit JSONL + YouTube data is preserved as fallback.
-// Brand24 supplements, doesn't replace.
 
 import { kvGet, kvSet, kvListPush } from "../../lib/kv";
 
 const CACHE_KEY = "brand24_data";
-const CACHE_TTL = 43200; // 12 hours
+const CACHE_TTL = 43200;
 const B24_BASE = "https://api-data.brand24.com/api-data/v1";
 
 async function b24Get(path, apiKey) {
@@ -36,11 +22,19 @@ async function b24Get(path, apiKey) {
     });
     if (!r.ok) {
       const errText = await r.text().catch(() => "");
-      console.error(`[brand24] ${r.status} on ${path}: ${errText.slice(0, 200)}`);
+      console.error(`[brand24] ${r.status} on ${path}: ${errText.slice(0, 300)}`);
       return null;
     }
     const json = await r.json();
-    return json.status === "success" ? (json.data || json.message) : null;
+    // Brand24 wraps responses in { status: "success", data: ... } or { status: "success", message: ... }
+    // But some endpoints return arrays directly, others return objects
+    if (json.status === "success") return json.data ?? json.message ?? json;
+    if (json.status === "fail" || json.status === "error") {
+      console.error(`[brand24] API error on ${path}: ${json.message}`);
+      return null;
+    }
+    // Some endpoints may not wrap in status
+    return json;
   } catch (err) {
     console.error(`[brand24] Error on ${path}:`, err.message);
     return null;
@@ -49,6 +43,18 @@ async function b24Get(path, apiKey) {
 
 function dateStr(daysAgo = 0) {
   return new Date(Date.now() - daysAgo * 86400000).toISOString().slice(0, 10);
+}
+
+// Safely get array from response (handles both array and object-with-array)
+function safeArray(data, key) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (key && data[key] && Array.isArray(data[key])) return data[key];
+  // Try common wrapper keys
+  for (const k of [key, "items", "results", "list", "data"].filter(Boolean)) {
+    if (data[k] && Array.isArray(data[k])) return data[k];
+  }
+  return [];
 }
 
 export default async function handler(req, res) {
@@ -62,30 +68,21 @@ export default async function handler(req, res) {
       error: "Brand24 not configured.",
       setup: {
         step1: "Get your API key from app.brand24.com/account/integrations-api-data",
-        step2: "Get your project ID from the Brand24 dashboard URL (app.brand24.com/project/XXXXXX)",
+        step2: "Get your project ID from the Brand24 dashboard URL",
         step3: "Add BRAND24_API_KEY and BRAND24_PROJECT_ID to Vercel env vars",
       },
     });
   }
 
-  // Helper: list projects if no project ID set
   if (!projectId || action === "list-projects") {
-    // Try to get account ID from a test call or use provided one
     const accountId = req.query.accountId || process.env.BRAND24_ACCOUNT_ID;
     if (accountId) {
       const projects = await b24Get(`/account/${accountId}/projects_list/`, apiKey);
-      return res.status(200).json({
-        configured: true,
-        needsProjectId: true,
-        accountId,
-        projects: projects?.projects_list || projects,
-        message: "Set BRAND24_PROJECT_ID to one of these project IDs",
-      });
+      return res.status(200).json({ configured: true, needsProjectId: true, accountId, projects });
     }
     return res.status(200).json({
-      configured: true,
-      needsProjectId: true,
-      error: "BRAND24_PROJECT_ID not set. Check your Brand24 dashboard URL for the project number, or set BRAND24_ACCOUNT_ID and call ?action=list-projects",
+      configured: true, needsProjectId: true,
+      error: "BRAND24_PROJECT_ID not set.",
     });
   }
 
@@ -100,18 +97,8 @@ export default async function handler(req, res) {
   const weekAgo = dateStr(7);
   const monthAgo = dateStr(30);
 
-  // Fetch all data in parallel for speed
-  const [
-    dailyMetrics,
-    sentiment,
-    topics,
-    hashtags,
-    influencers,
-    events,
-    aiSummary,
-    demographics,
-    domains,
-  ] = await Promise.all([
+  // Fetch all data in parallel
+  const [dailyMetricsRaw, sentimentRaw, topicsRaw, hashtagsRaw, influencersRaw, eventsRaw, aiSummaryRaw, demographicsRaw, domainsRaw, hotHoursRaw] = await Promise.all([
     b24Get(`/project/${projectId}/daily-metrics?from=${weekAgo}&to=${today}&includeBySource=true`, apiKey),
     b24Get(`/project/${projectId}/mentions/sentiment?date_from=${weekAgo}&date_to=${today}`, apiKey),
     b24Get(`/project/${projectId}/topics?date_from=${monthAgo}&date_to=${today}`, apiKey),
@@ -121,10 +108,11 @@ export default async function handler(req, res) {
     b24Get(`/project/${projectId}/ai-summary?date_from=${weekAgo}&date_to=${today}`, apiKey),
     b24Get(`/project/${projectId}/demographics?date_from=${monthAgo}&date_to=${today}`, apiKey),
     b24Get(`/project/${projectId}/domains/?date_from=${weekAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/hot-hours?date_from=${weekAgo}&date_to=${today}`, apiKey),
   ]);
 
-  // Process daily metrics
-  const days = dailyMetrics?.days || [];
+  // Process daily metrics — the core data
+  const days = safeArray(dailyMetricsRaw, "days");
   const totalMentions = days.reduce((s, d) => s + (d.mentions_count || 0), 0);
   const totalReach = days.reduce((s, d) => s + (d.reach_total || 0), 0);
   const totalEngagement = days.reduce((s, d) => {
@@ -132,21 +120,45 @@ export default async function handler(req, res) {
     return s + (e.likes || 0) + (e.comments || 0) + (e.shares || 0);
   }, 0);
 
-  // Sentiment totals
-  const sentimentData = sentiment || {};
-  const posTotal = sentimentData.total_positive || days.reduce((s, d) => s + (d.sentiment?.positive || 0), 0);
-  const negTotal = sentimentData.total_negative || days.reduce((s, d) => s + (d.sentiment?.negative || 0), 0);
+  // Sentiment
+  const posTotal = sentimentRaw?.total_positive || days.reduce((s, d) => s + (d.sentiment?.positive || 0), 0);
+  const negTotal = sentimentRaw?.total_negative || days.reduce((s, d) => s + (d.sentiment?.negative || 0), 0);
   const neuTotal = Math.max(totalMentions - posTotal - negTotal, 0);
 
-  // Platform breakdown from daily metrics
+  // Platform breakdown
   const platformTotals = {};
   days.forEach(d => {
-    (d.by_source || []).forEach(src => {
-      if (!platformTotals[src.source]) platformTotals[src.source] = { mentions: 0, reach: 0 };
-      platformTotals[src.source].mentions += src.mentions_count || 0;
-      platformTotals[src.source].reach += src.reach || 0;
+    safeArray(d, "by_source").forEach(src => {
+      const p = src.source || "web";
+      if (!platformTotals[p]) platformTotals[p] = { mentions: 0, reach: 0, engagement: 0 };
+      platformTotals[p].mentions += src.mentions_count || 0;
+      platformTotals[p].reach += src.reach || 0;
     });
   });
+
+  // Topics
+  const topicsArr = safeArray(topicsRaw, "topics");
+
+  // Hashtags
+  const hashtagsArr = safeArray(hashtagsRaw, "hashtags");
+
+  // Influencers — could be array directly or nested
+  const influencersArr = safeArray(influencersRaw, "authors");
+
+  // Events
+  const eventsArr = safeArray(eventsRaw, "anomalies");
+
+  // Domains
+  const domainsArr = safeArray(domainsRaw, "domains");
+
+  // Hot hours
+  const hotHoursArr = safeArray(hotHoursRaw, "hot_hours");
+
+  // AI Summary — could be string or object
+  let aiSummary = null;
+  if (typeof aiSummaryRaw === "string") aiSummary = aiSummaryRaw;
+  else if (aiSummaryRaw?.summary) aiSummary = aiSummaryRaw.summary;
+  else if (aiSummaryRaw?.text) aiSummary = aiSummaryRaw.text;
 
   const result = {
     configured: true,
@@ -154,7 +166,6 @@ export default async function handler(req, res) {
     period: { from: weekAgo, to: today },
     projectId,
 
-    // Core metrics
     totalMentions,
     totalReach,
     totalEngagement,
@@ -166,85 +177,82 @@ export default async function handler(req, res) {
       negativePercent: totalMentions > 0 ? Math.round((negTotal / totalMentions) * 100) : 0,
     },
 
-    // Daily breakdown
     dailyMetrics: days.map(d => ({
       date: d.date,
       mentions: d.mentions_count || 0,
       reach: d.reach_total || 0,
       sentiment: d.sentiment || {},
       engagement: d.engagement || {},
-      bySource: d.by_source || [],
+      bySource: safeArray(d, "by_source"),
     })),
 
-    // Platform breakdown
+    // Sentiment daily breakdown (from dedicated endpoint)
+    sentimentDaily: sentimentRaw?.daily || sentimentRaw?.data || null,
+
     platforms: Object.entries(platformTotals)
       .map(([platform, data]) => ({ platform, ...data }))
       .sort((a, b) => b.mentions - a.mentions),
 
-    // AI topics
-    topics: (topics?.topics || []).map(t => ({
-      id: t.topic_id,
-      name: t.name,
-      description: t.description,
-      mentions: t.mentions,
-      reach: t.reach,
-      sentiment: t.sentiment,
+    topics: topicsArr.map(t => ({
+      id: t.topic_id, name: t.name, description: t.description,
+      mentions: t.mentions, reach: t.reach, sentiment: t.sentiment,
       shareOfVoice: t.share_of_voice,
     })),
 
-    // Trending hashtags
-    hashtags: (hashtags?.hashtags || []).slice(0, 20).map(h => ({
-      hashtag: h.hashtag,
-      mentions: h.mentions_count,
-      reach: h.social_media_reach,
-      sentiment: h.sentiment_score,
+    hashtags: hashtagsArr.slice(0, 30).map(h => ({
+      hashtag: h.hashtag, mentions: h.mentions_count,
+      reach: h.social_media_reach, sentiment: h.sentiment_score,
     })),
 
-    // Top influencers
-    influencers: (influencers || []).slice(0, 15).map(a => ({
-      name: a.name,
-      url: a.url,
-      followers: a.follower_count,
-      mentions: a.mentions_count,
-      reach: a.reach,
+    influencers: influencersArr.slice(0, 20).map(a => ({
+      name: a.name || a.author_name, url: a.url,
+      followers: a.follower_count || a.followers,
+      mentions: a.mentions_count || a.mentions, reach: a.reach,
     })),
 
-    // Anomaly events (spikes)
-    events: (events?.anomalies || []).map(e => ({
-      date: e.anomaly_date,
+    events: eventsArr.map(e => ({
+      date: e.anomaly_date || e.date,
       description: e.description,
-      peakMentions: e.peak_mentions,
-      peakReach: e.peak_reach,
+      peakMentions: e.peak_mentions, peakReach: e.peak_reach,
     })),
 
-    // AI summary
-    aiSummary: typeof aiSummary === "string" ? aiSummary : aiSummary?.summary || null,
-
-    // Demographics
-    demographics: demographics || null,
-
-    // Top domains
-    domains: (domains?.domains || []).slice(0, 20).map(d => ({
-      domain: d.domain,
-      mentions: d.mentions_count,
-      reach: d.reach,
-      influence: d.influence_score,
+    hotHours: hotHoursArr.slice(0, 10).map(h => ({
+      day: h.day_of_week, hour: h.hour, mentions: h.mentions_count,
     })),
+
+    aiSummary,
+    demographics: demographicsRaw || null,
+
+    domains: domainsArr.slice(0, 25).map(d => ({
+      domain: d.domain, mentions: d.mentions_count,
+      reach: d.reach, influence: d.influence_score, visits: d.visits,
+    })),
+
+    // Raw response shapes for debugging (remove in production)
+    _debug: {
+      dailyMetricsType: typeof dailyMetricsRaw,
+      dailyMetricsKeys: dailyMetricsRaw ? Object.keys(dailyMetricsRaw).slice(0, 5) : null,
+      influencersType: typeof influencersRaw,
+      influencersIsArray: Array.isArray(influencersRaw),
+      topicsType: typeof topicsRaw,
+      topicsKeys: topicsRaw ? Object.keys(topicsRaw).slice(0, 5) : null,
+      hashtagsKeys: hashtagsRaw ? Object.keys(hashtagsRaw).slice(0, 5) : null,
+      eventsKeys: eventsRaw ? Object.keys(eventsRaw).slice(0, 5) : null,
+      domainsKeys: domainsRaw ? Object.keys(domainsRaw).slice(0, 5) : null,
+      sentimentKeys: sentimentRaw ? Object.keys(sentimentRaw).slice(0, 5) : null,
+      aiSummaryType: typeof aiSummaryRaw,
+    },
   };
 
-  try { await Promise.race([kvSet(CACHE_KEY, result, CACHE_TTL), new Promise((_, r) => setTimeout(() => r(), 5000))]); } catch {}
+  try { await kvSet(CACHE_KEY, result, CACHE_TTL); } catch {}
 
-  // Track daily snapshot for trend history
   try {
     await kvListPush("brand24_history", {
       date: new Date().toISOString(),
-      totalMentions,
-      totalReach,
-      totalEngagement,
+      totalMentions, totalReach, totalEngagement,
       posPercent: result.sentiment.positivePercent,
       negPercent: result.sentiment.negativePercent,
       platforms: result.platforms.length,
-      topicsCount: result.topics.length,
     }, 365);
   } catch {}
 

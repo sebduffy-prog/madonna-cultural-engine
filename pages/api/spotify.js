@@ -25,8 +25,9 @@ async function getToken() {
       signal: AbortSignal.timeout(8000),
     });
     if (!r.ok) {
-      console.error(`[spotify] Token request failed: ${r.status}`);
-      return { error: "token_failed", status: r.status };
+      const errBody = await r.text().catch(() => "");
+      console.error(`[spotify] Token request failed: ${r.status} — ${errBody.slice(0, 200)}`);
+      return { error: "token_failed", status: r.status, detail: errBody.slice(0, 200) };
     }
     const d = await r.json();
     tokenCache = { token: d.access_token, expires: Date.now() + (d.expires_in - 60) * 1000 };
@@ -86,7 +87,14 @@ export default async function handler(req, res) {
     return res.status(503).json({
       hasCredentials: tokenResult.error !== "missing_credentials",
       error: `Token failed: ${tokenResult.error}`,
-      debug: { tokenError: tokenResult.error, tokenStatus: tokenResult.status || null },
+      debug: {
+        tokenError: tokenResult.error,
+        tokenStatus: tokenResult.status || null,
+        detail: tokenResult.detail || null,
+        hasId: !!process.env.SPOTIFY_CLIENT_ID,
+        hasSecret: !!process.env.SPOTIFY_CLIENT_SECRET,
+        idPrefix: process.env.SPOTIFY_CLIENT_ID ? process.env.SPOTIFY_CLIENT_ID.slice(0, 6) + "..." : null,
+      },
     });
   }
   const token = tokenResult.token;

@@ -306,7 +306,6 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "streetmap", label: "Locations" },
             { id: "ideas", label: "Ideas" },
             { id: "calendar", label: "Calendar" },
-            { id: "britishgas", label: "Content" },
             { id: "research", label: "Research" },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
@@ -358,7 +357,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
           </Sect>
         </>}
 
-        {tab === "britishgas" && <>
+        {tab === "_removed_britishgas" && <>
           <Sect title="What people are actually saying">
             <Pull text="We scraped 50 TikTok videos, PopJustice forum threads, Reddit fan communities, and Instagram comments. Here's what the data reveals about how people talk about Madonna in April 2026." />
             <Insight text="The intelligence engine doesn't start with what Madonna wants to say. It starts with what people are already feeling, sharing, and saving. The Pulse methodology: scrape what's trending, score by save rate and share rate, classify the emotional territory, and build content back from the human truth underneath." color={DIM} />

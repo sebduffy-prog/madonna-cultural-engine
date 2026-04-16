@@ -40,15 +40,17 @@ export default function DashboardSummary() {
   const [social, setSocial] = useState(null);
   const [spotify, setSpotify] = useState(null);
   const [ai, setAi] = useState(null);
+  const [mediaIndex, setMediaIndex] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       // Load fast sources first — don't wait for Spotify
-      let [m, s, a] = await Promise.all([
+      let [m, s, a, mi] = await Promise.all([
         fetch("/api/news?category=madonna").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/social").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/ai-strategy").then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch("/api/media-index").then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
 
       // Auto-refresh empty results (without blocking)
@@ -56,7 +58,7 @@ export default function DashboardSummary() {
       if (!m?.items?.length) refreshes.push(fetch("/api/news?category=madonna&refresh=1").then(r => r.ok ? r.json() : null).then(d => { m = d || m; setMedia(m); }).catch(() => {}));
       if (!s?.platforms?.length || s.totalSources === 0) refreshes.push(fetch("/api/social?refresh=1").then(r => r.ok ? r.json() : null).then(d => { s = d || s; setSocial(s); }).catch(() => {}));
 
-      setMedia(m); setSocial(s); setAi(a);
+      setMedia(m); setSocial(s); setAi(a); setMediaIndex(mi);
       setLoading(false); // Show dashboard immediately
 
       // Finish any refreshes in background
@@ -81,11 +83,13 @@ export default function DashboardSummary() {
   }
 
   const madonnaArticles = media?.items || [];
-  const socialIndex = social?.index || 0;
-  const isBaseline = social?.isFirstRun;
+  const trendIndex = mediaIndex?.index ?? social?.index ?? 0;
+  const isBaseline = mediaIndex?.isFirstRun || social?.isFirstRun;
   const sentiment = social?.sentiment;
   const spotifyTracks = spotify?.topTracks?.length || 0;
   const aiRecs = ai?.recommendations?.madonna || [];
+  const trendTotal = mediaIndex?.totalToday || 0;
+  const trendBaseline = mediaIndex?.baseline || 59;
 
   return (
     <div>
@@ -107,10 +111,10 @@ export default function DashboardSummary() {
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
           <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Trend Index</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: isBaseline ? MUTED : socialIndex > 0 ? GREEN : socialIndex < 0 ? RED : WHITE, fontFamily: "'Inter Tight', sans-serif" }}>
-            {isBaseline ? "BASELINE" : `${socialIndex > 0 ? "+" : ""}${socialIndex}%`}
+          <div style={{ fontSize: 24, fontWeight: 800, color: isBaseline ? MUTED : trendIndex > 0 ? GREEN : trendIndex < 0 ? RED : WHITE, fontFamily: "'Inter Tight', sans-serif" }}>
+            {isBaseline ? "BASELINE" : `${trendIndex > 0 ? "+" : ""}${trendIndex}%`}
           </div>
-          <div style={{ fontSize: 9, color: DIM }}>{isBaseline ? "tracking starts tomorrow" : "vs baseline"}</div>
+          <div style={{ fontSize: 9, color: DIM }}>{isBaseline ? "tracking starts tomorrow" : `${trendTotal} mentions vs ${trendBaseline} baseline`}</div>
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
           <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Spotify</div>
