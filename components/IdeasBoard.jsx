@@ -87,10 +87,12 @@ export default function IdeasBoard() {
   }
 
   async function react(ideaId, action) {
-    const userId = getUserId();
+    let name = prompt("Your name to vote:");
+    if (!name?.trim()) return;
+    name = name.trim();
     await fetch("/api/ideas", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, ideaId, userId }),
+      body: JSON.stringify({ action, ideaId, userId: name }),
     });
     load();
   }
@@ -301,11 +303,7 @@ export default function IdeasBoard() {
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-          {ideas.map(idea => {
-            const userId = typeof window !== "undefined" ? localStorage.getItem("sweettooth_user") : "";
-            const hasLiked = idea.likedBy?.includes(userId);
-            const hasDisliked = idea.dislikedBy?.includes(userId);
-            return (
+          {ideas.map(idea => (
               <div key={idea.id} style={{ background: CARD, borderRadius: 10, border: `1px solid ${BORDER}`, overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s" }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = Y}
                 onMouseLeave={e => e.currentTarget.style.borderColor = BORDER}>
@@ -330,13 +328,13 @@ export default function IdeasBoard() {
                 <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px 12px" }}>
                   <button onClick={(e) => { e.stopPropagation(); react(idea.id, "like"); }} style={{
                     display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: 12, fontWeight: 700,
-                    color: hasLiked ? BG : MUTED, background: hasLiked ? GREEN : `${GREEN}10`,
-                    border: `1px solid ${hasLiked ? GREEN : BORDER}`, borderRadius: 6, cursor: "pointer",
+                    color: (idea.likes || 0) > 0 ? GREEN : MUTED, background: `${GREEN}10`,
+                    border: `1px solid ${(idea.likes || 0) > 0 ? GREEN + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                   }}>&#9650; {idea.likes || 0}</button>
                   <button onClick={(e) => { e.stopPropagation(); react(idea.id, "dislike"); }} style={{
                     display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: 12, fontWeight: 700,
-                    color: hasDisliked ? BG : MUTED, background: hasDisliked ? RED : `${RED}10`,
-                    border: `1px solid ${hasDisliked ? RED : BORDER}`, borderRadius: 6, cursor: "pointer",
+                    color: (idea.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
+                    border: `1px solid ${(idea.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                   }}>&#9660; {idea.dislikes || 0}</button>
                   <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                     {(idea.comments || []).length} comment{(idea.comments || []).length !== 1 ? "s" : ""}
@@ -398,23 +396,23 @@ export default function IdeasBoard() {
 
               {/* Votes */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${BORDER}` }}>
-                {(() => {
-                  const userId = typeof window !== "undefined" ? localStorage.getItem("sweettooth_user") : "";
-                  const hasLiked = activeIdea.likedBy?.includes(userId);
-                  const hasDisliked = activeIdea.dislikedBy?.includes(userId);
-                  return <>
-                    <button onClick={() => react(activeIdea.id, "like")} style={{
-                      display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", fontSize: 14, fontWeight: 700,
-                      color: hasLiked ? BG : MUTED, background: hasLiked ? GREEN : `${GREEN}10`,
-                      border: `1px solid ${hasLiked ? GREEN : BORDER}`, borderRadius: 8, cursor: "pointer",
-                    }}>&#9650; {activeIdea.likes || 0}</button>
-                    <button onClick={() => react(activeIdea.id, "dislike")} style={{
-                      display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", fontSize: 14, fontWeight: 700,
-                      color: hasDisliked ? BG : MUTED, background: hasDisliked ? RED : `${RED}10`,
-                      border: `1px solid ${hasDisliked ? RED : BORDER}`, borderRadius: 8, cursor: "pointer",
-                    }}>&#9660; {activeIdea.dislikes || 0}</button>
-                  </>;
-                })()}
+                <button onClick={() => react(activeIdea.id, "like")} style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", fontSize: 14, fontWeight: 700,
+                  color: (activeIdea.likes || 0) > 0 ? GREEN : MUTED, background: `${GREEN}10`,
+                  border: `1px solid ${(activeIdea.likes || 0) > 0 ? GREEN + "66" : BORDER}`, borderRadius: 8, cursor: "pointer",
+                }}>&#9650; {activeIdea.likes || 0}</button>
+                <button onClick={() => react(activeIdea.id, "dislike")} style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", fontSize: 14, fontWeight: 700,
+                  color: (activeIdea.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
+                  border: `1px solid ${(activeIdea.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 8, cursor: "pointer",
+                }}>&#9660; {activeIdea.dislikes || 0}</button>
+                {(activeIdea.likedBy?.length > 0 || activeIdea.dislikedBy?.length > 0) && (
+                  <span style={{ fontSize: 9, color: MUTED, marginLeft: 8 }}>
+                    {activeIdea.likedBy?.length > 0 && <span style={{ color: GREEN }}>Liked: {activeIdea.likedBy.join(", ")}</span>}
+                    {activeIdea.likedBy?.length > 0 && activeIdea.dislikedBy?.length > 0 && " · "}
+                    {activeIdea.dislikedBy?.length > 0 && <span style={{ color: RED }}>Disliked: {activeIdea.dislikedBy.join(", ")}</span>}
+                  </span>
+                )}
               </div>
 
               {/* Comments */}
