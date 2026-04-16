@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import LineChart from "./LineChart";
+import { DualLineChart } from "./SocialCharts";
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
@@ -41,16 +42,18 @@ export default function DashboardSummary() {
   const [spotify, setSpotify] = useState(null);
   const [ai, setAi] = useState(null);
   const [mediaIndex, setMediaIndex] = useState(null);
+  const [b24, setB24] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       // Load fast sources first — don't wait for Spotify
-      let [m, s, a, mi] = await Promise.all([
+      let [m, s, a, mi, b] = await Promise.all([
         fetch("/api/news?category=madonna").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/social").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/ai-strategy").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/media-index").then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch("/api/brand24").then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
 
       // Auto-refresh empty results (without blocking)
@@ -58,7 +61,7 @@ export default function DashboardSummary() {
       if (!m?.items?.length) refreshes.push(fetch("/api/news?category=madonna&refresh=1").then(r => r.ok ? r.json() : null).then(d => { m = d || m; setMedia(m); }).catch(() => {}));
       if (!s?.platforms?.length || s.totalSources === 0) refreshes.push(fetch("/api/social?refresh=1").then(r => r.ok ? r.json() : null).then(d => { s = d || s; setSocial(s); }).catch(() => {}));
 
-      setMedia(m); setSocial(s); setAi(a); setMediaIndex(mi);
+      setMedia(m); setSocial(s); setAi(a); setMediaIndex(mi); if (b) setB24(b);
       setLoading(false); // Show dashboard immediately
 
       // Finish any refreshes in background
@@ -176,43 +179,12 @@ export default function DashboardSummary() {
           )}
         </Panel>
 
-        {/* Social snapshot */}
-        <Panel title="Social trend snapshot" color={PURPLE}>
-          {!social?.signals ? (
-            <p style={{ fontSize: 12, color: MUTED }}>No social data yet. Run a scan in the Social Listening tab.</p>
+        {/* Mentions & Reach chart */}
+        <Panel title="Mentions & Reach" color={PURPLE}>
+          {b24?.dailyMetrics?.length > 0 ? (
+            <DualLineChart data={b24.dailyMetrics} height={180} />
           ) : (
-            <>
-              {sentiment && (
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 4 }}>
-                    <div style={{ width: `${sentiment.positive}%`, background: GREEN }} />
-                    <div style={{ width: `${sentiment.neutral}%`, background: MUTED }} />
-                    <div style={{ width: `${sentiment.negative}%`, background: RED }} />
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, fontFamily: "'Inter Tight', sans-serif" }}>
-                    <span style={{ color: GREEN }}>{sentiment.positive}% positive</span>
-                    <span style={{ color: MUTED }}>{sentiment.neutral}% neutral</span>
-                    <span style={{ color: RED }}>{sentiment.negative}% negative</span>
-                  </div>
-                </div>
-              )}
-              <div>
-                {Object.entries(social.signals || {}).map(([key, sig]) => (
-                  <div key={key} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, padding: "3px 0", borderBottom: `1px solid ${BORDER}22` }}>
-                    <span style={{ fontSize: 9, color: DIM, flex: 1, fontFamily: "'Inter Tight', sans-serif" }}>{sig.label}</span>
-                    <span style={{ fontSize: 11, color: WHITE, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>{typeof sig.value === "number" ? sig.value.toLocaleString() : sig.value}</span>
-                    {sig.delta != null && sig.delta !== 0 && (
-                      <span style={{ fontSize: 9, color: sig.delta > 0 ? GREEN : RED, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>
-                        {sig.delta > 0 ? "+" : ""}{sig.delta}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div style={{ marginTop: 8, fontSize: 9, color: MUTED }}>
-                {(social.platforms || []).length} sources active
-              </div>
-            </>
+            <p style={{ fontSize: 12, color: MUTED }}>No social data yet. Check Social Listening tab.</p>
           )}
         </Panel>
 
