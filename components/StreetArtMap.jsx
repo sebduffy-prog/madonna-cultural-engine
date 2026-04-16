@@ -436,7 +436,65 @@ export default function StreetArtMap({ murals, venues }) {
           Murals and LGBTQ+ venues across London. Dotted lines connect each
           venue to its nearest mural location.
         </p>
+
+        {/* Add Location button */}
+        {!isPlacingPin && !showForm && (
+          <button
+            onClick={handleStartPlacing}
+            style={{
+              background: COLORS.Y,
+              color: COLORS.BG,
+              border: "none",
+              borderRadius: 6,
+              padding: "8px 18px",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              letterSpacing: "0.02em",
+              textTransform: "uppercase",
+            }}
+          >
+            + Add Location
+          </button>
+        )}
+        {(isPlacingPin || showForm) && (
+          <button
+            onClick={handleCancelPlacing}
+            style={{
+              background: "none",
+              color: COLORS.MUTED,
+              border: `1px solid ${COLORS.BORDER}`,
+              borderRadius: 6,
+              padding: "8px 18px",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              letterSpacing: "0.02em",
+              textTransform: "uppercase",
+            }}
+          >
+            Cancel
+          </button>
+        )}
       </div>
+
+      {/* Banner: click to place pin */}
+      {isPlacingPin && (
+        <div
+          style={{
+            background: COLORS.Y,
+            color: COLORS.BG,
+            textAlign: "center",
+            padding: "10px 16px",
+            fontSize: 14,
+            fontWeight: 700,
+            borderRadius: "10px 10px 0 0",
+            letterSpacing: "0.02em",
+          }}
+        >
+          Click on the map to place your pin
+        </div>
+      )}
 
       {/* Map container */}
       <div
@@ -444,10 +502,181 @@ export default function StreetArtMap({ murals, venues }) {
         style={{
           width: "100%",
           height: "70vh",
-          borderRadius: 10,
+          borderRadius: isPlacingPin ? "0 0 10px 10px" : 10,
           overflow: "hidden",
         }}
       />
+
+      {/* Form panel for new pin */}
+      {showForm && pendingPin && (
+        <div
+          style={{
+            background: COLORS.CARD,
+            border: `1px solid ${COLORS.BORDER}`,
+            borderRadius: 10,
+            padding: "20px 24px",
+            marginTop: 12,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: COLORS.MUTED,
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              marginBottom: 16,
+            }}
+          >
+            New Custom Pin
+          </div>
+
+          {/* Address */}
+          <div style={{ marginBottom: 12 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: 12,
+                color: COLORS.MUTED,
+                marginBottom: 4,
+              }}
+            >
+              Address
+            </label>
+            <input
+              type="text"
+              value={formData.address}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, address: e.target.value }))
+              }
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                background: COLORS.BG,
+                border: `1px solid ${COLORS.BORDER}`,
+                borderRadius: 6,
+                padding: "8px 12px",
+                fontSize: 13,
+                color: COLORS.WHITE,
+                outline: "none",
+              }}
+              placeholder="e.g. 221B Baker Street"
+            />
+          </div>
+
+          {/* Description */}
+          <div style={{ marginBottom: 12 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: 12,
+                color: COLORS.MUTED,
+                marginBottom: 4,
+              }}
+            >
+              Description
+            </label>
+            <input
+              type="text"
+              value={formData.description}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  description: e.target.value,
+                }))
+              }
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                background: COLORS.BG,
+                border: `1px solid ${COLORS.BORDER}`,
+                borderRadius: 6,
+                padding: "8px 12px",
+                fontSize: 13,
+                color: COLORS.WHITE,
+                outline: "none",
+              }}
+              placeholder="What's here?"
+            />
+          </div>
+
+          {/* Color picker */}
+          <div style={{ marginBottom: 16 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: 12,
+                color: COLORS.MUTED,
+                marginBottom: 6,
+              }}
+            >
+              Pin Color
+            </label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {PIN_COLORS.map((c) => (
+                <button
+                  key={c.hex}
+                  onClick={() =>
+                    setFormData((prev) => ({ ...prev, color: c.hex }))
+                  }
+                  title={c.name}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    background: c.hex,
+                    border:
+                      formData.color === c.hex
+                        ? `3px solid ${COLORS.WHITE}`
+                        : `3px solid ${COLORS.BG}`,
+                    cursor: "pointer",
+                    outline: "none",
+                    transition: "border-color 0.15s",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Save / Cancel */}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={handleSavePin}
+              style={{
+                background: COLORS.Y,
+                color: COLORS.BG,
+                border: "none",
+                borderRadius: 6,
+                padding: "8px 24px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                letterSpacing: "0.02em",
+                textTransform: "uppercase",
+              }}
+            >
+              Save
+            </button>
+            <button
+              onClick={handleCancelPlacing}
+              style={{
+                background: "none",
+                color: COLORS.MUTED,
+                border: `1px solid ${COLORS.BORDER}`,
+                borderRadius: 6,
+                padding: "8px 24px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                letterSpacing: "0.02em",
+                textTransform: "uppercase",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )
 
       {/* Stats row */}
       <div
