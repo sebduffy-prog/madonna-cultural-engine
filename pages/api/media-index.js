@@ -113,7 +113,14 @@ export default async function handler(req, res) {
     newsFeedTotal = newsFeedItems.length;
   }
 
-  const totalToday = newsFeedTotal;
+  // Include Brand24 mention count if available
+  let brand24Mentions = 0;
+  try {
+    const b24 = await kvGet("brand24_data");
+    if (b24?.totalMentions) brand24Mentions = b24.totalMentions;
+  } catch {}
+
+  const totalToday = newsFeedTotal + brand24Mentions;
   const totalBaseline = MENTION_BASELINE;
   const overallIndex = Math.round(((totalToday - totalBaseline) / totalBaseline) * 1000) / 10;
 

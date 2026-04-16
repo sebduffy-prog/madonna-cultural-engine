@@ -369,6 +369,122 @@ export default function SocialDashboard() {
             ))}
           </Section>
         </div>
+
+        {/* Derived metrics row */}
+        {hasB24 && b24.derived && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 16 }}>
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${AMBER}` }}>
+              <div style={{ fontSize: 9, color: AMBER, textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Momentum Score</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: b24.derived.momentumScore > 50 ? GREEN : b24.derived.momentumScore > 20 ? AMBER : RED, fontFamily: "'Inter Tight', sans-serif" }}>{b24.derived.momentumScore}</div>
+              <div style={{ fontSize: 8, color: DIM }}>velocity + sentiment + engagement</div>
+            </div>
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${TEAL}` }}>
+              <div style={{ fontSize: 9, color: TEAL, textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Engagement Rate</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: TEAL, fontFamily: "'Inter Tight', sans-serif" }}>{b24.derived.engagementRate}%</div>
+              <div style={{ fontSize: 8, color: DIM }}>{b24.derived.totalLikes?.toLocaleString()} likes · {b24.derived.totalComments?.toLocaleString()} comments · {b24.derived.totalShares?.toLocaleString()} shares</div>
+            </div>
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${PINK}` }}>
+              <div style={{ fontSize: 9, color: PINK, textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Virality Index</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: PINK, fontFamily: "'Inter Tight', sans-serif" }}>{b24.derived.viralityIndex}%</div>
+              <div style={{ fontSize: 8, color: DIM }}>share rate per mention</div>
+            </div>
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${PURPLE}` }}>
+              <div style={{ fontSize: 9, color: PURPLE, textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Platform Diversity</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: PURPLE, fontFamily: "'Inter Tight', sans-serif" }}>{b24.derived.platformDiversity}</div>
+              <div style={{ fontSize: 8, color: DIM }}>0-100 spread score ({b24.platforms?.length} platforms)</div>
+            </div>
+          </div>
+        )}
+
+        {/* Velocity + Reach breakdown + Influence + Hot hours */}
+        {hasB24 && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+            {/* Mention velocity */}
+            {b24.derived?.mentionVelocity && (
+              <Section title="Mention Velocity" color={GREEN}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{b24.derived.mentionVelocity.perHour}/hr</div>
+                <div style={{ fontSize: 10, color: b24.derived.mentionVelocity.trend > 0 ? GREEN : b24.derived.mentionVelocity.trend < 0 ? RED : MUTED, marginTop: 4 }}>
+                  {b24.derived.mentionVelocity.trend > 0 ? "▲" : b24.derived.mentionVelocity.trend < 0 ? "▼" : "—"} {Math.abs(b24.derived.mentionVelocity.trend)} vs yesterday
+                </div>
+                <div style={{ fontSize: 9, color: DIM, marginTop: 4 }}>Avg: {b24.derived.mentionVelocity.weekAvg}/day</div>
+              </Section>
+            )}
+
+            {/* Reach breakdown */}
+            {b24.reachBreakdown && (
+              <Section title="Reach Split" color={TEAL}>
+                <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", marginBottom: 6 }}>
+                  <div style={{ width: `${b24.reachBreakdown.socialPct}%`, background: TEAL }} title="Social" />
+                  <div style={{ width: `${100 - b24.reachBreakdown.socialPct}%`, background: PURPLE }} title="Non-social" />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9 }}>
+                  <span style={{ color: TEAL }}>Social {b24.reachBreakdown.socialPct}%</span>
+                  <span style={{ color: PURPLE }}>Media {100 - b24.reachBreakdown.socialPct}%</span>
+                </div>
+                <div style={{ fontSize: 9, color: DIM, marginTop: 6 }}>
+                  {(b24.reachBreakdown.social / 1000).toFixed(0)}K social · {(b24.reachBreakdown.nonSocial / 1000).toFixed(0)}K non-social
+                </div>
+              </Section>
+            )}
+
+            {/* Influence concentration */}
+            <Section title="Influence" color={AMBER}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }}>{b24.derived?.influenceConcentration || 0}%</div>
+              <div style={{ fontSize: 9, color: DIM, marginTop: 4 }}>of reach from top 5 voices</div>
+              <div style={{ fontSize: 10, color: WHITE, marginTop: 6 }}>
+                Net sentiment reach: <span style={{ color: b24.derived?.sentimentWeightedReach > 0 ? GREEN : RED, fontWeight: 700 }}>{((b24.derived?.sentimentWeightedReach || 0) / 1000).toFixed(0)}K</span>
+              </div>
+            </Section>
+
+            {/* Hot hours */}
+            {b24.hotHours?.length > 0 && (
+              <Section title="Peak Hours" color={CORAL}>
+                {b24.hotHours.slice(0, 5).map((h, i) => {
+                  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                  return (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 0", fontSize: 10 }}>
+                      <span style={{ color: DIM }}>{dayNames[h.day] || h.day} {h.hour}:00</span>
+                      <span style={{ color: CORAL, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>{h.mentions}</span>
+                    </div>
+                  );
+                })}
+              </Section>
+            )}
+          </div>
+        )}
+
+        {/* Trending links + AI Insights */}
+        {hasB24 && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+            {b24.trendingLinks?.length > 0 && (
+              <Section title="Trending Links" color={TEAL}>
+                {b24.trendingLinks.slice(0, 8).map((l, i) => (
+                  <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0",
+                    borderBottom: `1px solid ${BORDER}22`, textDecoration: "none", fontSize: 10,
+                  }}>
+                    <span style={{ color: TEAL, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginRight: 8 }}>
+                      {l.url?.replace(/https?:\/\/(www\.)?/, "").slice(0, 60)}
+                    </span>
+                    <span style={{ color: WHITE, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif", flexShrink: 0 }}>{l.mentions}</span>
+                  </a>
+                ))}
+              </Section>
+            )}
+
+            {b24.aiInsights?.length > 0 && (
+              <Section title="AI Insights" color={AMBER}>
+                {b24.aiInsights.slice(0, 4).map((ins, i) => (
+                  <div key={i} style={{ padding: "6px 0", borderBottom: i < 3 ? `1px solid ${BORDER}` : "none" }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: WHITE, marginBottom: 2 }}>{ins.headline}</div>
+                    <p style={{ fontSize: 10, color: DIM, margin: 0, lineHeight: 1.4 }}>{(ins.text || "").slice(0, 150)}</p>
+                    {ins.type && <span style={{ fontSize: 8, color: AMBER, marginTop: 2, display: "inline-block" }}>{ins.type}</span>}
+                  </div>
+                ))}
+              </Section>
+            )}
+          </div>
+        )}
       </>}
 
       {/* ═══ PLATFORMS ═══ */}

@@ -74,6 +74,70 @@ function StatRow({ label, value, sub, color = WHITE }) {
   );
 }
 
+function MasterRefresh() {
+  const [running, setRunning] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  async function refreshAll() {
+    setRunning(true);
+    setStatus("Refreshing all data sources...");
+
+    const endpoints = [
+      { name: "News (Madonna)", url: "/api/news?category=madonna&refresh=1" },
+      { name: "News (Fashion)", url: "/api/news?category=fashion&refresh=1" },
+      { name: "News (Gay)", url: "/api/news?category=gay&refresh=1" },
+      { name: "News (Culture)", url: "/api/news?category=culture&refresh=1" },
+      { name: "Media Index", url: "/api/media-index?refresh=1" },
+      { name: "Brand24", url: "/api/brand24?refresh=1" },
+      { name: "Social Dashboard", url: "/api/social-dashboard?refresh=1" },
+      { name: "Social Composite", url: "/api/social?refresh=1" },
+      { name: "Spotify", url: "/api/spotify?refresh=1" },
+      { name: "YouTube RAG", url: "/api/youtube-rag?refresh=1" },
+      { name: "AI Strategy", url: "/api/ai-strategy?refresh=1" },
+    ];
+
+    let done = 0;
+    const results = [];
+
+    for (const ep of endpoints) {
+      setStatus(`${ep.name}... (${done}/${endpoints.length})`);
+      try {
+        const r = await fetch(ep.url, { signal: AbortSignal.timeout(30000) });
+        results.push({ name: ep.name, ok: r.ok, status: r.status });
+      } catch (err) {
+        results.push({ name: ep.name, ok: false, error: err.message });
+      }
+      done++;
+    }
+
+    const succeeded = results.filter(r => r.ok).length;
+    const failed = results.filter(r => !r.ok);
+    setStatus(`Done: ${succeeded}/${endpoints.length} succeeded${failed.length > 0 ? ` — failed: ${failed.map(f => f.name).join(", ")}` : ""}`);
+    setRunning(false);
+    setTimeout(() => setStatus(null), 8000);
+  }
+
+  return (
+    <div style={{ marginTop: 32, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
+      {status && (
+        <span style={{ fontSize: 10, color: running ? "#A78BFA" : status.includes("failed") ? "#EF4444" : "#34D399", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+          {status}
+        </span>
+      )}
+      <button onClick={refreshAll} disabled={running} style={{
+        padding: "10px 24px", fontSize: 12, fontWeight: 700,
+        color: running ? "#777" : "#0C0C0C",
+        background: running ? "#222" : "#FFD500",
+        border: "none", borderRadius: 8, cursor: running ? "wait" : "pointer",
+        fontFamily: "'Inter Tight', system-ui, sans-serif",
+        transition: "all 0.15s",
+      }}>
+        {running ? "Refreshing..." : "Refresh Everything"}
+      </button>
+    </div>
+  );
+}
+
 export async function getStaticProps() {
   const dir = path.join(process.cwd(), "Market Research");
 
@@ -674,7 +738,9 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         {tab === "ideas" && <IdeasBoard />}
         {tab === "calendar" && <CampaignCalendar />}
 
-        <div style={{ marginTop: 48, paddingTop: 16, borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <MasterRefresh />
+
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
           <span style={{ fontSize: 10, color: MUTED, fontStyle: "italic" }}>The original. Not the comeback.</span>
         </div>

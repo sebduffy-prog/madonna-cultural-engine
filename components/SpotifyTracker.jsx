@@ -293,39 +293,94 @@ export default function SpotifyTracker() {
           </div>
         </Panel>
 
-        {/* Connected Artists via Playlist Analysis */}
-        <Panel title={`Connected Artists (${data.connectedArtists?.length || 0})`} color={TEAL} span={3}>
-          {data.connectedArtists?.length > 0 ? (
-            <>
+        {/* Era Breakdown — which decade dominates streaming */}
+        {data.insights?.eraBreakdown?.length > 0 && (
+          <Panel title="Era Breakdown — What's Streaming" color={TEAL} span={3}>
             <div style={{ fontSize: 9, color: DIM, marginBottom: 8, fontStyle: "italic" }}>
-              Artists who appear alongside Madonna in "{data.playlistAnalysed || "—"}" · {data.playlistTrackCount || 0} tracks analysed
+              Which era of Madonna's catalogue dominates current streaming
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
-              {data.connectedArtists.slice(0, 12).map((a) => (
-                <div key={a.id} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "8px 10px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: WHITE }}>{a.name}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: TEAL, fontFamily: "'Inter Tight', sans-serif" }}>{a.connectivity}%</span>
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(data.insights.eraBreakdown.length, 5)}, 1fr)`, gap: 8 }}>
+              {data.insights.eraBreakdown.map(era => {
+                const colors = { "1980s": Y, "1990s": PURPLE, "2000s": TEAL, "2010s": PINK, "2020s": GREEN };
+                const c = colors[era.era] || AMBER;
+                return (
+                  <div key={era.era} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px", borderTop: `3px solid ${c}` }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: c, fontFamily: "'Inter Tight', sans-serif" }}>{era.era}</div>
+                    <div style={{ fontSize: 10, color: DIM, marginTop: 4 }}>{era.tracks} tracks in top 20</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: WHITE, marginTop: 4 }}>Avg pop: {era.avgPopularity}</div>
+                    <div style={{ fontSize: 9, color: MUTED, marginTop: 6, lineHeight: 1.4 }}>{era.topTracks.join(", ")}</div>
                   </div>
-                  <div style={{ fontSize: 9, color: DIM }}>
-                    {a.count} co-occurrences
-                    {a.tracks?.length > 0 && ` · ${a.tracks.slice(0, 2).join(", ")}`}
+                );
+              })}
+            </div>
+          </Panel>
+        )}
+
+        {/* Competitive Position + Popularity Distribution */}
+        <Panel title="Competitive Position" color={AMBER} span={2}>
+          {data.insights?.competitivePosition ? (
+            <div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 28, fontWeight: 800, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }}>
+                  {data.insights.competitivePosition.popularityPercentile}th
+                </span>
+                <span style={{ fontSize: 11, color: DIM }}>percentile among related artists</span>
+              </div>
+              <div style={{ display: "flex", gap: 16, fontSize: 10, color: DIM }}>
+                <div>
+                  <span style={{ color: WHITE, fontWeight: 700 }}>{data.artist.popularity}</span> Madonna
+                </div>
+                <div>
+                  <span style={{ color: MUTED, fontWeight: 700 }}>{data.insights.competitivePosition.relatedAvgPopularity}</span> avg related
+                </div>
+                <div style={{ color: data.insights.competitivePosition.popularityDelta > 0 ? GREEN : RED }}>
+                  {data.insights.competitivePosition.popularityDelta > 0 ? "+" : ""}{data.insights.competitivePosition.popularityDelta} delta
+                </div>
+              </div>
+              {data.insights.popularityDistribution && (
+                <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${BORDER}` }}>
+                  <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", marginBottom: 6 }}>Track Popularity Distribution</div>
+                  <div style={{ display: "flex", gap: 12, fontSize: 10 }}>
+                    <div><span style={{ color: GREEN, fontWeight: 700 }}>{data.insights.popularityDistribution.max}</span> peak</div>
+                    <div><span style={{ color: WHITE, fontWeight: 700 }}>{data.insights.popularityDistribution.avg}</span> avg</div>
+                    <div><span style={{ color: MUTED, fontWeight: 700 }}>{data.insights.popularityDistribution.min}</span> floor</div>
+                    <div><span style={{ color: AMBER, fontWeight: 700 }}>{data.insights.popularityDistribution.top3SharePercent}%</span> top 3 share</div>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
-          </>
-          ) : (
-            <div style={{ fontSize: 11, color: MUTED, padding: 8 }}>Hit Refresh Now to analyse playlists and find connected artists. Connectivity % shows how often each artist appears alongside Madonna in curated playlists.</div>
-          )}
+          ) : <div style={{ fontSize: 11, color: MUTED }}>Refresh to calculate</div>}
         </Panel>
 
-        {/* Related Artists (Spotify algorithm) */}
+        {/* Genre Positioning */}
+        <Panel title="Genre Positioning" color={PURPLE}>
+          {data.insights?.genrePositioning ? (
+            <div>
+              <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", marginBottom: 6 }}>Madonna's Genres</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+                {data.insights.genrePositioning.madonnaGenres.map(g => (
+                  <span key={g} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: `${PURPLE}22`, color: PURPLE, fontWeight: 600 }}>{g}</span>
+                ))}
+              </div>
+              {data.insights.genrePositioning.adjacentGenres.length > 0 && (
+                <>
+                  <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", marginBottom: 6 }}>Adjacent (related artists)</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {data.insights.genrePositioning.adjacentGenres.map(g => (
+                      <span key={g.genre} style={{ fontSize: 9, padding: "2px 6px", borderRadius: 10, background: `${TEAL}15`, color: TEAL }}>
+                        {g.genre} <span style={{ opacity: 0.6 }}>({g.count})</span>
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : <div style={{ fontSize: 11, color: MUTED }}>Refresh to calculate</div>}
+        </Panel>
+
+        {/* Related Artists */}
         {data.relatedArtists?.length > 0 && (
           <Panel title={`Related Artists (${data.relatedArtists.length})`} color={PURPLE} span={3}>
-            <div style={{ fontSize: 9, color: DIM, marginBottom: 8, fontStyle: "italic" }}>
-              Artists Spotify considers similar to Madonna based on listening patterns
-            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 6 }}>
               {data.relatedArtists.slice(0, 15).map((a) => (
                 <a key={a.id} href={a.externalUrl} target="_blank" rel="noopener noreferrer" style={{
@@ -338,8 +393,8 @@ export default function SpotifyTracker() {
                     <span style={{ fontSize: 11, fontWeight: 600, color: WHITE }}>{a.name}</span>
                   </div>
                   <div style={{ fontSize: 9, color: DIM }}>
-                    Popularity: <span style={{ color: PURPLE, fontWeight: 600 }}>{a.popularity}</span>
-                    {a.followers > 0 && ` · ${(a.followers / 1000).toFixed(0)}K followers`}
+                    Pop: <span style={{ color: PURPLE, fontWeight: 600 }}>{a.popularity}</span>
+                    {a.followers > 0 && ` · ${(a.followers / 1000).toFixed(0)}K`}
                   </div>
                 </a>
               ))}
@@ -347,20 +402,23 @@ export default function SpotifyTracker() {
           </Panel>
         )}
 
-        {/* Connected Songs — Madonna collabs found in playlists */}
-        {data.connectedSongs?.length > 0 && (
-          <Panel title={`Connected Songs (${data.connectedSongs.length})`} color={GREEN} span={3}>
-            <div style={{ fontSize: 9, color: DIM, marginBottom: 8, fontStyle: "italic" }}>
-              Tracks featuring Madonna alongside other artists found in playlists
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-              {data.connectedSongs.map((s) => (
-                <div key={s.trackId} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "8px 10px" }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: WHITE, marginBottom: 2 }}>{s.trackName}</div>
-                  <div style={{ fontSize: 9, color: DIM }}>{s.artists}</div>
-                  {s.popularity > 0 && <div style={{ fontSize: 9, color: GREEN, fontWeight: 600, marginTop: 2 }}>Popularity: {s.popularity}</div>}
+        {/* Catalogue Depth */}
+        {data.insights?.catalogueDepth && (
+          <Panel title="Catalogue Depth" color={GREEN} span={3}>
+            <div style={{ display: "flex", gap: 20, marginBottom: 8 }}>
+              <div>
+                <span style={{ fontSize: 20, fontWeight: 800, color: GREEN, fontFamily: "'Inter Tight', sans-serif" }}>{data.insights.catalogueDepth.totalReleases}</span>
+                <span style={{ fontSize: 10, color: DIM, marginLeft: 4 }}>total releases</span>
+              </div>
+              {Object.entries(data.insights.catalogueDepth.byType).map(([type, count]) => (
+                <div key={type}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{count}</span>
+                  <span style={{ fontSize: 9, color: MUTED, marginLeft: 4 }}>{type}s</span>
                 </div>
               ))}
+            </div>
+            <div style={{ fontSize: 9, color: DIM }}>
+              {data.insights.catalogueDepth.earliestRelease} — {data.insights.catalogueDepth.latestRelease}
             </div>
           </Panel>
         )}
@@ -390,10 +448,10 @@ export default function SpotifyTracker() {
       {/* Footer */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
         <span style={{ fontSize: 9, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
-          Data from Spotify Web API \u00B7 Cache: {data.cacheTTL}s \u00B7 {data.fetchedAt ? new Date(data.fetchedAt).toLocaleString("en-GB") : ""}
+          Data from Spotify Web API \u00B7 {data.apiCalls || "?"} API calls \u00B7 Cache: {Math.round((data.cacheTTL || 0) / 3600)}h \u00B7 {data.fetchedAt ? new Date(data.fetchedAt).toLocaleString("en-GB") : ""}
         </span>
         <span style={{ fontSize: 9, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
-          {data.topTracks?.length || 0} tracks \u00B7 {data.albums?.length || 0} releases \u00B7 {data.playlists?.length || 0} playlists
+          {data.topTracks?.length || 0} tracks \u00B7 {data.albums?.length || 0} releases \u00B7 {data.relatedArtists?.length || 0} related
         </span>
       </div>
 

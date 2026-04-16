@@ -3,6 +3,18 @@
     {
       "path": "/api/cron/weekly-intelligence",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/brand24?refresh=1",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/media-index?refresh=1",
+      "schedule": "0 */8 * * *"
+    },
+    {
+      "path": "/api/social-dashboard?refresh=1",
+      "schedule": "0 */6 * * *"
     }
   ]
 }

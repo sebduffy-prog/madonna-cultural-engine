@@ -97,18 +97,28 @@ export default async function handler(req, res) {
   const weekAgo = dateStr(7);
   const monthAgo = dateStr(30);
 
-  // Fetch all data in parallel
-  const [dailyMetricsRaw, sentimentRaw, topicsRaw, hashtagsRaw, influencersRaw, eventsRaw, aiSummaryRaw, demographicsRaw, domainsRaw, hotHoursRaw] = await Promise.all([
+  // Fetch ALL Brand24 endpoints in parallel — every metric available
+  const [
+    dailyMetricsRaw, sentimentRaw, mentionCountRaw, reachRaw,
+    topicsRaw, hashtagsRaw, influencersRaw, eventsRaw,
+    aiSummaryRaw, aiInsightsRaw, demographicsRaw,
+    domainsRaw, hotHoursRaw, trendingLinksRaw, activeSitesRaw,
+  ] = await Promise.all([
     b24Get(`/project/${projectId}/daily-metrics?from=${weekAgo}&to=${today}&includeBySource=true`, apiKey),
     b24Get(`/project/${projectId}/mentions/sentiment?date_from=${weekAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/mentions/count?date_from=${weekAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/mentions/reach?date_from=${weekAgo}&date_to=${today}`, apiKey),
     b24Get(`/project/${projectId}/topics?date_from=${monthAgo}&date_to=${today}`, apiKey),
     b24Get(`/project/${projectId}/trending-hashtags?date_from=${weekAgo}&date_to=${today}`, apiKey),
     b24Get(`/project/${projectId}/most-followers?date_from=${monthAgo}&date_to=${today}`, apiKey),
-    b24Get(`/project/${projectId}/project_events?date_from=${monthAgo}&date_to=${today}&sort_order=desc&limit=10`, apiKey),
+    b24Get(`/project/${projectId}/project_events?date_from=${monthAgo}&date_to=${today}&sort_order=desc&limit=20`, apiKey),
     b24Get(`/project/${projectId}/ai-summary?date_from=${weekAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/ai-insights?date_from=${weekAgo}&date_to=${today}`, apiKey),
     b24Get(`/project/${projectId}/demographics?date_from=${monthAgo}&date_to=${today}`, apiKey),
     b24Get(`/project/${projectId}/domains/?date_from=${weekAgo}&date_to=${today}`, apiKey),
     b24Get(`/project/${projectId}/hot-hours?date_from=${weekAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/trending-links?date_from=${weekAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/most-active-sites?date_from=${weekAgo}&date_to=${today}`, apiKey),
   ]);
 
   // Process daily metrics — the core data
@@ -154,11 +164,79 @@ export default async function handler(req, res) {
   // Hot hours
   const hotHoursArr = safeArray(hotHoursRaw, "hot_hours");
 
-  // AI Summary — could be string or object
+  // Mention counts daily (from dedicated endpoint)
+  const mentionCountDaily = mentionCountRaw?.daily || mentionCountRaw?.data || mentionCountRaw;
+  const mentionCountTotal = mentionCountRaw?.total || totalMentions;
+
+  // Reach daily (from dedicated endpoint — social vs non-social split)
+  const reachDaily = reachRaw?.daily || reachRaw?.data || reachRaw;
+  const reachSocial = reachRaw?.total_social_media_reach || 0;
+  const reachNonSocial = reachRaw?.total_non_social_media_reach || 0;
+
+  // AI Summary
   let aiSummary = null;
   if (typeof aiSummaryRaw === "string") aiSummary = aiSummaryRaw;
   else if (aiSummaryRaw?.summary) aiSummary = aiSummaryRaw.summary;
   else if (aiSummaryRaw?.text) aiSummary = aiSummaryRaw.text;
+
+  // AI Insights (charts, headlines, actionable insights)
+  const aiInsights = safeArray(aiInsightsRaw, "insights");
+
+  // Trending links
+  const trendingLinks = safeArray(trendingLinksRaw, "trending_links");
+
+  // Most active sites
+  const activeSites = safeArray(activeSitesRaw, "sites");
+
+  // ═══ DERIVED / COMPUTED METRICS ═══
+
+  // Mention velocity (mentions per hour, trending direction)
+  const mentionVelocity = days.length > 1 ? {
+    current: days[days.length - 1]?.mentions_count || 0,
+    previous: days[days.length - 2]?.mentions_count || 0,
+    perHour: Math.round(((days[days.length - 1]?.mentions_count || 0) / 24) * 10) / 10,
+    trend: days.length >= 2 ? ((days[days.length - 1]?.mentions_count || 0) - (days[days.length - 2]?.mentions_count || 0)) : 0,
+    weekAvg: days.length > 0 ? Math.round(totalMentions / days.length) : 0,
+  } : null;
+
+  // Engagement rate = engagement / reach
+  const engagementRate = totalReach > 0 ? Math.round((totalEngagement / totalReach) * 10000) / 100 : 0;
+
+  // Sentiment-weighted reach = positive reach - negative reach (net positive exposure)
+  const sentimentWeightedReach = totalReach > 0 && totalMentions > 0
+    ? Math.round(totalReach * ((posTotal - negTotal) / totalMentions))
+    : 0;
+
+  // Virality index = shares / total mentions (how shareable is the conversation)
+  const totalShares = days.reduce((s, d) => s + (d.engagement?.shares || 0), 0);
+  const viralityIndex = totalMentions > 0 ? Math.round((totalShares / totalMentions) * 1000) / 10 : 0;
+
+  // Platform diversity score (0-100, higher = more evenly spread across platforms)
+  const platformMentions = Object.values(platformTotals).map(p => p.mentions);
+  const platformDiversity = platformMentions.length > 1 ? (() => {
+    const total = platformMentions.reduce((s, v) => s + v, 0);
+    if (total === 0) return 0;
+    const shares = platformMentions.map(v => v / total);
+    const entropy = -shares.reduce((s, p) => s + (p > 0 ? p * Math.log2(p) : 0), 0);
+    const maxEntropy = Math.log2(platformMentions.length);
+    return Math.round((entropy / maxEntropy) * 100);
+  })() : 0;
+
+  // Influence concentration = top 5 influencer reach / total reach
+  const top5InfluencerReach = influencersArr.slice(0, 5).reduce((s, a) => s + (a.reach || 0), 0);
+  const influenceConcentration = totalReach > 0 ? Math.round((top5InfluencerReach / totalReach) * 100) : 0;
+
+  // Social vs media split
+  const socialReachPct = (reachSocial + reachNonSocial) > 0
+    ? Math.round((reachSocial / (reachSocial + reachNonSocial)) * 100)
+    : 50;
+
+  // Momentum score (composite: velocity trend + sentiment + engagement)
+  const momentumScore = Math.round(
+    (mentionVelocity?.trend > 0 ? 30 : mentionVelocity?.trend < 0 ? -10 : 10) +
+    ((posTotal / Math.max(totalMentions, 1)) * 40) +
+    (Math.min(engagementRate, 5) * 6)
+  );
 
   const result = {
     configured: true,
@@ -228,7 +306,45 @@ export default async function handler(req, res) {
       reach: d.reach, influence: d.influence_score, visits: d.visits,
     })),
 
-    // Raw response shapes for debugging (remove in production)
+    trendingLinks: trendingLinks.slice(0, 20).map(l => ({
+      url: l.url, mentions: l.mentions_count,
+    })),
+
+    activeSites: activeSites.slice(0, 20).map(s => ({
+      domain: s.domain, mentions: s.mentions_count, reach: s.reach,
+    })),
+
+    aiInsights: aiInsights.slice(0, 10).map(i => ({
+      type: i.insightType, chartType: i.chartType,
+      headline: i.headline, text: i.text, link: i.link,
+    })),
+
+    // Reach split (social vs non-social)
+    reachBreakdown: {
+      social: reachSocial,
+      nonSocial: reachNonSocial,
+      socialPct: socialReachPct,
+    },
+
+    // Mention count daily (granular from dedicated endpoint)
+    mentionCountDaily: typeof mentionCountDaily === "object" && !Array.isArray(mentionCountDaily) ? mentionCountDaily : null,
+
+    // ═══ DERIVED METRICS ═══
+    derived: {
+      mentionVelocity,
+      engagementRate,
+      sentimentWeightedReach,
+      viralityIndex,
+      platformDiversity,
+      influenceConcentration,
+      socialReachPct,
+      momentumScore,
+      totalShares,
+      totalLikes: days.reduce((s, d) => s + (d.engagement?.likes || 0), 0),
+      totalComments: days.reduce((s, d) => s + (d.engagement?.comments || 0), 0),
+    },
+
+    // Debug info
     _debug: {
       dailyMetricsType: typeof dailyMetricsRaw,
       dailyMetricsKeys: dailyMetricsRaw ? Object.keys(dailyMetricsRaw).slice(0, 5) : null,
