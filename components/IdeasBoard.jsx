@@ -142,33 +142,68 @@ export default function IdeasBoard() {
                 </>
               )}
             </div>
-            <button type="button" onClick={async () => {
-              try {
-                const items = await navigator.clipboard.read();
-                for (const item of items) {
-                  const imageType = item.types.find(t => t.startsWith("image/"));
-                  if (imageType) {
-                    const blob = await item.getType(imageType);
-                    const reader = new FileReader();
-                    reader.onload = (e) => setFormMockup(e.target.result);
-                    reader.readAsDataURL(blob);
+            {/* Paste catcher: contentEditable div that receives Ctrl+V from any app */}
+            <div
+              contentEditable
+              suppressContentEditableWarning
+              onPaste={(e) => {
+                e.preventDefault();
+                // Method 1: check clipboardData for image files
+                const items = e.clipboardData?.items;
+                if (items) {
+                  for (const item of items) {
+                    if (item.type.startsWith("image/")) {
+                      const file = item.getAsFile();
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (re) => setFormMockup(re.target.result);
+                        reader.readAsDataURL(file);
+                        return;
+                      }
+                    }
+                  }
+                }
+                // Method 2: check for HTML with <img> tags (Google Slides, PowerPoint paste as HTML)
+                const html = e.clipboardData?.getData("text/html");
+                if (html) {
+                  const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+                  if (imgMatch?.[1]) {
+                    const src = imgMatch[1];
+                    if (src.startsWith("data:")) {
+                      setFormMockup(src);
+                      return;
+                    }
+                    // External URL — fetch and convert to data URI
+                    fetch(src).then(r => r.blob()).then(blob => {
+                      const reader = new FileReader();
+                      reader.onload = (re) => setFormMockup(re.target.result);
+                      reader.readAsDataURL(blob);
+                    }).catch(() => {
+                      // If fetch fails (CORS), use the URL directly
+                      setFormMockup(src);
+                    });
                     return;
                   }
                 }
-                alert("No image found in clipboard. Copy an image first (from Google Slides, PowerPoint, browser, etc).");
-              } catch (err) {
-                if (err.name === "NotAllowedError") {
-                  alert("Clipboard access denied. Please allow clipboard access when prompted, or use Ctrl+V on the image area above.");
-                } else {
-                  alert("Could not read clipboard: " + err.message);
+                // Method 3: plain text URL
+                const text = e.clipboardData?.getData("text/plain");
+                if (text && (text.startsWith("http") && /\.(png|jpg|jpeg|gif|webp|svg)/i.test(text))) {
+                  setFormMockup(text);
+                  return;
                 }
-              }
-            }} style={{
-              marginTop: 8, padding: "8px 20px", fontSize: 12, fontWeight: 600,
-              color: TEAL, background: "transparent", border: `1px solid ${TEAL}`,
-              borderRadius: 6, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif",
-              width: "100%",
-            }}>Paste image from clipboard</button>
+              }}
+              style={{
+                marginTop: 8, padding: "10px 20px", fontSize: 12, fontWeight: 600,
+                color: TEAL, background: "transparent", border: `1px solid ${TEAL}`,
+                borderRadius: 6, cursor: "text", fontFamily: "'Inter Tight', system-ui, sans-serif",
+                width: "100%", boxSizing: "border-box", textAlign: "center",
+                outline: "none", minHeight: 38, lineHeight: "18px",
+                caretColor: "transparent",
+              }}
+              onFocus={(e) => { e.target.textContent = "Now press Ctrl+V / Cmd+V"; e.target.style.borderColor = Y; }}
+              onBlur={(e) => { e.target.textContent = "Click here then Ctrl+V to paste image"; e.target.style.borderColor = TEAL; }}
+              onClick={(e) => { e.target.focus(); }}
+            >Click here then Ctrl+V to paste image</div>
           </div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>EXTENSIONS (Channels & Formats)</label>
