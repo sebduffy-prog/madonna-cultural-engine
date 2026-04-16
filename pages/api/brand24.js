@@ -86,15 +86,19 @@ export default async function handler(req, res) {
     });
   }
 
+  // Time range support: ?range=7 (default), ?range=14, ?range=30
+  const range = parseInt(req.query.range) || 7;
+  const cacheKeySuffix = range !== 7 ? `_${range}d` : "";
+
   if (!refresh) {
     try {
-      const cached = await Promise.race([kvGet(CACHE_KEY), new Promise((_, r) => setTimeout(() => r(), 3000))]);
+      const cached = await Promise.race([kvGet(CACHE_KEY + cacheKeySuffix), new Promise((_, r) => setTimeout(() => r(), 3000))]);
       if (cached?.dailyMetrics) return res.status(200).json(cached);
     } catch {}
   }
 
   const today = dateStr(0);
-  const weekAgo = dateStr(7);
+  const rangeAgo = dateStr(range);
   const monthAgo = dateStr(30);
 
   // Fetch ALL Brand24 endpoints in parallel — every metric available
@@ -104,21 +108,21 @@ export default async function handler(req, res) {
     aiSummaryRaw, aiInsightsRaw, demographicsRaw,
     domainsRaw, hotHoursRaw, trendingLinksRaw, activeSitesRaw,
   ] = await Promise.all([
-    b24Get(`/project/${projectId}/daily-metrics?from=${weekAgo}&to=${today}&includeBySource=true`, apiKey),
-    b24Get(`/project/${projectId}/mentions/sentiment?date_from=${weekAgo}&date_to=${today}`, apiKey),
-    b24Get(`/project/${projectId}/mentions/count?date_from=${weekAgo}&date_to=${today}`, apiKey),
-    b24Get(`/project/${projectId}/mentions/reach?date_from=${weekAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/daily-metrics?from=${rangeAgo}&to=${today}&includeBySource=true`, apiKey),
+    b24Get(`/project/${projectId}/mentions/sentiment?date_from=${rangeAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/mentions/count?date_from=${rangeAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/mentions/reach?date_from=${rangeAgo}&date_to=${today}`, apiKey),
     b24Get(`/project/${projectId}/topics?date_from=${monthAgo}&date_to=${today}`, apiKey),
-    b24Get(`/project/${projectId}/trending-hashtags?date_from=${weekAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/trending-hashtags?date_from=${rangeAgo}&date_to=${today}`, apiKey),
     b24Get(`/project/${projectId}/most-followers?date_from=${monthAgo}&date_to=${today}`, apiKey),
     b24Get(`/project/${projectId}/project_events?date_from=${monthAgo}&date_to=${today}&sort_order=desc&limit=20`, apiKey),
-    b24Get(`/project/${projectId}/ai-summary?date_from=${weekAgo}&date_to=${today}`, apiKey),
-    b24Get(`/project/${projectId}/ai-insights?date_from=${weekAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/ai-summary?date_from=${rangeAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/ai-insights?date_from=${rangeAgo}&date_to=${today}`, apiKey),
     b24Get(`/project/${projectId}/demographics?date_from=${monthAgo}&date_to=${today}`, apiKey),
-    b24Get(`/project/${projectId}/domains/?date_from=${weekAgo}&date_to=${today}`, apiKey),
-    b24Get(`/project/${projectId}/hot-hours?date_from=${weekAgo}&date_to=${today}`, apiKey),
-    b24Get(`/project/${projectId}/trending-links?date_from=${weekAgo}&date_to=${today}`, apiKey),
-    b24Get(`/project/${projectId}/most-active-sites?date_from=${weekAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/domains/?date_from=${rangeAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/hot-hours?date_from=${rangeAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/trending-links?date_from=${rangeAgo}&date_to=${today}`, apiKey),
+    b24Get(`/project/${projectId}/most-active-sites?date_from=${rangeAgo}&date_to=${today}`, apiKey),
   ]);
 
   // Process daily metrics — the core data
@@ -253,7 +257,7 @@ export default async function handler(req, res) {
   const result = {
     configured: true,
     fetchedAt: new Date().toISOString(),
-    period: { from: weekAgo, to: today },
+    period: { from: rangeAgo, to: today, days: range },
     projectId,
 
     totalMentions,
@@ -384,7 +388,7 @@ export default async function handler(req, res) {
     },
   };
 
-  try { await kvSet(CACHE_KEY, result, CACHE_TTL); } catch {}
+  try { await kvSet(CACHE_KEY + cacheKeySuffix, result, CACHE_TTL); } catch {}
 
   try {
     await kvListPush("brand24_history", {

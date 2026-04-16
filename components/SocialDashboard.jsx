@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { DualLineChart, SentimentLineChart, DonutChart, StackedBarChart, WordCloud } from "./SocialCharts";
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "#151515", BORDER = "#222", MUTED = "#777", WHITE = "#EDEDE8", DIM = "#999";
 const GREEN = "#34D399", RED = "#EF4444", PURPLE = "#A78BFA", AMBER = "#F59E0B", TEAL = "#2DD4BF", PINK = "#F472B6", CORAL = "#FB923C";
@@ -110,20 +111,26 @@ export default function SocialDashboard() {
   const [themeFilter, setThemeFilter] = useState(null);
   const [expandedTopic, setExpandedTopic] = useState(null);
   const [expandedDomain, setExpandedDomain] = useState(null);
+  const [timeRange, setTimeRange] = useState(7); // 7, 14, or 30 days
 
   const fetchAll = useCallback(async (refresh = false) => {
     setLoading(true);
-    const qs = refresh ? "?refresh=1" : "";
+    const qs = refresh ? `?refresh=1&range=${timeRange}` : `?range=${timeRange}`;
     const [b, l] = await Promise.all([
       fetch(`/api/brand24${qs}`).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`/api/social-dashboard${qs}`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/social-dashboard${refresh ? "?refresh=1" : ""}`).then(r => r.ok ? r.json() : null).catch(() => null),
     ]);
     if (b) setB24(b);
     if (l) setLegacy(l);
     setLoading(false);
-  }, []);
+  }, [timeRange]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  function changeRange(days) {
+    setTimeRange(days);
+    // fetchAll will re-run due to useCallback dependency on timeRange
+  }
 
   const hasB24 = b24?.configured && b24.totalMentions > 0;
 
@@ -179,10 +186,21 @@ export default function SocialDashboard() {
           <h2 style={{ fontSize: 14, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase", margin: 0, fontFamily: "'Inter Tight', sans-serif" }}>Social Listening</h2>
           {hasB24 && <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: `${GREEN}22`, color: GREEN, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>Live</span>}
         </div>
-        <button onClick={() => fetchAll(true)} disabled={loading} style={{
-          padding: "6px 16px", fontSize: 10, fontWeight: 700, color: loading ? MUTED : BG, background: loading ? BORDER : PURPLE,
-          border: "none", borderRadius: 6, cursor: loading ? "default" : "pointer", fontFamily: "'Inter Tight', sans-serif",
-        }}>{loading ? "Loading..." : "Refresh All"}</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ display: "flex", background: CARD, borderRadius: 6, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
+            {[7, 14, 30].map(d => (
+              <button key={d} onClick={() => changeRange(d)} style={{
+                padding: "5px 12px", fontSize: 10, fontWeight: timeRange === d ? 700 : 400,
+                color: timeRange === d ? BG : DIM, background: timeRange === d ? PURPLE : "transparent",
+                border: "none", cursor: "pointer", fontFamily: "'Inter Tight', sans-serif",
+              }}>{d}d</button>
+            ))}
+          </div>
+          <button onClick={() => fetchAll(true)} disabled={loading} style={{
+            padding: "6px 16px", fontSize: 10, fontWeight: 700, color: loading ? MUTED : BG, background: loading ? BORDER : PURPLE,
+            border: "none", borderRadius: 6, cursor: loading ? "default" : "pointer", fontFamily: "'Inter Tight', sans-serif",
+          }}>{loading ? "Loading..." : "Refresh"}</button>
+        </div>
       </div>
 
       {/* View tabs */}
@@ -216,102 +234,94 @@ export default function SocialDashboard() {
           <Stat label="Negative" value={`${sentNegPct}%`} color={RED} />
         </div>
 
-        {/* Sentiment arc + Momentum + Events */}
-        <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 1fr", gap: 12, marginBottom: 16 }}>
-          <Section title="Sentiment Balance" color={GREEN}>
-            <div style={{ display: "flex", justifyContent: "center" }}>
-              <SentimentArc positive={sentPosPct} negative={sentNegPct} neutral={sentNeuPct} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-around", marginTop: 4 }}>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: GREEN }}>{sentPos}</div>
-                <div style={{ fontSize: 8, color: DIM }}>positive</div>
-              </div>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: MUTED }}>{sentNeu}</div>
-                <div style={{ fontSize: 8, color: DIM }}>neutral</div>
-              </div>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: RED }}>{sentNeg}</div>
-                <div style={{ fontSize: 8, color: DIM }}>negative</div>
-              </div>
-            </div>
-          </Section>
-
-          {/* Daily mentions chart */}
-          <Section title="Daily Mentions (7d)" color={PURPLE}>
+        {/* Mentions & Reach line chart + Mentions by category donut */}
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 16 }}>
+          <Section title={`Mentions & Reach (${timeRange}d)`} color={PURPLE}>
             {hasB24 && b24.dailyMetrics?.length > 0 ? (
-              <div>
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80 }}>
-                  {b24.dailyMetrics.map((d, i) => {
-                    const max = Math.max(...b24.dailyMetrics.map(x => x.mentions), 1);
-                    const h = Math.max(4, (d.mentions / max) * 70);
-                    const sentColor = (d.sentiment?.positivePct || d.sentiment?.positive || 0) > (d.sentiment?.negativePct || d.sentiment?.negative || 0) ? GREEN : (d.sentiment?.negativePct || d.sentiment?.negative || 0) > 0 ? RED : PURPLE;
-                    return (
-                      <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }} title={`${d.date}: ${d.mentions} mentions, reach ${d.reach?.toLocaleString()}`}>
-                        <span style={{ fontSize: 8, color: WHITE, fontWeight: 600 }}>{d.mentions}</span>
-                        <div style={{ width: "100%", height: h, borderRadius: "3px 3px 0 0", background: `linear-gradient(180deg, ${sentColor}, ${sentColor}44)`, cursor: "pointer" }} />
-                        <span style={{ fontSize: 7, color: MUTED }}>{d.date?.slice(5)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <MomentumPulse mentionsPerDay={avgMentionsPerDay} />
-              </div>
-            ) : legacy?.hourlyVolume?.length > 0 ? (
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 1, height: 80 }}>
-                {legacy.hourlyVolume.map((h, i) => {
-                  const max = Math.max(...legacy.hourlyVolume.map(x => x.total), 1);
-                  return (
-                    <div key={i} style={{ flex: 1, height: Math.max(2, (h.total / max) * 70), borderRadius: "2px 2px 0 0", background: h.total > 0 ? PURPLE : BORDER }} title={`${h.hour}: ${h.total}`} />
-                  );
-                })}
-              </div>
-            ) : <p style={{ fontSize: 11, color: MUTED }}>No daily data yet</p>}
+              <DualLineChart data={b24.dailyMetrics} height={220} />
+            ) : <p style={{ fontSize: 11, color: MUTED }}>No daily data</p>}
           </Section>
 
-          {/* Spike events */}
-          <Section title="Anomaly Events" color={CORAL}>
-            {hasB24 && b24.events?.length > 0 ? (
-              b24.events.slice(0, 4).map((e, i) => (
-                <div key={i} style={{ padding: "6px 0", borderBottom: i < 3 ? `1px solid ${BORDER}` : "none" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: WHITE }}>{e.date}</span>
-                    <span style={{ fontSize: 9, color: CORAL, fontWeight: 600 }}>+{e.peakMentions} peak</span>
-                  </div>
-                  <p style={{ fontSize: 10, color: DIM, margin: "2px 0 0", lineHeight: 1.4 }}>{(e.description || "").replace(/<[^>]+>/g, "").slice(0, 120)}</p>
-                </div>
-              ))
+          <Section title="Mentions by category" color={PURPLE}>
+            {hasB24 && b24.platforms?.length > 0 ? (
+              <DonutChart size={150} segments={b24.platforms.map(p => ({
+                label: p.platform, value: p.mentions,
+                color: PLATFORM_COLORS[p.platform] || MUTED,
+              }))} />
+            ) : <p style={{ fontSize: 11, color: MUTED }}>No platform data</p>}
+          </Section>
+        </div>
+
+        {/* Sentiment line chart + Sentiment by category stacked bar */}
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 16 }}>
+          <Section title={`Sentiment (${timeRange}d)`} color={GREEN}>
+            {hasB24 && b24.dailyMetrics?.length > 0 ? (
+              <SentimentLineChart data={b24.dailyMetrics.map(d => ({
+                date: d.date,
+                positive: d.sentiment?.positive || 0,
+                negative: d.sentiment?.negative || 0,
+              }))} height={200} />
+            ) : <p style={{ fontSize: 11, color: MUTED }}>No sentiment data</p>}
+          </Section>
+
+          <Section title="Sentiment by category" color={GREEN}>
+            {hasB24 && b24.platforms?.length > 0 ? (
+              <StackedBarChart data={b24.platforms.slice(0, 8).map(p => ({
+                label: p.platform,
+                positive: Math.round((p.mentions || 0) * (sentPosPct / 100)),
+                neutral: Math.round((p.mentions || 0) * (sentNeuPct / 100)),
+                negative: Math.round((p.mentions || 0) * (sentNegPct / 100)),
+              }))} height={200} />
             ) : (
-              <p style={{ fontSize: 11, color: MUTED }}>No anomalies detected</p>
+              <div>
+                {Object.entries(legacy?.sentimentByPlatform || {}).map(([p, s]) => (
+                  <div key={p} style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => { setFeedPlatform(p); setView("feed"); }}>
+                    <div style={{ fontSize: 10, color: PLATFORM_COLORS[p] || DIM, fontWeight: 600, marginBottom: 3 }}>{p}</div>
+                    <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${s.positive}%`, background: GREEN }} />
+                      <div style={{ width: `${s.neutral}%`, background: `${MUTED}44` }} />
+                      <div style={{ width: `${s.negative}%`, background: RED }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </Section>
         </div>
 
-        {/* Trending hashtags + Top domains */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+        {/* Anomaly events */}
+        {hasB24 && b24.events?.length > 0 && (
+          <Section title="Anomaly Events" color={CORAL}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {b24.events.slice(0, 4).map((e, i) => (
+                <div key={i} style={{ background: `${CORAL}08`, border: `1px solid ${CORAL}22`, borderRadius: 6, padding: "10px 12px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: WHITE }}>{e.date}</span>
+                    <span style={{ fontSize: 9, color: CORAL, fontWeight: 700 }}>+{e.peakMentions?.toLocaleString()} mentions</span>
+                  </div>
+                  <p style={{ fontSize: 10, color: DIM, margin: 0, lineHeight: 1.4 }}>{(e.description || "").replace(/<[^>]+>/g, "").slice(0, 150)}</p>
+                  {e.peakReach > 0 && <div style={{ fontSize: 9, color: MUTED, marginTop: 4 }}>Peak reach: {(e.peakReach / 1000).toFixed(0)}K</div>}
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {/* Trending hashtags + Trending links + Most active sites */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
           <Section title="Trending Hashtags" color={PINK}>
             {hasB24 && b24.hashtags?.length > 0 ? (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {b24.hashtags.slice(0, 15).map((h, i) => {
-                  const maxMentions = b24.hashtags[0]?.mentions || 1;
-                  const size = Math.max(10, Math.min(20, 10 + (h.mentions / maxMentions) * 12));
-                  const sentColor = h.sentiment > 0 ? GREEN : h.sentiment < 0 ? RED : MUTED;
-                  return (
-                    <span key={i} title={`${h.mentions} mentions · reach ${h.reach?.toLocaleString()} · sentiment ${h.sentiment}`} style={{
-                      fontSize: size, color: sentColor, fontWeight: 600, padding: "2px 6px", cursor: "pointer",
-                      background: `${sentColor}11`, borderRadius: 4, fontFamily: "'Inter Tight', sans-serif",
-                      transition: "transform 0.15s",
-                    }} onMouseEnter={e => e.currentTarget.style.transform = "scale(1.1)"}
-                       onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
-                      {h.hashtag} <span style={{ fontSize: 8, opacity: 0.7 }}>{h.mentions}</span>
-                    </span>
-                  );
-                })}
+              <div>
+                {b24.hashtags.slice(0, 8).map((h, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: `1px solid ${BORDER}22` }}>
+                    <span style={{ fontSize: 12, color: WHITE, fontWeight: 500 }}>{h.hashtag}</span>
+                    <span style={{ fontSize: 11, color: PINK, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>{h.mentions?.toLocaleString()}</span>
+                  </div>
+                ))}
               </div>
             ) : legacy?.topBigrams?.length > 0 ? (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                {legacy.topBigrams.slice(0, 25).map((b, i) => {
+                {legacy.topBigrams.slice(0, 20).map((b, i) => {
                   const size = Math.max(9, Math.min(18, 9 + (b.count / Math.max(legacy.topBigrams[0]?.count, 1)) * 12));
                   return <span key={i} style={{ fontSize: size, color: WHITE, opacity: 0.4 + (b.count / Math.max(legacy.topBigrams[0]?.count, 1)) * 0.6, padding: "1px 4px", fontFamily: "'Inter Tight', sans-serif" }}>{b.word}</span>;
                 })}
@@ -319,23 +329,35 @@ export default function SocialDashboard() {
             ) : <p style={{ fontSize: 11, color: MUTED }}>No data</p>}
           </Section>
 
-          <Section title="Top Sources" color={TEAL}>
-            {hasB24 && b24.domains?.length > 0 ? (
-              b24.domains.slice(0, 8).map((d, i) => {
-                const maxM = b24.domains[0]?.mentions || 1;
-                return (
-                  <div key={i} onClick={() => setExpandedDomain(expandedDomain === i ? null : i)} style={{
-                    display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: `1px solid ${BORDER}22`, cursor: "pointer",
+          <Section title="Trending Links" color={TEAL}>
+            {hasB24 && b24.trendingLinks?.length > 0 ? (
+              <div>
+                {b24.trendingLinks.slice(0, 6).map((l, i) => (
+                  <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0",
+                    borderBottom: `1px solid ${BORDER}22`, textDecoration: "none",
                   }}>
-                    <span style={{ fontSize: 10, color: MUTED, width: 14, fontFamily: "'Inter Tight', sans-serif" }}>{i + 1}</span>
-                    <span style={{ fontSize: 11, color: WHITE, flex: 1, fontWeight: expandedDomain === i ? 700 : 400 }}>{d.domain}</span>
-                    <MiniBar value={d.mentions} max={maxM} color={TEAL} />
-                    <span style={{ fontSize: 10, color: TEAL, fontWeight: 600, width: 30, textAlign: "right", fontFamily: "'Inter Tight', sans-serif" }}>{d.mentions}</span>
-                    {d.influence > 0 && <span style={{ fontSize: 8, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }} title="Influence score">★{d.influence}</span>}
+                    <span style={{ fontSize: 10, color: TEAL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, marginRight: 8 }}>
+                      {l.url?.replace(/https?:\/\/(www\.)?/, "").slice(0, 40)}
+                    </span>
+                    <span style={{ fontSize: 11, color: WHITE, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif", flexShrink: 0 }}>{l.mentions}</span>
+                  </a>
+                ))}
+              </div>
+            ) : <p style={{ fontSize: 11, color: MUTED }}>No links data</p>}
+          </Section>
+
+          <Section title="Most Active Sites" color={AMBER}>
+            {hasB24 && (b24.activeSites?.length > 0 || b24.domains?.length > 0) ? (
+              <div>
+                {(b24.activeSites?.length > 0 ? b24.activeSites : b24.domains).slice(0, 6).map((d, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: `1px solid ${BORDER}22` }}>
+                    <span style={{ fontSize: 11, color: WHITE }}>{d.domain}</span>
+                    <span style={{ fontSize: 11, color: AMBER, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>{d.mentions?.toLocaleString()}</span>
                   </div>
-                );
-              })
-            ) : <p style={{ fontSize: 11, color: MUTED }}>No source data yet</p>}
+                ))}
+              </div>
+            ) : <p style={{ fontSize: 11, color: MUTED }}>No site data</p>}
           </Section>
         </div>
 
@@ -357,20 +379,18 @@ export default function SocialDashboard() {
             })}
           </Section>
 
-          <Section title="Sentiment by Platform" color={GREEN}>
-            {Object.entries(legacy?.sentimentByPlatform || {}).map(([p, s]) => (
-              <div key={p} onClick={() => { setFeedPlatform(p); setView("feed"); }} style={{ marginBottom: 10, cursor: "pointer" }}>
-                <div style={{ fontSize: 10, color: PLATFORM_COLORS[p] || DIM, fontWeight: 600, marginBottom: 4 }}>{p}</div>
-                <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ width: `${s.positive}%`, background: GREEN }} />
-                  <div style={{ width: `${s.neutral}%`, background: `${MUTED}44` }} />
-                  <div style={{ width: `${s.negative}%`, background: RED }} />
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: DIM, marginTop: 2 }}>
-                  <span style={{ color: GREEN }}>{s.positive}%</span><span style={{ color: RED }}>{s.negative}%</span>
-                </div>
-              </div>
-            ))}
+          <Section title="Context of discussion" color={TEAL}>
+            {hasB24 && b24.topics?.length > 0 ? (
+              <WordCloud words={b24.topics.map(t => ({
+                text: t.name || t.description?.split(" ").slice(0, 3).join(" ") || "",
+                weight: t.mentions || 0,
+                sentiment: (t.sentiment?.positive || 0) - (t.sentiment?.negative || 0),
+              }))} height={200} />
+            ) : legacy?.topBigrams?.length > 0 ? (
+              <WordCloud words={legacy.topBigrams.slice(0, 30).map(b => ({
+                text: b.word, weight: b.count, sentiment: 0,
+              }))} height={200} />
+            ) : <p style={{ fontSize: 11, color: MUTED }}>No topic data</p>}
           </Section>
         </div>
 
