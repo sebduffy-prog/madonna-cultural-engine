@@ -119,7 +119,6 @@ export default function IdeasBoard() {
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => { e.preventDefault(); setDragOver(false); const file = e.dataTransfer.files[0]; if (file && file.type.startsWith("image/")) { const reader = new FileReader(); reader.onload = (re) => setFormMockup(re.target.result); reader.readAsDataURL(file); } }}
-              onPaste={(e) => { const items = e.clipboardData?.items; if (!items) return; for (const item of items) { if (item.type.startsWith("image/")) { e.preventDefault(); const file = item.getAsFile(); if (file) { const reader = new FileReader(); reader.onload = (re) => setFormMockup(re.target.result); reader.readAsDataURL(file); } break; } } }}
               style={{
                 width: "100%", minHeight: 120, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                 border: `2px dashed ${dragOver ? Y : BORDER}`, borderRadius: 8, background: dragOver ? `${Y}08` : BG,
@@ -142,55 +141,64 @@ export default function IdeasBoard() {
                 </>
               )}
             </div>
-            {/* Paste catcher: contentEditable div that receives Ctrl+V from any app */}
+            {/* Paste catcher: contentEditable div — let browser do native paste, then extract the image */}
             <div
               contentEditable
               suppressContentEditableWarning
               onPaste={(e) => {
-                e.preventDefault();
-                // Method 1: check clipboardData for image files
+                // Method 1: direct image in clipboardData (screenshots, "Copy Image")
                 const items = e.clipboardData?.items;
                 if (items) {
                   for (const item of items) {
                     if (item.type.startsWith("image/")) {
+                      e.preventDefault();
                       const file = item.getAsFile();
                       if (file) {
                         const reader = new FileReader();
                         reader.onload = (re) => setFormMockup(re.target.result);
                         reader.readAsDataURL(file);
-                        return;
                       }
-                    }
-                  }
-                }
-                // Method 2: check for HTML with <img> tags (Google Slides, PowerPoint paste as HTML)
-                const html = e.clipboardData?.getData("text/html");
-                if (html) {
-                  const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-                  if (imgMatch?.[1]) {
-                    const src = imgMatch[1];
-                    if (src.startsWith("data:")) {
-                      setFormMockup(src);
                       return;
                     }
-                    // External URL — fetch and convert to data URI
-                    fetch(src).then(r => r.blob()).then(blob => {
-                      const reader = new FileReader();
-                      reader.onload = (re) => setFormMockup(re.target.result);
-                      reader.readAsDataURL(blob);
-                    }).catch(() => {
-                      // If fetch fails (CORS), use the URL directly
-                      setFormMockup(src);
-                    });
-                    return;
                   }
                 }
-                // Method 3: plain text URL
-                const text = e.clipboardData?.getData("text/plain");
-                if (text && (text.startsWith("http") && /\.(png|jpg|jpeg|gif|webp|svg)/i.test(text))) {
-                  setFormMockup(text);
-                  return;
-                }
+                // Method 2: let the browser paste natively (handles Google Slides, PowerPoint, etc)
+                // After a tick, check if an <img> appeared in the div and extract it via canvas
+                const target = e.currentTarget;
+                setTimeout(() => {
+                  const img = target.querySelector("img");
+                  if (img && img.src) {
+                    if (img.src.startsWith("data:")) {
+                      setFormMockup(img.src);
+                    } else {
+                      // Render the image to canvas to get a data URI (bypasses blob: URL restrictions)
+                      const canvas = document.createElement("canvas");
+                      const naturalImg = new Image();
+                      naturalImg.crossOrigin = "anonymous";
+                      naturalImg.onload = () => {
+                        canvas.width = naturalImg.naturalWidth || naturalImg.width;
+                        canvas.height = naturalImg.naturalHeight || naturalImg.height;
+                        canvas.getContext("2d").drawImage(naturalImg, 0, 0);
+                        try {
+                          setFormMockup(canvas.toDataURL("image/png"));
+                        } catch {
+                          setFormMockup(img.src); // fallback to original src
+                        }
+                      };
+                      naturalImg.onerror = () => setFormMockup(img.src);
+                      naturalImg.src = img.src;
+                    }
+                    target.innerHTML = "";
+                    return;
+                  }
+                  // Check for pasted HTML text that looks like image content
+                  const html = e.clipboardData?.getData("text/html") || target.innerHTML;
+                  const imgMatch = html?.match(/<img[^>]+src=["']([^"']+)["']/i);
+                  if (imgMatch?.[1] && imgMatch[1].startsWith("data:")) {
+                    setFormMockup(imgMatch[1]);
+                  }
+                  target.innerHTML = "";
+                }, 100);
               }}
               style={{
                 marginTop: 8, padding: "10px 20px", fontSize: 12, fontWeight: 600,
@@ -201,9 +209,8 @@ export default function IdeasBoard() {
                 caretColor: "transparent",
               }}
               onFocus={(e) => { e.target.textContent = "Now press Ctrl+V / Cmd+V"; e.target.style.borderColor = Y; }}
-              onBlur={(e) => { e.target.textContent = "Click here then Ctrl+V to paste image"; e.target.style.borderColor = TEAL; }}
-              onClick={(e) => { e.target.focus(); }}
-            >Click here then Ctrl+V to paste image</div>
+              onBlur={(e) => { setTimeout(() => { e.target.textContent = "Click here, then Ctrl+V to paste image"; e.target.style.borderColor = TEAL; }, 200); }}
+            >Click here, then Ctrl+V to paste image</div>
           </div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>EXTENSIONS (Channels & Formats)</label>
