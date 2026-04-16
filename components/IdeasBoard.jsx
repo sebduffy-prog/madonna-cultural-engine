@@ -436,7 +436,7 @@ export default function IdeasBoard() {
                 ))}
                 {/* Add comment */}
                 <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                  <input value={commentNames[activeIdea.id] ?? (typeof window !== "undefined" ? localStorage.getItem("sweettooth_user") || "" : "")}
+                  <input value={commentNames[activeIdea.id] || ""}
                     onChange={e => setCommentNames({ ...commentNames, [activeIdea.id]: e.target.value })}
                     placeholder="Your name *" style={{
                       width: 120, padding: "10px 12px", fontSize: 12, color: WHITE, background: BG,
