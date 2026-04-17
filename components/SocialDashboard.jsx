@@ -250,9 +250,9 @@ export default function SocialDashboard() {
       <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
         {VIEWS.map(v => (
           <button key={v.id} onClick={() => setView(v.id)} style={{
-            padding: "6px 14px", fontSize: 11, fontWeight: view === v.id ? 700 : 400,
-            color: view === v.id ? BG : DIM, background: view === v.id ? PURPLE : "transparent",
-            border: view === v.id ? "none" : `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+            padding: "6px 14px", fontSize: 11, fontWeight: view === v.id ? 700 : 600,
+            color: view === v.id ? BG : WHITE, background: view === v.id ? PURPLE : "transparent",
+            border: view === v.id ? "none" : `1px solid rgba(237,237,232,0.55)`, borderRadius: 6, cursor: "pointer",
             fontFamily: "'Inter Tight', sans-serif",
           }}>{v.label}</button>
         ))}
@@ -784,7 +784,7 @@ export default function SocialDashboard() {
             }}>#{themeFilter} ✕</button>}
           </div>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 600, overflowY: "auto" }}>
+        <div className="scroll-fade" style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 600, overflowY: "auto" }}>
           {filteredFeed.length === 0 ? (
             <div style={{ color: MUTED, padding: 30, textAlign: "center", fontSize: 12 }}>No items match filters.</div>
           ) : filteredFeed.map((item, i) => {

@@ -644,7 +644,7 @@ export default function CulturalFeed() {
               </div>
 
               {/* Feed for selected platform */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 500, overflowY: "auto" }}>
+              <div className="scroll-fade" style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 500, overflowY: "auto" }}>
                 {displayItems.length === 0 ? (
                   <p style={{ color: MUTED, fontSize: 12, padding: "16px 0" }}>No mentions found for this platform.</p>
                 ) : (
@@ -656,7 +656,7 @@ export default function CulturalFeed() {
               {currentFeed.metrics?.hashtagArticles?.length > 0 && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontSize: 10, color: AMBER, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>Hashtag Coverage</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 250, overflowY: "auto" }}>
+                  <div className="scroll-fade" style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 250, overflowY: "auto" }}>
                     {currentFeed.metrics.hashtagArticles.map((item, i) => <FeedCard key={item.url || i} item={item} />)}
                   </div>
                 </div>
@@ -690,7 +690,7 @@ export default function CulturalFeed() {
                 ))}
               </div>
             )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: activeTab === "madonna" ? 800 : 600, overflowY: "auto" }}>
+            <div className="scroll-fade" style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: activeTab === "madonna" ? 800 : 600, overflowY: "auto" }}>
               {(currentFeed.items || []).length === 0 ? (
                 <p style={{ color: MUTED, fontSize: 13, padding: 20 }}>No results found. Try New Search or check back after the weekly search runs Tuesday 14:05.</p>
               ) : (

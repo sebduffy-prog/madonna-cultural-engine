@@ -3,7 +3,7 @@ import dynamic from "next/dynamic";
 import fs from "fs";
 import path from "path";
 import { AnimatePresence, motion } from "framer-motion";
-import PulseLoader from "../components/PulseLoader";
+import PulseLoader, { ParticleField } from "../components/PulseLoader";
 import { pageStagger, fadeUp } from "../lib/motion";
 
 const StreetArtMap = dynamic(() => import("../components/StreetArtMap"), { ssr: false });
@@ -672,9 +672,15 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
           />
         ))}
         <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.3)" }} />
+        <ParticleField />
         <div style={{ textAlign: "center", position: "relative", zIndex: 1 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
-          <h1 style={{ fontSize: 42, fontWeight: 800, color: WHITE, margin: "8px 0 24px", letterSpacing: "-0.02em" }}>Pulse</h1>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
+          <h1 style={{
+            fontSize: 120, fontWeight: 900, color: WHITE, margin: "12px 0 8px",
+            letterSpacing: "-0.03em", lineHeight: 1,
+            textShadow: `0 0 30px rgba(255, 213, 0, 0.25), 0 0 80px rgba(255, 213, 0, 0.12)`,
+          }}>Pulse</h1>
+          <div style={{ height: 3, width: 180, background: Y, borderRadius: 2, margin: "14px auto 32px" }} />
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: "rgba(21,21,21,0.8)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif", backdropFilter: "blur(10px)" }} autoFocus />
           <div style={{ marginTop: 12 }}>
             <button onClick={() => { if (pw === "Tune5") setAuthed(true); }} style={{ background: Y, color: BG, border: "none", borderRadius: 8, padding: "10px 32px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Enter</button>
@@ -749,10 +755,10 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         <AnimatePresence mode="wait">
         <motion.div
           key={tab}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
         >
         {tab === "dashboard" && <>
           <DashboardSummary />

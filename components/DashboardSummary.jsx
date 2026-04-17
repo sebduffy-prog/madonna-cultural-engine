@@ -169,13 +169,22 @@ export default function DashboardSummary() {
       {/* Two column layout */}
       <div className="panel-split-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
 
-        {/* Latest Madonna coverage */}
-        <Panel title="Latest Madonna coverage" color={Y}>
+        {/* Most-relevant Madonna coverage (sorted by signal strength, not date) */}
+        <Panel title="Most relevant Madonna coverage" color={Y}>
           {madonnaArticles.length === 0 ? (
             <p style={{ fontSize: 12, color: MUTED }}>No recent coverage found. Run a search in the Media tab.</p>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
-              {madonnaArticles.slice(0, 8).map((item, i) => (
+            <div className="scroll-fade" style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
+              {[...madonnaArticles].map(item => {
+                const title = (item.title || "").toLowerCase();
+                const desc = (item.description || "").toLowerCase();
+                // Relevance score: title > description, multiple mentions amplify, confessions/album/tour boost
+                const titleMatches = (title.match(/madonna/g) || []).length;
+                const descMatches = (desc.match(/madonna/g) || []).length;
+                const hasKeyContext = /confessions|new album|tour|announcement|coadf|stuart price|warner/.test(title + " " + desc) ? 2 : 0;
+                const relevance = titleMatches * 5 + descMatches + hasKeyContext;
+                return { ...item, _relevance: relevance };
+              }).sort((a, b) => b._relevance - a._relevance).slice(0, 8).map((item, i) => (
                 <a key={item.url || i} href={item.url} target="_blank" rel="noopener noreferrer" style={{
                   display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 0",
                   borderBottom: `1px solid ${BORDER}22`, textDecoration: "none",

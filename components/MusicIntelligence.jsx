@@ -524,7 +524,7 @@ export default function MusicIntelligence() {
       {apple?.bestPositions?.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <Panel title="Best chart positions" subtitle="Sorted by position across every chart and market" accent={GREEN}>
-            <div style={{ maxHeight: 360, overflowY: "auto" }}>
+            <div className="scroll-fade" style={{ maxHeight: 360, overflowY: "auto" }}>
               {apple.bestPositions.slice(0, 12).map((p, i) => (
                 <a key={`${p.market}-${p.name}-${i}`} href={p.url} target="_blank" rel="noreferrer noopener" style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "8px 6px", borderBottom: `1px solid ${BORDER}`,
@@ -545,7 +545,7 @@ export default function MusicIntelligence() {
           </Panel>
 
           <Panel title="Album chart presence" subtitle={`${apple.totalAlbumHits || 0} album appearances across markets`} accent={PINK}>
-            <div style={{ maxHeight: 360, overflowY: "auto" }}>
+            <div className="scroll-fade" style={{ maxHeight: 360, overflowY: "auto" }}>
               {(apple.albumAggregate || []).slice(0, 10).map((a, i) => (
                 <a key={`${a.name}-${i}`} href={a.url} target="_blank" rel="noreferrer noopener" style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "8px 6px", borderBottom: `1px solid ${BORDER}`,

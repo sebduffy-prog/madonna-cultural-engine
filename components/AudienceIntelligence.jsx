@@ -123,7 +123,12 @@ function SegmentExplorer({ data, metricSuffix = "" }) {
           No statements found for this segment.
         </p>
       ) : (
-        <div style={{ maxHeight: 600, overflowY: "auto" }}>
+        <div className="scroll-fade" style={{
+          maxHeight: 600, overflowY: "auto",
+          background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10,
+          padding: "16px",
+          backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+        }}>
           <div style={{ display: "flex", flexDirection: "column", gap: gap }}>
             {items.map((d) => {
               const barW = Math.max(4, (d.index / maxIndex) * 100);
@@ -134,7 +139,8 @@ function SegmentExplorer({ data, metricSuffix = "" }) {
                     width: 340,
                     minWidth: 0,
                     fontSize: 11,
-                    color: DIM,
+                    color: WHITE,
+                    opacity: 0.88,
                     fontFamily: "'Inter Tight', sans-serif",
                     textAlign: "right",
                     overflow: "hidden",
@@ -220,7 +226,7 @@ function CompareSegments({ data, metricSuffix = "" }) {
             <option key={s.key} value={s.key}>{s.label}</option>
           ))}
         </select>
-        <span style={{ color: MUTED, fontSize: 12, fontFamily: "'Inter Tight', sans-serif", fontWeight: 600 }}>vs</span>
+        <span style={{ color: WHITE, opacity: 0.75, fontSize: 12, fontFamily: "'Inter Tight', sans-serif", fontWeight: 600 }}>vs</span>
         <select style={selectStyle} value={segB} onChange={(e) => setSegB(e.target.value)}>
           {SEGMENTS.map((s) => (
             <option key={s.key} value={s.key}>{s.label}</option>
@@ -232,7 +238,12 @@ function CompareSegments({ data, metricSuffix = "" }) {
           No statements found for either segment.
         </p>
       ) : (
-        <div style={{ overflowX: "auto", maxHeight: 600, overflowY: "auto" }}>
+        <div className="scroll-fade" style={{
+          overflowX: "auto", maxHeight: 600, overflowY: "auto",
+          background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10,
+          padding: "16px 12px",
+          backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+        }}>
           <svg width={svgW} height={svgH} style={{ display: "block" }}>
             {/* header labels */}
             <text x={sideW / 2} y={14} textAnchor="middle" fill={a.color} fontSize={11} fontWeight={700} fontFamily="'Inter Tight', sans-serif">
@@ -270,14 +281,18 @@ function CompareSegments({ data, metricSuffix = "" }) {
                   >
                     {d.valA}{metricSuffix}
                   </text>
-                  {/* center label */}
+                  {/* center label — white with dark halo for legibility over any background */}
                   <text
                     x={centerX}
                     y={y + barH / 2}
                     textAnchor="middle"
                     dominantBaseline="central"
-                    fill={DIM}
+                    stroke="rgba(12,12,12,0.85)"
+                    strokeWidth={3}
+                    paintOrder="stroke"
+                    fill={WHITE}
                     fontSize={10}
+                    fontWeight={500}
                     fontFamily="'Inter Tight', sans-serif"
                   >
                     {d.name}
@@ -346,7 +361,7 @@ function PopularStatements({ data, metricSuffix = "" }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 600, overflowY: "auto" }}>
+    <div className="scroll-fade" style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 600, overflowY: "auto" }}>
       {items.map((d) => (
         <div
           key={d.name + d.question}
@@ -469,7 +484,7 @@ export default function AudienceIntelligence({ gwiData }) {
       {topTab === "gwi" && <>
       {/* metric + category filter row */}
       <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 11, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Inter Tight', sans-serif" }}>
+        <div style={{ fontSize: 11, color: WHITE, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Inter Tight', sans-serif", fontWeight: 600 }}>
           Metric
         </div>
         <div style={{ display: "flex", gap: 4 }}>
@@ -479,10 +494,10 @@ export default function AudienceIntelligence({ gwiData }) {
               onClick={() => setMetricKey(m.key)}
               title={m.description}
               style={{
-                padding: "5px 12px", fontSize: 11, fontWeight: metricKey === m.key ? 700 : 500,
-                color: metricKey === m.key ? BG : DIM,
+                padding: "5px 12px", fontSize: 11, fontWeight: metricKey === m.key ? 700 : 600,
+                color: metricKey === m.key ? BG : WHITE,
                 background: metricKey === m.key ? TEAL : "transparent",
-                border: `1px solid ${metricKey === m.key ? TEAL : BORDER}`,
+                border: `1px solid ${metricKey === m.key ? TEAL : "rgba(237,237,232,0.55)"}`,
                 borderRadius: 6, cursor: "pointer",
                 fontFamily: "'Inter Tight', sans-serif", transition: "all 0.15s",
               }}
@@ -491,11 +506,11 @@ export default function AudienceIntelligence({ gwiData }) {
             </button>
           ))}
         </div>
-        <span style={{ fontSize: 10, color: DIM, fontStyle: "italic" }}>{currentMetric.description}</span>
+        <span style={{ fontSize: 10, color: WHITE, opacity: 0.7, fontStyle: "italic" }}>{currentMetric.description}</span>
       </div>
 
       <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 11, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Inter Tight', sans-serif" }}>
+        <div style={{ fontSize: 11, color: WHITE, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Inter Tight', sans-serif", fontWeight: 600 }}>
           Category
         </div>
         <select

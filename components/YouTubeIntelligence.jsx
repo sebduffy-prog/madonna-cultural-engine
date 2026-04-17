@@ -110,7 +110,7 @@ export default function YouTubeIntelligence({ comments, fullThemeCounts, totalCo
         <h2 style={{ fontSize: 14, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase", margin: 0, fontFamily: "'Inter Tight', sans-serif" }}>
           YouTube Intelligence
         </h2>
-        <span style={{ fontSize: 11, color: MUTED }}>
+        <span style={{ fontSize: 11, color: WHITE, opacity: 0.8 }}>
           {tab === "universe" ? `${(totalCommentCount || 0).toLocaleString()} catalogue comments`
             : tab === "newlive" ? `${liveTotalCount.toLocaleString()} new comments in graph`
             : "New & viral content"}
@@ -121,10 +121,10 @@ export default function YouTubeIntelligence({ comments, fullThemeCounts, totalCo
       <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
         {tabs.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
-            padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 400,
-            color: tab === t.id ? BG : DIM,
+            padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 600,
+            color: tab === t.id ? BG : WHITE,
             background: tab === t.id ? t.color : "transparent",
-            border: tab === t.id ? "none" : `1px solid ${BORDER}`,
+            border: tab === t.id ? "none" : `1px solid rgba(237,237,232,0.55)`,
             borderRadius: 6, cursor: "pointer", fontFamily: "'Inter Tight', sans-serif",
           }}>{t.label}</button>
         ))}

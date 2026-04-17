@@ -5,10 +5,7 @@ import { TICKER_SPEED_PX_PER_SEC, TICKER_HOVER_BRAKE, TICKER_RESUME_SPRING } fro
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
-const MUTED = "#777";
 const WHITE = "#EDEDE8";
-const DIM = "#999";
-const RED = "#EF4444";
 
 // Highlight "Madonna" in yellow within text
 function renderTitle(text) {
@@ -146,27 +143,6 @@ export default function MentionsTicker() {
         maskImage: "linear-gradient(to right, transparent 0, black 6%, black 94%, transparent 100%)",
       }}
     >
-      {/* Live pulse on left */}
-      <div style={{
-        position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
-        display: "flex", alignItems: "center", gap: 6, zIndex: 2,
-        pointerEvents: "none",
-      }}>
-        <motion.span
-          animate={reducedMotion ? {} : { opacity: [1, 0.35, 1], scale: [1, 0.85, 1] }}
-          transition={reducedMotion ? {} : { repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
-          style={{
-            width: 7, height: 7, borderRadius: "50%",
-            background: RED, boxShadow: `0 0 8px ${RED}80`,
-            display: "inline-block",
-          }}
-        />
-        <span style={{
-          fontSize: 9, fontWeight: 800, color: WHITE, letterSpacing: "0.1em",
-          fontFamily: "'Inter Tight', sans-serif",
-        }}>LIVE</span>
-      </div>
-
       <motion.div
         ref={trackRef}
         style={{
@@ -174,7 +150,6 @@ export default function MentionsTicker() {
           gap: 44,
           whiteSpace: "nowrap",
           x,
-          paddingLeft: 68, // clear the LIVE badge
           willChange: "transform",
         }}
       >
