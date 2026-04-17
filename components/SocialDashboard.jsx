@@ -645,11 +645,11 @@ export default function SocialDashboard() {
                   <span style={{ fontSize: 12, color: AMBER, fontWeight: 800, width: 24, textAlign: "center", fontFamily: "'Inter Tight', sans-serif" }}>{i + 1}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: WHITE }}>{inf.name}</div>
-                    <div style={{ fontSize: 9, color: DIM }}>{inf.mentions} mentions · reach {inf.reach?.toLocaleString()}</div>
+                    <div style={{ fontSize: 9, color: DIM }}>{inf.mentions} mentions</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }}>{fmtNum(inf.followers || 0)}</div>
-                    <div style={{ fontSize: 8, color: DIM }}>followers</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: AMBER, fontFamily: "'Inter Tight', sans-serif" }}>{fmtNum(inf.reach || 0)}</div>
+                    <div style={{ fontSize: 8, color: DIM }}>reach</div>
                   </div>
                 </a>
               ))}
