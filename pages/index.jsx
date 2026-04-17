@@ -3,7 +3,7 @@ import dynamic from "next/dynamic";
 import fs from "fs";
 import path from "path";
 import { AnimatePresence, motion } from "framer-motion";
-import PulseLoader, { ParticleField } from "../components/PulseLoader";
+import PulseLoader from "../components/PulseLoader";
 import PulseWordmark from "../components/PulseWordmark";
 import { pageStagger, fadeUp } from "../lib/motion";
 
@@ -673,7 +673,6 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
           />
         ))}
         <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.3)" }} />
-        <ParticleField />
         <div style={{ textAlign: "center", position: "relative", zIndex: 1 }}>
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
           <div style={{ margin: "12px 0 8px" }}>

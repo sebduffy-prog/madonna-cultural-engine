@@ -154,9 +154,6 @@ export default function PulseLoader({ progress = 0 }) {
         <div style={{ position: "absolute", inset: 0, background: "rgba(12,12,12,0.65)" }} />
       </div>
 
-      {/* Particle field — behind the wordmark, in front of the image */}
-      <ParticleField />
-
       <div style={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center" }}>
         {/* VCCP kicker */}
         <motion.div
