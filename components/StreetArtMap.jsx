@@ -472,9 +472,10 @@ export default function StreetArtMap({ murals, venues }) {
         <p
           style={{
             fontSize: 14,
-            color: COLORS.MUTED,
+            color: COLORS.WHITE,
             lineHeight: 1.75,
             margin: "0 0 12px",
+            opacity: 0.85,
           }}
         >
           Murals and LGBTQ+ venues across London. Dotted lines connect each

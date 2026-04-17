@@ -686,9 +686,9 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "research", label: "Research" },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
-              padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 500,
+              padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 600,
               color: tab === t.id ? BG : WHITE, background: tab === t.id ? Y : "transparent",
-              border: tab === t.id ? "none" : `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+              border: tab === t.id ? "none" : `1px solid rgba(237,237,232,0.55)`, borderRadius: 6, cursor: "pointer",
               fontFamily: "'Inter Tight', system-ui, sans-serif", transition: "all 0.15s"
             }}>{t.label}</button>
           ))}
@@ -892,9 +892,9 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
           <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
             {[{ id: "library", label: "Research Library" }, { id: "bearhunt", label: "Bear Hunt" }].map(st => (
               <button key={st.id} onClick={() => setResearchSubTab(st.id)} style={{
-                padding: "6px 14px", fontSize: 11, fontWeight: researchSubTab === st.id ? 700 : 400,
-                color: researchSubTab === st.id ? BG : MUTED, background: researchSubTab === st.id ? TEAL : "transparent",
-                border: researchSubTab === st.id ? "none" : `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+                padding: "6px 14px", fontSize: 11, fontWeight: researchSubTab === st.id ? 700 : 600,
+                color: researchSubTab === st.id ? BG : WHITE, background: researchSubTab === st.id ? TEAL : "transparent",
+                border: researchSubTab === st.id ? "none" : `1px solid rgba(237,237,232,0.55)`, borderRadius: 6, cursor: "pointer",
                 fontFamily: "'Inter Tight', system-ui, sans-serif"
               }}>{st.label}</button>
             ))}

@@ -52,7 +52,7 @@ const tabStyle = (active) => ({
   fontWeight: active ? 700 : 600,
   color: active ? BG : WHITE,
   background: active ? Y : "transparent",
-  border: `1px solid ${active ? Y : BORDER}`,
+  border: `1px solid ${active ? Y : "rgba(237,237,232,0.55)"}`,
   borderRadius: 6,
   cursor: "pointer",
   letterSpacing: "0.02em",
@@ -182,6 +182,8 @@ function CompareSegments({ data, metricSuffix = "" }) {
   const a = SEGMENT_MAP[segA];
   const b = SEGMENT_MAP[segB];
 
+  const isIndexMetric = metricSuffix === "";
+
   const items = useMemo(() => {
     return data
       .map((row) => ({
@@ -196,9 +198,8 @@ function CompareSegments({ data, metricSuffix = "" }) {
       })
       .sort((x, y) => Math.max(y.valA, y.valB) - Math.max(x.valA, x.valB))
       .slice(0, 30);
-  }, [data, segA, segB]);
+  }, [data, segA, segB, isIndexMetric]);
 
-  const isIndexMetric = metricSuffix === "";
   const maxVal = useMemo(() => {
     const dataMax = Math.max(...items.map((d) => Math.max(d.valA, d.valB)), 1);
     return isIndexMetric ? Math.max(dataMax, 200) : Math.max(dataMax, 10);

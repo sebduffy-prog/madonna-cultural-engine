@@ -301,20 +301,23 @@ export default function MusicIntelligence() {
   const [apple, setApple] = useState(null);
   const [lastfm, setLastfm] = useState(null);
   const [kworb, setKworb] = useState(null);
+  const [marketIndex, setMarketIndex] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = async (force) => {
     setRefreshing(true);
     const q = force ? "?refresh=1" : "";
-    const [a, l, k] = await Promise.all([
+    const [a, l, k, ms] = await Promise.all([
       fetch(`/api/apple-charts${q}`).then(r => r.json()).catch(() => ({ error: true })),
       fetch(`/api/lastfm${q}`).then(r => r.json()).catch(() => ({ error: true })),
       fetch(`/api/kworb${q}`).then(r => r.json()).catch(() => ({ error: true })),
+      fetch(`/api/market-strength${q}`).then(r => r.json()).catch(() => ({ error: true })),
     ]);
     setApple(a);
     setLastfm(l);
     setKworb(k);
+    setMarketIndex(ms);
     setLoading(false);
     setRefreshing(false);
   };
@@ -329,17 +332,9 @@ export default function MusicIntelligence() {
   const albumHits = apple?.totalAlbumHits;
   const marketsCharting = apple?.marketsCharting;
 
-  // Apple Music — total chart entries per market (songs + albums + new releases)
-  const marketStrength = Object.entries(apple?.byMarket || {})
-    .map(([code, m]) => {
-      const songs = m?.charts?.songs?.hits?.length || 0;
-      const albums = m?.charts?.albums?.hits?.length || 0;
-      const releases = m?.charts?.releases?.hits?.length || 0;
-      return { code, label: m?.label || code, flag: m?.flag || "", songs, albums, releases, total: songs + albums + releases };
-    })
-    .filter(m => m.total > 0)
-    .sort((a, b) => b.total - a.total);
-  const maxMarketTotal = Math.max(1, ...marketStrength.map(m => m.total));
+  // Composite Market Strength Index (Apple + Last.fm + kworb per-country), sorted
+  const strengthMarkets = (marketIndex?.markets || []).filter(m => m.total > 0);
+  const maxStrength = Math.max(1, ...strengthMarkets.map(m => m.total));
 
   // Sparkline data for Spotify streams + Apple chart hits
   const spotifyStreamSpark = [...(kworb?.history || [])].reverse().map(h => h.totalStreams).concat([kworb?.totalStreams]).filter(v => v != null);
@@ -554,42 +549,57 @@ export default function MusicIntelligence() {
         </div>
       )}
 
-      {/* Market strength — total Apple Music chart entries per market */}
-      {marketStrength.length > 0 && (
-        <Panel title="Market strength" subtitle="Total Madonna chart entries per market — songs + albums + new releases (Apple Music)" accent={TEAL}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
-            {marketStrength.map((m) => {
-              const pctTotal = Math.max(2, (m.total / maxMarketTotal) * 100);
-              const songsPct = (m.songs / m.total) * pctTotal;
-              const albumsPct = (m.albums / m.total) * pctTotal;
-              const releasesPct = (m.releases / m.total) * pctTotal;
+      {/* Universal Market Strength — Apple + Last.fm + kworb composite */}
+      {strengthMarkets.length > 0 && (
+        <Panel title="Market strength index" subtitle="Composite 0–100 score per market — Apple chart presence (30) + Last.fm local rank (30) + Kworb Spotify daily streams (40)" accent={TEAL}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, rowGap: 12 }}>
+            {strengthMarkets.map((m) => {
+              const pctTotal = Math.max(3, (m.total / maxStrength) * 100);
+              const applePct = m.total > 0 ? (m.appleScore / m.total) * pctTotal : 0;
+              const lastfmPct = m.total > 0 ? (m.lastfmScore / m.total) * pctTotal : 0;
+              const kworbPct = m.total > 0 ? (m.kworbScore / m.total) * pctTotal : 0;
+              const deltaColor = m.delta == null ? MUTED : m.delta > 0 ? GREEN : m.delta < 0 ? RED : MUTED;
+              const deltaGlyph = m.delta == null ? "" : m.delta > 0 ? "↑" : m.delta < 0 ? "↓" : "→";
               return (
                 <div key={m.code} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 18, minWidth: 26 }}>{m.flag}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, color: WHITE, fontFamily: FONT }}>{m.label}</span>
-                      <span style={{ fontSize: 11, color: TEAL, fontFamily: FONT, fontWeight: 700 }}>{m.total}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <div style={{ background: BG, borderRadius: 2, height: 8, overflow: "hidden", flex: 1, display: "flex" }}>
-                        {m.songs > 0 && <div style={{ width: `${songsPct}%`, height: "100%", background: GREEN }} title={`${m.songs} song chart entries`} />}
-                        {m.albums > 0 && <div style={{ width: `${albumsPct}%`, height: "100%", background: PINK }} title={`${m.albums} album chart entries`} />}
-                        {m.releases > 0 && <div style={{ width: `${releasesPct}%`, height: "100%", background: Y }} title={`${m.releases} new release chart entries`} />}
-                      </div>
-                      <span style={{ fontSize: 9, color: DIM, fontFamily: FONT, minWidth: 60, textAlign: "right" }}>
-                        {m.songs}s · {m.albums}a{m.releases > 0 ? ` · ${m.releases}r` : ""}
+                      <span style={{ fontSize: 11, color: WHITE, fontFamily: FONT, fontWeight: 600 }}>{m.label}</span>
+                      <span style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
+                        {m.delta != null && (
+                          <span style={{ fontSize: 9, color: deltaColor, fontFamily: FONT, fontWeight: 700 }}>{deltaGlyph}{Math.abs(m.delta)}</span>
+                        )}
+                        <span style={{ fontSize: 13, color: TEAL, fontFamily: FONT, fontWeight: 800 }}>{m.total}</span>
                       </span>
+                    </div>
+                    <div
+                      title={`Apple: ${m.appleScore}/30 (${m.apple_entries} chart entries)\nLast.fm rank: ${m.lastfm_rank ? `#${m.lastfm_rank}` : "unranked"} → ${m.lastfmScore}/30\nKworb Spotify: ${m.kworb_daily_streams.toLocaleString()} daily streams across ${m.kworb_track_count} tracks → ${m.kworbScore}/40`}
+                      style={{ background: BG, borderRadius: 2, height: 8, overflow: "hidden", display: "flex" }}
+                    >
+                      {m.appleScore > 0 && <div style={{ width: `${applePct}%`, height: "100%", background: PURPLE }} />}
+                      {m.lastfmScore > 0 && <div style={{ width: `${lastfmPct}%`, height: "100%", background: TEAL }} />}
+                      {m.kworbScore > 0 && <div style={{ width: `${kworbPct}%`, height: "100%", background: GREEN }} />}
+                    </div>
+                    <div style={{ display: "flex", gap: 10, marginTop: 3, fontSize: 9, color: DIM, fontFamily: FONT }}>
+                      <span style={{ color: PURPLE }}>Apple {m.appleScore}</span>
+                      <span style={{ color: TEAL }}>Last.fm {m.lastfmScore}{m.lastfm_rank ? ` (#${m.lastfm_rank})` : ""}</span>
+                      <span style={{ color: GREEN }}>Spotify {m.kworbScore}{m.kworb_daily_streams > 0 ? ` (${fmt(m.kworb_daily_streams)}/d)` : ""}</span>
                     </div>
                   </div>
                 </div>
               );
             })}
           </div>
-          <div style={{ display: "flex", gap: 16, marginTop: 14, fontSize: 10, color: DIM, fontFamily: FONT }}>
-            <span><span style={{ display: "inline-block", width: 10, height: 10, background: GREEN, borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> Songs</span>
-            <span><span style={{ display: "inline-block", width: 10, height: 10, background: PINK, borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> Albums</span>
-            <span><span style={{ display: "inline-block", width: 10, height: 10, background: Y, borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> New releases</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, fontSize: 10, color: DIM, fontFamily: FONT, borderTop: `1px solid ${BORDER}`, paddingTop: 10 }}>
+            <div style={{ display: "flex", gap: 14 }}>
+              <span><span style={{ display: "inline-block", width: 10, height: 10, background: PURPLE, borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> Apple charts</span>
+              <span><span style={{ display: "inline-block", width: 10, height: 10, background: TEAL, borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> Last.fm rank</span>
+              <span><span style={{ display: "inline-block", width: 10, height: 10, background: GREEN, borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> Kworb Spotify streams</span>
+            </div>
+            <span style={{ fontStyle: "italic" }}>
+              {marketIndex?.hasBaseline ? `Δ vs ${marketIndex.previousSnapshotAt ? new Date(marketIndex.previousSnapshotAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "last snapshot"}` : "Building baseline — deltas appear on next refresh"}
+            </span>
           </div>
         </Panel>
       )}
