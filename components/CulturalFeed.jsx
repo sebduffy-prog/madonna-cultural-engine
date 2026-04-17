@@ -219,6 +219,7 @@ export default function CulturalFeed() {
   const [loading, setLoading] = useState({});
   const [errors, setErrors] = useState({});
   const [aiRecs, setAiRecs] = useState(null);
+  const [sortMode, setSortMode] = useState("date"); // "date" or "relevance"
   const [aiLoading, setAiLoading] = useState(false);
   const [mediaIndex, setMediaIndex] = useState(null);
   const [mediaIndexLoading, setMediaIndexLoading] = useState(false);
@@ -342,7 +343,7 @@ export default function CulturalFeed() {
                   {mediaIndex.isFirstRun ? "BASELINE" : `${mediaIndex.index > 0 ? "+" : ""}${mediaIndex.index}%`}
                 </div>
                 <div style={{ fontSize: 10, color: DIM, fontFamily: "'Inter Tight', sans-serif" }}>
-                  {mediaIndex.isFirstRun ? "Baseline set — next search shows change" : `${mediaIndex.totalToday} today vs ${mediaIndex.totalBaseline} baseline`}
+                  {mediaIndex.isFirstRun ? "Baseline set" : `${mediaIndex.totalMentions || mediaIndex.totalToday || 0} mentions tracked`}
                 </div>
               </div>
               <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -673,11 +674,34 @@ export default function CulturalFeed() {
                 Brave Search API key not configured. Showing RSS feeds only. Add your key to <code style={{ color: Y }}>.env.local</code> for richer results.
               </div>
             )}
+            {/* Sort toggle for Madonna tab */}
+            {activeTab === "madonna" && (currentFeed.items || []).length > 0 && (
+              <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+                {[{ id: "date", label: "Newest" }, { id: "relevance", label: "Most Relevant" }].map(s => (
+                  <button key={s.id} onClick={() => setSortMode(s.id)} style={{
+                    padding: "4px 12px", fontSize: 10, fontWeight: sortMode === s.id ? 700 : 400,
+                    color: sortMode === s.id ? BG : DIM,
+                    background: sortMode === s.id ? Y : "transparent",
+                    border: sortMode === s.id ? "none" : `1px solid ${BORDER}`,
+                    borderRadius: 4, cursor: "pointer", fontFamily: "'Inter Tight', sans-serif",
+                  }}>{s.label}</button>
+                ))}
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: activeTab === "madonna" ? 800 : 600, overflowY: "auto" }}>
               {(currentFeed.items || []).length === 0 ? (
                 <p style={{ color: MUTED, fontSize: 13, padding: 20 }}>No results found. Try New Search or check back after the weekly search runs Tuesday 14:05.</p>
               ) : (
-                currentFeed.items.map((item, i) => <FeedCard key={item.url || i} item={item} />)
+                [...(currentFeed.items || [])].sort((a, b) => {
+                  if (sortMode === "relevance" && activeTab === "madonna") {
+                    const rankA = /madonna/i.test(a.title || "") ? 0 : /madonna/i.test(a.description || "") ? 1 : 2;
+                    const rankB = /madonna/i.test(b.title || "") ? 0 : /madonna/i.test(b.description || "") ? 1 : 2;
+                    if (rankA !== rankB) return rankA - rankB;
+                  }
+                  const da = a.date ? new Date(a.date).getTime() : 0;
+                  const db = b.date ? new Date(b.date).getTime() : 0;
+                  return (db || 0) - (da || 0);
+                }).map((item, i) => <FeedCard key={item.url || i} item={item} />)
               )}
             </div>
           </>

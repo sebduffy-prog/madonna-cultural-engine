@@ -75,8 +75,10 @@ export default function DashboardSummary() {
   }
 
   const madonnaArticles = media?.items || [];
-  const trendIndex = mediaIndex?.index ?? 0;
+  const trendIndex = mediaIndex?.index ?? 0; // percentage change vs baseline
+  const totalMentions = mediaIndex?.totalMentions || mediaIndex?.totalToday || 0;
   const dailyChange = mediaIndex?.dailyChange;
+  const todayMentions = b24?.dailyMetrics?.length > 0 ? b24.dailyMetrics[b24.dailyMetrics.length - 1]?.mentions || 0 : null;
   const sentiment = social?.sentiment;
   const aiRecs = ai?.recommendations?.madonna || [];
 
@@ -103,8 +105,9 @@ export default function DashboardSummary() {
           <div style={{ fontSize: 24, fontWeight: 800, color: trendIndex > 0 ? GREEN : trendIndex < 0 ? RED : WHITE, fontFamily: "'Inter Tight', sans-serif" }}>
             {trendIndex > 0 ? "+" : ""}{trendIndex}%
           </div>
-          <div style={{ fontSize: 9, color: dailyChange > 0 ? GREEN : dailyChange < 0 ? RED : DIM }}>
-            {dailyChange != null ? `${dailyChange > 0 ? "+" : ""}${dailyChange}% today` : "vs baseline"}
+          <div style={{ fontSize: 9, color: DIM }}>
+            {totalMentions > 0 ? `${totalMentions} media mentions` : "vs baseline"}
+            {todayMentions != null ? ` · ${todayMentions} social today` : ""}
           </div>
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
