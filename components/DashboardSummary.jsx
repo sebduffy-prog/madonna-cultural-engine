@@ -228,33 +228,22 @@ export default function DashboardSummary() {
         </Panel>
       </div>
 
-      {/* Full strategy recommendations */}
-      {ai?.recommendations && (
+      {/* Madonna strategy recommendations only */}
+      {aiRecs.length > 0 && (
         <div style={{ marginTop: 16 }}>
-          <Panel title="AI Strategy Recommendations" color={AMBER}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {["madonna", "fashion", "gay", "culture"].map(cat => {
-                const recs = ai.recommendations[cat] || [];
-                if (recs.length === 0) return null;
-                const catLabels = { madonna: "Madonna", fashion: "Fashion", gay: "Gay Community", culture: "Culture" };
-                const catColors = { madonna: Y, fashion: PINK, gay: PURPLE, culture: TEAL };
-                return (
-                  <div key={cat}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: catColors[cat], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, fontFamily: "'Inter Tight', sans-serif" }}>{catLabels[cat]}</div>
-                    {recs.slice(0, 3).map((rec, i) => (
-                      <div key={i} style={{ marginBottom: 10, paddingBottom: 8, borderBottom: i < recs.length - 1 ? `1px solid ${BORDER}` : "none" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                          <span style={{ fontSize: 8, fontWeight: 700, color: BG, background: rec.type === "Media" ? PINK : rec.type === "Partnership" ? TEAL : AMBER, padding: "1px 5px", borderRadius: 3, fontFamily: "'Inter Tight', sans-serif" }}>{rec.type}</span>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: WHITE }}>{rec.title}</span>
-                        </div>
-                        <p style={{ fontSize: 11, color: DIM, margin: 0, lineHeight: 1.4 }}>{rec.description}</p>
-                      </div>
-                    ))}
+          <Panel title="Strategic Recommendations" color={AMBER}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {aiRecs.slice(0, 3).map((rec, i) => (
+                <div key={i} style={{ paddingBottom: 8, borderBottom: i < 2 ? `1px solid ${BORDER}` : "none" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: BG, background: rec.type === "Media" ? PINK : rec.type === "Partnership" ? TEAL : AMBER, padding: "2px 8px", borderRadius: 3, fontFamily: "'Inter Tight', sans-serif" }}>{rec.type}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: WHITE }}>{rec.title}</span>
                   </div>
-                );
-              })}
+                  <p style={{ fontSize: 12, color: DIM, margin: 0, lineHeight: 1.6 }}>{rec.description}</p>
+                </div>
+              ))}
             </div>
-            {ai.generatedAt && <div style={{ fontSize: 9, color: MUTED, marginTop: 8 }}>Generated: {new Date(ai.generatedAt).toLocaleString("en-GB")}</div>}
+            {ai?.generatedAt && <div style={{ fontSize: 9, color: MUTED, marginTop: 8 }}>Generated: {new Date(ai.generatedAt).toLocaleString("en-GB")}</div>}
           </Panel>
         </div>
       )}

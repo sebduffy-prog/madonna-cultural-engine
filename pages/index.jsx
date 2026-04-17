@@ -334,7 +334,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
       <div style={{ background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
         <div style={{ textAlign: "center" }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
-          <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, margin: "8px 0 24px", letterSpacing: "-0.02em" }}>Sweet Tooth</h1>
+          <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, margin: "8px 0 24px", letterSpacing: "-0.02em" }}>The Madonna Pulse</h1>
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif" }} autoFocus />
           <div style={{ marginTop: 12 }}>
             <button onClick={() => { if (pw === "Tune5") setAuthed(true); }} style={{ background: Y, color: BG, border: "none", borderRadius: 8, padding: "10px 32px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Enter</button>
@@ -347,13 +347,13 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Newsreader', 'Georgia', serif", color: WHITE }}>
-      <div style={{ maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","dashboard","ideas","calendar"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
+      <div style={{ maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","dashboard","ideas","calendar","strategy"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
         </div>
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, lineHeight: 1.1, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Sweet Tooth</h1>
-        <p style={{ fontSize: 15, color: MUTED, margin: "0 0 4px", fontStyle: "italic" }}>Madonna cultural tracker</p>
+        <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, lineHeight: 1.1, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>The Madonna Pulse</h1>
+        <p style={{ fontSize: 15, color: MUTED, margin: "0 0 4px", fontStyle: "italic" }}>Cultural intelligence dashboard</p>
         <div style={{ height: 3, background: Y, borderRadius: 2, margin: "16px 0 24px" }} />
 
         <MentionsTicker />
@@ -365,6 +365,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "socialpulse", label: "Social listening" },
             { id: "youtube", label: "YouTube" },
             { id: "gwi", label: "Audience" },
+            { id: "strategy", label: "Strategy" },
             { id: "streetmap", label: "Locations" },
             { id: "ideas", label: "Ideas" },
             { id: "calendar", label: "Calendar" },
@@ -726,6 +727,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
         {tab === "gwi" && <AudienceIntelligence gwiData={gwiData} />}
 
+        {tab === "strategy" && <StrategyRecommendations />}
         {tab === "streetmap" && <StreetArtMap murals={murals} venues={venues} />}
 
         {tab === "culturalfeed" && <CulturalFeed />}
