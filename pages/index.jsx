@@ -137,7 +137,7 @@ function MasterRefresh() {
     const tsDisplay = ts.toLocaleString("en-GB", { dateStyle: "full", timeStyle: "medium" });
     const esc = (s) => (s || "").toString().replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-    let doc = `<html><head><meta charset="utf-8"><title>The Madonna Pulse — Full Data Export ${tsStr}</title>
+    let doc = `<html><head><meta charset="utf-8"><title>Pulse — Full Data Export ${tsStr}</title>
     <style>body{font-family:Calibri,Arial,sans-serif;color:#222;max-width:900px;margin:0 auto;padding:40px}
     h1{font-size:28px;border-bottom:3px solid #FFD500;padding-bottom:8px}
     h2{font-size:20px;color:#333;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:30px}
@@ -151,7 +151,7 @@ function MasterRefresh() {
     .section{page-break-inside:avoid}
     </style></head><body>`;
 
-    doc += `<h1>The Madonna Pulse — Full Data Export</h1>`;
+    doc += `<h1>Pulse — Full Data Export</h1>`;
     doc += `<p class="meta">Exported: ${tsDisplay}</p>`;
     doc += `<p class="meta">VCCP Media Cultural Intelligence — All database records</p>`;
     doc += `<p class="meta">Export timestamp: ${exportData.exportedAt}</p>`;
@@ -285,14 +285,14 @@ function MasterRefresh() {
     }
 
     doc += `<hr/><p class="meta">End of full data export — ${Object.keys(exportData.cacheData || {}).length} data stores, ${Object.keys(exportData.historyData || {}).length} history series</p>`;
-    doc += `<p class="meta">The Madonna Pulse — VCCP Media Cultural Intelligence</p>`;
+    doc += `<p class="meta">Pulse — VCCP Media Cultural Intelligence</p>`;
     doc += `</body></html>`;
 
     const blob = new Blob([doc], { type: "application/msword" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Madonna-Pulse-Full-Export-${tsStr}.doc`;
+    a.download = `Pulse-Full-Export-${tsStr}.doc`;
     a.click();
     URL.revokeObjectURL(url);
 
@@ -530,7 +530,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
       <div style={{ background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
         <div style={{ textAlign: "center" }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
-          <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, margin: "8px 0 24px", letterSpacing: "-0.02em" }}>The Madonna Pulse</h1>
+          <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, margin: "8px 0 24px", letterSpacing: "-0.02em" }}>Pulse</h1>
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif" }} autoFocus />
           <div style={{ marginTop: 12 }}>
             <button onClick={() => { if (pw === "Tune5") setAuthed(true); }} style={{ background: Y, color: BG, border: "none", borderRadius: 8, padding: "10px 32px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Enter</button>
@@ -548,7 +548,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
         </div>
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, lineHeight: 1.1, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>The Madonna Pulse</h1>
+        <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, lineHeight: 1.1, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Pulse</h1>
         <p style={{ fontSize: 15, color: MUTED, margin: "0 0 4px", fontStyle: "italic" }}>Cultural intelligence dashboard</p>
         <div style={{ height: 3, background: Y, borderRadius: 2, margin: "16px 0 24px" }} />
 
