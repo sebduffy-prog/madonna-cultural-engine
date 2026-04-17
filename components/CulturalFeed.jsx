@@ -471,7 +471,7 @@ export default function CulturalFeed() {
         {isLoading && (
           <div style={{ padding: "40px 0", textAlign: "center" }}>
             <span style={{ fontSize: 13, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
-              Loading feeds...
+              Loading latest coverage…
             </span>
           </div>
         )}

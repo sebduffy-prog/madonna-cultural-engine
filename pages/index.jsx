@@ -2,6 +2,9 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import fs from "fs";
 import path from "path";
+import { AnimatePresence, motion } from "framer-motion";
+import PulseLoader from "../components/PulseLoader";
+import { pageStagger, fadeUp } from "../lib/motion";
 
 const StreetArtMap = dynamic(() => import("../components/StreetArtMap"), { ssr: false });
 const AudienceCommentsGraph = dynamic(() => import("../components/AudienceCommentsGraph"), { ssr: false });
@@ -533,6 +536,8 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
   const [authed, setAuthed] = useState(false);
   const [pw, setPw] = useState("");
   const [researchSubTab, setResearchSubTab] = useState("library");
+  const [dataReady, setDataReady] = useState(false);
+  const [prefetchProgress, setPrefetchProgress] = useState(0);
   const [loginImages, setLoginImages] = useState([
     "/homepage-rotation/FirstImage.png",
   ]);
@@ -567,6 +572,49 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
     }, 500);
     return () => clearInterval(timer);
   }, [authed, loginImagesReady, loginImages.length]);
+
+  // Parallel prefetch on auth — warms every critical API cache before we reveal the dashboard
+  useEffect(() => {
+    if (!authed || dataReady) return;
+    const endpoints = [
+      "/api/brand24",
+      "/api/apple-charts",
+      "/api/lastfm",
+      "/api/kworb",
+      "/api/market-strength",
+      "/api/media-index",
+      "/api/wikipedia-pageviews",
+      "/api/social-dashboard",
+      "/api/news?category=madonna",
+    ];
+    const total = endpoints.length;
+    let done = 0;
+    const startedAt = Date.now();
+    const MIN_VISIBLE_MS = 1200; // prevent flash
+    const TIMEOUT_MS = 5000;     // don't block forever
+
+    let settled = false;
+    function markReady() {
+      if (settled) return;
+      const elapsed = Date.now() - startedAt;
+      const wait = Math.max(0, MIN_VISIBLE_MS - elapsed);
+      settled = true;
+      setTimeout(() => setDataReady(true), wait);
+    }
+
+    endpoints.forEach(url => {
+      fetch(url).catch(() => null).finally(() => {
+        done += 1;
+        setPrefetchProgress(done / total);
+        // Reveal once 80% of the endpoints have resolved
+        if (done / total >= 0.8) markReady();
+      });
+    });
+
+    // Hard timeout — reveal even if some endpoints are slow/stuck
+    const to = setTimeout(markReady, TIMEOUT_MS);
+    return () => clearTimeout(to);
+  }, [authed, dataReady]);
 
   // Tab background — all 17 rotation images (including FirstImage monochrome)
   // are in the pool; each tab switch picks a new random image, guaranteed
@@ -638,7 +686,11 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
   }
 
   return (
-    <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Inter Tight', system-ui, sans-serif", color: WHITE, position: "relative" }}>
+    <>
+      <AnimatePresence>
+        {!dataReady && <PulseLoader key="loader" progress={prefetchProgress} />}
+      </AnimatePresence>
+    <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Inter Tight', system-ui, sans-serif", color: WHITE, position: "relative", visibility: dataReady ? "visible" : "hidden" }}>
       {/* Per-tab background image with smooth crossfade on tab switch */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
         {tabBg.a && (
@@ -671,7 +723,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
         <MentionsTicker />
 
-        <div style={{ display: "flex", gap: 6, marginBottom: 32, flexWrap: "wrap" }}>
+        <div className="tab-nav" style={{ display: "flex", gap: 6, marginBottom: 32, flexWrap: "wrap" }}>
           {[
             { id: "dashboard", label: "Dashboard" },
             { id: "culturalfeed", label: "Media" },
@@ -694,6 +746,14 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
           ))}
         </div>
 
+        <AnimatePresence mode="wait">
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+        >
         {tab === "dashboard" && <>
           <DashboardSummary />
           <WikipediaPageviews />
@@ -1055,14 +1115,17 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
         {tab === "ideas" && <IdeasBoard />}
         {tab === "calendar" && <CampaignCalendar />}
+        </motion.div>
+        </AnimatePresence>
 
         <MasterRefresh />
 
-        <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
-          <span style={{ fontSize: 10, color: MUTED, fontStyle: "italic" }}>The original. Not the comeback.</span>
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid rgba(237,237,232,0.45)`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 10, color: WHITE, opacity: 0.75, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
+          <span style={{ fontSize: 10, color: WHITE, opacity: 0.75, fontStyle: "italic" }}>The original. Not the comeback.</span>
         </div>
       </div>
     </div>
+    </>
   );
 }

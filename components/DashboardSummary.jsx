@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import LineChart from "./LineChart";
 import { DualLineChart } from "./SocialCharts";
+import { fadeUp, hoverLift } from "../lib/motion";
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
@@ -23,7 +25,12 @@ function decodeEntities(str) {
 
 function Panel({ title, color = Y, children, action }) {
   return (
-    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
+    <motion.div
+      variants={fadeUp}
+      initial="initial"
+      animate="animate"
+      whileHover={hoverLift}
+      style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ width: 2, height: 12, background: color, borderRadius: 1 }} />
@@ -32,7 +39,7 @@ function Panel({ title, color = Y, children, action }) {
         {action}
       </div>
       {children}
-    </div>
+    </motion.div>
   );
 }
 
@@ -71,7 +78,17 @@ export default function DashboardSummary() {
   }, []);
 
   if (loading) {
-    return <div style={{ color: MUTED, padding: 40, textAlign: "center", fontFamily: "'Inter Tight', sans-serif" }}>Loading dashboard...</div>;
+    const { KpiStripSkeleton, PanelSkeleton } = require("./Skeleton");
+    return (
+      <div>
+        <KpiStripSkeleton count={4} />
+        <div className="panel-split-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+          <PanelSkeleton rows={5} accent={Y} />
+          <PanelSkeleton rows={5} accent={TEAL} />
+        </div>
+        <PanelSkeleton rows={3} accent={PINK} />
+      </div>
+    );
   }
 
   const madonnaArticles = media?.items || [];
@@ -94,7 +111,7 @@ export default function DashboardSummary() {
       </div>
 
       {/* Top metrics row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
+      <div className="kpi-grid-4" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
           <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Madonna in media</div>
           <div style={{ fontSize: 24, fontWeight: 800, color: Y, fontFamily: "'Inter Tight', sans-serif" }}>{madonnaArticles.length}</div>
@@ -149,7 +166,7 @@ export default function DashboardSummary() {
       )}
 
       {/* Two column layout */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div className="panel-split-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
 
         {/* Latest Madonna coverage */}
         <Panel title="Latest Madonna coverage" color={Y}>

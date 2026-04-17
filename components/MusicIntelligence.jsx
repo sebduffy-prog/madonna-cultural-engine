@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { fadeUp, kpiTween, hoverLift } from "../lib/motion";
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", MUTED = "#777", WHITE = "#EDEDE8", DIM = "#999";
 const GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF", PURPLE = "#A78BFA", AMBER = "#F59E0B", PINK = "#F472B6", CORAL = "#FB923C";
@@ -16,7 +18,12 @@ function Kpi({ label, value, sub, color = WHITE, delta }) {
   const deltaColor = delta == null ? null : delta > 0 ? GREEN : delta < 0 ? RED : MUTED;
   const deltaGlyph = delta == null ? "" : delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
   return (
-    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${color}`, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
+    <motion.div
+      variants={kpiTween}
+      initial="initial"
+      animate="animate"
+      whileHover={hoverLift}
+      style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${color}`, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
       <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", fontFamily: FONT, letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 24, fontWeight: 800, color, fontFamily: FONT, display: "flex", alignItems: "baseline", gap: 6 }}>
         {value}
@@ -25,13 +32,18 @@ function Kpi({ label, value, sub, color = WHITE, delta }) {
         )}
       </div>
       {sub && <div style={{ fontSize: 9, color: DIM, marginTop: 2 }}>{sub}</div>}
-    </div>
+    </motion.div>
   );
 }
 
 function Panel({ title, subtitle, children, right, accent = PURPLE }) {
   return (
-    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "16px 18px", marginBottom: 14, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
+    <motion.div
+      variants={fadeUp}
+      initial="initial"
+      animate="animate"
+      whileHover={hoverLift}
+      style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "16px 18px", marginBottom: 14, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 10, color: accent, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, fontFamily: FONT }}>{title}</div>
@@ -40,7 +52,7 @@ function Panel({ title, subtitle, children, right, accent = PURPLE }) {
         {right}
       </div>
       {children}
-    </div>
+    </motion.div>
   );
 }
 
@@ -325,7 +337,14 @@ export default function MusicIntelligence() {
   useEffect(() => { load(false); }, []);
 
   if (loading) {
-    return <p style={{ fontSize: 12, color: MUTED, fontFamily: FONT }}>Loading music data…</p>;
+    const { KpiStripSkeleton, PanelSkeleton } = require("./Skeleton");
+    return (
+      <div>
+        <KpiStripSkeleton count={4} />
+        <PanelSkeleton rows={4} accent={GREEN} />
+        <PanelSkeleton rows={6} accent={PURPLE} />
+      </div>
+    );
   }
 
   const songHits = apple?.totalSongHits;
@@ -365,7 +384,7 @@ export default function MusicIntelligence() {
       )}
 
       {/* KPI strip */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
+      <div className="kpi-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
         <Kpi label="Spotify streams (all-time)" value={kworb?.totalStreams != null ? fmt(kworb.totalStreams) : "—"} sub={kworb?.error ? "kworb unavailable" : "kworb.net · full catalogue"} color={GREEN} delta={kworb?.momentum?.totalStreamsChange} />
         <Kpi label="Spotify streams (daily)" value={kworb?.dailyStreams ? fmt(kworb.dailyStreams) : "—"} sub={kworb?.trackCount ? `across ${kworb.trackCount} tracks` : ""} color={PINK} delta={kworb?.momentum?.dailyStreamsChange} />
         <Kpi label="Apple song chart hits" value={songHits != null ? songHits : "—"} sub={marketsCharting != null ? `${marketsCharting} markets charting` : ""} color={PURPLE} delta={apple?.momentum?.totalSongHitsChange} />
@@ -656,7 +675,7 @@ export default function MusicIntelligence() {
       {/* Top albums */}
       {(lastfm?.topAlbums || []).length > 0 && (
         <Panel title="Top albums on Last.fm" subtitle="By playcount" accent={CORAL}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+          <div className="kpi-grid-5" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
             {(lastfm.topAlbums || []).slice(0, 10).map((a, i) => (
               <a key={a.name} href={a.url} target="_blank" rel="noreferrer noopener" style={{ textDecoration: "none", color: WHITE }}>
                 {a.image && <img src={a.image} alt="" style={{ width: "100%", aspectRatio: "1/1", borderRadius: 6, display: "block" }} />}
@@ -671,7 +690,7 @@ export default function MusicIntelligence() {
       {/* New releases */}
       {apple?.newReleases?.length > 0 && (
         <Panel title="New releases featuring Madonna" subtitle={`${apple.newReleases.length} appearances in market new-release feeds`} accent={Y}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+          <div className="kpi-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
             {apple.newReleases.slice(0, 8).map((r, i) => (
               <a key={`${r.market}-${r.name}-${i}`} href={r.url} target="_blank" rel="noreferrer noopener" style={{ textDecoration: "none", color: WHITE }}>
                 {r.artwork && <img src={r.artwork} alt="" style={{ width: "100%", aspectRatio: "1/1", borderRadius: 6, display: "block" }} />}

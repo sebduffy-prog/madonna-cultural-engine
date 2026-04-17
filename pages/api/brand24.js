@@ -86,9 +86,9 @@ export default async function handler(req, res) {
     });
   }
 
-  // Time range support: ?range=7 (default), ?range=14, ?range=30
-  const range = parseInt(req.query.range) || 7;
-  const cacheKeySuffix = range !== 7 ? `_${range}d` : "";
+  // Time range support: ?range=30 (default), ?range=7, ?range=14, ?range=90
+  const range = parseInt(req.query.range) || 30;
+  const cacheKeySuffix = range !== 30 ? `_${range}d` : "";
 
   if (!refresh) {
     try {

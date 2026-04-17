@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { motion } from "framer-motion";
 import { DualLineChart, SentimentLineChart, DonutChart, StackedBarChart, WordCloud } from "./SocialCharts";
+import { fadeUp, kpiTween, hoverLift } from "../lib/motion";
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", MUTED = "#777", WHITE = "#EDEDE8", DIM = "#999";
 const GREEN = "#34D399", RED = "#EF4444", PURPLE = "#A78BFA", AMBER = "#F59E0B", TEAL = "#2DD4BF", PINK = "#F472B6", CORAL = "#FB923C";
@@ -35,7 +37,13 @@ function Stat({ label, value, sub, color = WHITE, onClick, period, source, estim
   const deltaColor = delta == null ? null : delta > 0 ? GREEN : delta < 0 ? RED : MUTED;
   const deltaGlyph = delta == null ? "" : delta > 0 ? "\u2191" : delta < 0 ? "\u2193" : "\u2192";
   return (
-    <div onClick={onClick} style={{
+    <motion.div
+      variants={kpiTween}
+      initial="initial"
+      animate="animate"
+      whileHover={onClick ? hoverLift : undefined}
+      onClick={onClick}
+      style={{
       background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
       cursor: onClick ? "pointer" : "default", transition: "border-color 0.15s",
     }} onMouseEnter={e => { if (onClick) e.currentTarget.style.borderColor = color; }}
@@ -58,7 +66,7 @@ function Stat({ label, value, sub, color = WHITE, onClick, period, source, estim
           {source}{source && estimated ? " \u00b7 " : ""}{estimated ? "estimated" : ""}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -134,7 +142,7 @@ export default function SocialDashboard() {
   const [themeFilter, setThemeFilter] = useState(null);
   const [expandedTopic, setExpandedTopic] = useState(null);
   const [expandedDomain, setExpandedDomain] = useState(null);
-  const [timeRange, setTimeRange] = useState(7); // 7, 14, or 30 days
+  const [timeRange, setTimeRange] = useState(30); // 7, 14, 30, or 90 days
 
   const fetchAll = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -189,7 +197,19 @@ export default function SocialDashboard() {
   const sentNegPct = hasB24 ? (b24.sentiment?.negativePercent || Math.round((sentNeg / sentTotal) * 100)) : Math.round((sentNeg / sentTotal) * 100);
   const sentNeuPct = 100 - sentPosPct - sentNegPct;
 
-  if (loading && !b24 && !legacy) return <div style={{ color: MUTED, padding: 40, textAlign: "center", fontFamily: "'Inter Tight', sans-serif" }}>Loading social intelligence...</div>;
+  if (loading && !b24 && !legacy) {
+    const { KpiStripSkeleton, PanelSkeleton } = require("./Skeleton");
+    return (
+      <div>
+        <KpiStripSkeleton count={4} />
+        <PanelSkeleton rows={3} accent={PURPLE} />
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
+          <PanelSkeleton rows={6} accent={GREEN} />
+          <PanelSkeleton rows={4} accent={PINK} />
+        </div>
+      </div>
+    );
+  }
 
   const VIEWS = [
     { id: "overview", label: "Overview" },
@@ -211,10 +231,10 @@ export default function SocialDashboard() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ display: "flex", background: CARD, borderRadius: 6, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
-            {[7, 14, 30].map(d => (
+            {[7, 14, 30, 90].map(d => (
               <button key={d} onClick={() => changeRange(d)} style={{
-                padding: "5px 12px", fontSize: 10, fontWeight: timeRange === d ? 700 : 400,
-                color: timeRange === d ? BG : DIM, background: timeRange === d ? PURPLE : "transparent",
+                padding: "5px 12px", fontSize: 10, fontWeight: timeRange === d ? 700 : 600,
+                color: timeRange === d ? BG : WHITE, background: timeRange === d ? PURPLE : "transparent",
                 border: "none", cursor: "pointer", fontFamily: "'Inter Tight', sans-serif",
               }}>{d}d</button>
             ))}
@@ -313,37 +333,6 @@ export default function SocialDashboard() {
             ) : <p style={{ fontSize: 11, color: MUTED }}>No platform data</p>}
           </Section>
         </div>
-
-        {/* Source coverage — explicit about what Brand24 can and cannot see */}
-        {hasB24 && b24.coverage?.length > 0 && (
-          <Section title={`Source coverage (${timeRange}d)`} color={PURPLE}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
-              {b24.coverage.map(s => {
-                const dotColor = s.status === "covered" ? GREEN
-                              : s.status === "no-mentions" ? MUTED
-                              : RED;
-                const valueColor = s.status === "not-covered" ? MUTED : WHITE;
-                return (
-                  <div key={s.key} title={s.caveat || ""} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "8px 10px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, display: "inline-block" }} />
-                      <span style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", fontFamily: "'Inter Tight', sans-serif", letterSpacing: "0.05em" }}>{s.label}</span>
-                    </div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: valueColor, fontFamily: "'Inter Tight', sans-serif" }}>
-                      {s.status === "not-covered" ? "not covered" : s.mentions.toLocaleString()}
-                    </div>
-                    {s.caveat && (
-                      <div style={{ fontSize: 8, color: DIM, marginTop: 2, lineHeight: 1.3 }}>{s.caveat}</div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <p style={{ fontSize: 10, color: DIM, margin: "10px 0 0", lineHeight: 1.5 }}>
-              Brand24 captures mentions from News, Twitter/X, TikTok, Forums, Blogs, YouTube, Web, and partial Podcast coverage. It does not have access to Instagram or Facebook (Meta blocks third-party APIs), so conversations on those platforms are not reflected in the totals above.
-            </p>
-          </Section>
-        )}
 
         {/* Sentiment line chart + Sentiment by category stacked bar */}
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 16 }}>
@@ -927,6 +916,41 @@ export default function SocialDashboard() {
         </div>
       </>;
       })()}
+
+      {/* ═══ SOURCE COVERAGE STRIP (all views) ═══ */}
+      {hasB24 && b24.coverage?.length > 0 && (
+        <div style={{ marginTop: 32, paddingTop: 16, borderTop: `1px solid rgba(237,237,232,0.18)` }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: WHITE, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter Tight', sans-serif" }}>Source coverage</span>
+            <span style={{ fontSize: 10, color: DIM, fontFamily: "'Inter Tight', sans-serif" }}>
+              Brand24 tracks {timeRange} days · {b24.coverage.filter(s => s.status === "covered").length} of {b24.coverage.length} platforms active
+            </span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {b24.coverage.map(s => {
+              const dotColor = s.status === "covered" ? GREEN
+                            : s.status === "no-mentions" ? MUTED
+                            : RED;
+              return (
+                <span key={s.key} title={s.caveat || `${s.mentions.toLocaleString()} mentions`} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "4px 10px", fontSize: 10, fontFamily: "'Inter Tight', sans-serif",
+                  background: "transparent", border: `1px solid rgba(237,237,232,0.25)`, borderRadius: 20,
+                  color: s.status === "not-covered" ? DIM : WHITE,
+                  fontWeight: 500,
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, display: "inline-block" }} />
+                  {s.label}
+                  {s.status !== "not-covered" && <span style={{ color: DIM, fontWeight: 400 }}>· {s.mentions.toLocaleString()}</span>}
+                </span>
+              );
+            })}
+          </div>
+          <p style={{ fontSize: 9, color: DIM, margin: "8px 0 0", lineHeight: 1.5, fontStyle: "italic" }}>
+            Meta blocks third-party APIs so Instagram and Facebook mentions cannot be captured. Totals above reflect News, X, TikTok, Forums, Blogs, YouTube, Web, and partial podcast coverage.
+          </p>
+        </div>
+      )}
 
       {/* Footer */}
       <div style={{ fontSize: 9, color: MUTED, marginTop: 16, fontFamily: "'Inter Tight', sans-serif" }}>

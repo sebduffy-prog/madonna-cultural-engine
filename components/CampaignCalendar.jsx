@@ -90,7 +90,10 @@ export default function CampaignCalendar() {
     } catch {} finally { setSearching(false); }
   }
 
-  if (loading) return <p style={{ color: MUTED, fontSize: 14 }}>Loading calendar...</p>;
+  if (loading) {
+    const { PanelSkeleton } = require("./Skeleton");
+    return <div><PanelSkeleton rows={5} /></div>;
+  }
 
   const allEvents = [
     ...(data?.campaignEvents || []),

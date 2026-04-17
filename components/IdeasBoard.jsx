@@ -128,7 +128,10 @@ export default function IdeasBoard() {
     load();
   }
 
-  if (loading) return <p style={{ color: MUTED, fontSize: 14 }}>Loading ideas...</p>;
+  if (loading) {
+    const { PanelSkeleton } = require("./Skeleton");
+    return <div><PanelSkeleton rows={3} /><PanelSkeleton rows={4} /></div>;
+  }
 
   const activeIdea = selectedIdea ? ideas.find(i => i.id === selectedIdea) : null;
 
