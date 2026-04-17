@@ -18,7 +18,8 @@ const YouTubeIntelligence = dynamic(() => import("../components/YouTubeIntellige
 const IdeasBoard = dynamic(() => import("../components/IdeasBoard"), { ssr: false });
 const CampaignCalendar = dynamic(() => import("../components/CampaignCalendar"), { ssr: false });
 const DocUploader = dynamic(() => import("../components/DocUploader"), { ssr: false });
-const ExternalSignals = dynamic(() => import("../components/ExternalSignals"), { ssr: false });
+const MusicIntelligence = dynamic(() => import("../components/MusicIntelligence"), { ssr: false });
+const WikipediaPageviews = dynamic(() => import("../components/WikipediaPageviews"), { ssr: false });
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
@@ -528,7 +529,6 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
   const [researchSubTab, setResearchSubTab] = useState("library");
   const [loginImages, setLoginImages] = useState([
     "/homepage-rotation/FirstImage.png",
-    "/homepage-rotation/SecondImage.png",
   ]);
   const [loginImageIndex, setLoginImageIndex] = useState(0);
   const [loginImagesReady, setLoginImagesReady] = useState(false);
@@ -542,7 +542,6 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
     }
     const sequence = [
       "/homepage-rotation/FirstImage.png",
-      "/homepage-rotation/SecondImage.png",
       ...rest,
     ];
     setLoginImages(sequence);
@@ -588,7 +587,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             }}
           />
         ))}
-        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)" }} />
+        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.3)" }} />
         <div style={{ textAlign: "center", position: "relative", zIndex: 1 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
           <h1 style={{ fontSize: 42, fontWeight: 800, color: WHITE, margin: "8px 0 24px", letterSpacing: "-0.02em" }}>Pulse</h1>
@@ -604,7 +603,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Inter Tight', system-ui, sans-serif", color: WHITE }}>
-      <div style={{ maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","signals","dashboard","ideas","calendar","strategy"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
+      <div style={{ maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","music","dashboard","ideas","calendar","strategy"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
@@ -620,7 +619,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "dashboard", label: "Dashboard" },
             { id: "culturalfeed", label: "Media" },
             { id: "socialpulse", label: "Social listening" },
-            { id: "signals", label: "External signals" },
+            { id: "music", label: "Music" },
             { id: "youtube", label: "YouTube" },
             { id: "gwi", label: "Audience" },
             { id: "strategy", label: "Strategy" },
@@ -638,7 +637,10 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
           ))}
         </div>
 
-        {tab === "dashboard" && <DashboardSummary />}
+        {tab === "dashboard" && <>
+          <DashboardSummary />
+          <WikipediaPageviews />
+        </>}
 
         {tab === "_old_insight" && <>
           <Sect title="The human truth">
@@ -992,7 +994,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
         {tab === "socialpulse" && <SocialDashboard />}
 
-        {tab === "signals" && <ExternalSignals />}
+        {tab === "music" && <MusicIntelligence />}
 
         {tab === "ideas" && <IdeasBoard />}
         {tab === "calendar" && <CampaignCalendar />}
