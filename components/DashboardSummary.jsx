@@ -100,9 +100,11 @@ export default function DashboardSummary() {
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
           <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Trend Index</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: Y, fontFamily: "'Inter Tight', sans-serif" }}>{trendIndex.toLocaleString()}</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: trendIndex > 0 ? GREEN : trendIndex < 0 ? RED : WHITE, fontFamily: "'Inter Tight', sans-serif" }}>
+            {trendIndex > 0 ? "+" : ""}{trendIndex}%
+          </div>
           <div style={{ fontSize: 9, color: dailyChange > 0 ? GREEN : dailyChange < 0 ? RED : DIM }}>
-            {dailyChange != null ? `${dailyChange > 0 ? "+" : ""}${dailyChange}% today` : "media mentions"}
+            {dailyChange != null ? `${dailyChange > 0 ? "+" : ""}${dailyChange}% today` : "vs baseline"}
           </div>
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
