@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { KpiStripSkeleton, PanelSkeleton } from "./Skeleton";
 import { fadeUp, kpiTween, hoverLift } from "../lib/motion";
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", MUTED = "#777", WHITE = "#EDEDE8", DIM = "#999";
@@ -337,7 +338,6 @@ export default function MusicIntelligence() {
   useEffect(() => { load(false); }, []);
 
   if (loading) {
-    const { KpiStripSkeleton, PanelSkeleton } = require("./Skeleton");
     return (
       <div>
         <KpiStripSkeleton count={4} />

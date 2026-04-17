@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import LineChart from "./LineChart";
 import { DualLineChart } from "./SocialCharts";
+import { KpiStripSkeleton, PanelSkeleton } from "./Skeleton";
 import { fadeUp, hoverLift } from "../lib/motion";
 
 const Y = "#FFD500";
@@ -79,7 +80,6 @@ export default function DashboardSummary() {
   }, []);
 
   if (loading) {
-    const { KpiStripSkeleton, PanelSkeleton } = require("./Skeleton");
     return (
       <div>
         <KpiStripSkeleton count={4} />

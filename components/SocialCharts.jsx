@@ -83,12 +83,20 @@ export function DualLineChart({ data = [], height = 200 }) {
           </text>
         ))}
 
-        {/* X axis labels */}
-        {data.map((d, i) => (
-          <text key={i} x={toX(i)} y={height - pad.bottom + 16} textAnchor="middle" fill={MUTED} fontSize={9}>
-            {d.date}
-          </text>
-        ))}
+        {/* X axis labels — show at most ~7 evenly spaced labels to avoid overlap */}
+        {(() => {
+          const maxLabels = 7;
+          const step = Math.max(1, Math.ceil(data.length / maxLabels));
+          return data.map((d, i) => {
+            if (i !== 0 && i !== data.length - 1 && i % step !== 0) return null;
+            const label = (d.date || "").slice(5);
+            return (
+              <text key={i} x={toX(i)} y={height - pad.bottom + 16} textAnchor="middle" fill={WHITE} opacity={0.7} fontSize={9}>
+                {label}
+              </text>
+            );
+          });
+        })()}
 
         {/* lines */}
         <polyline points={mPoints} fill="none" stroke="#A78BFA" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
@@ -212,12 +220,20 @@ export function SentimentLineChart({ data = [], height = 180 }) {
           </text>
         ))}
 
-        {/* X axis labels */}
-        {data.map((d, i) => (
-          <text key={i} x={toX(i)} y={height - pad.bottom + 16} textAnchor="middle" fill={MUTED} fontSize={9}>
-            {d.date}
-          </text>
-        ))}
+        {/* X axis labels — show at most ~7 evenly spaced labels to avoid overlap */}
+        {(() => {
+          const maxLabels = 7;
+          const step = Math.max(1, Math.ceil(data.length / maxLabels));
+          return data.map((d, i) => {
+            if (i !== 0 && i !== data.length - 1 && i % step !== 0) return null;
+            const label = (d.date || "").slice(5);
+            return (
+              <text key={i} x={toX(i)} y={height - pad.bottom + 16} textAnchor="middle" fill={WHITE} opacity={0.7} fontSize={9}>
+                {label}
+              </text>
+            );
+          });
+        })()}
 
         {/* area fills */}
         <polygon points={posArea} fill="#34D399" opacity={0.1} />

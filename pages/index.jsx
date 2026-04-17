@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { AnimatePresence, motion } from "framer-motion";
 import PulseLoader, { ParticleField } from "../components/PulseLoader";
+import PulseWordmark from "../components/PulseWordmark";
 import { pageStagger, fadeUp } from "../lib/motion";
 
 const StreetArtMap = dynamic(() => import("../components/StreetArtMap"), { ssr: false });
@@ -675,11 +676,9 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         <ParticleField />
         <div style={{ textAlign: "center", position: "relative", zIndex: 1 }}>
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
-          <h1 style={{
-            fontSize: 120, fontWeight: 900, color: WHITE, margin: "12px 0 8px",
-            letterSpacing: "-0.03em", lineHeight: 1,
-            textShadow: `0 0 30px rgba(255, 213, 0, 0.25), 0 0 80px rgba(255, 213, 0, 0.12)`,
-          }}>Pulse</h1>
+          <div style={{ margin: "12px 0 8px" }}>
+            <PulseWordmark size={120} />
+          </div>
           <div style={{ height: 3, width: 180, background: Y, borderRadius: 2, margin: "14px auto 32px" }} />
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: "rgba(21,21,21,0.8)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif", backdropFilter: "blur(10px)" }} autoFocus />
           <div style={{ marginTop: 12 }}>

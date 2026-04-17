@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { DualLineChart, SentimentLineChart, DonutChart, StackedBarChart, WordCloud } from "./SocialCharts";
+import { KpiStripSkeleton, PanelSkeleton } from "./Skeleton";
 import { fadeUp, kpiTween, hoverLift } from "../lib/motion";
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", MUTED = "#777", WHITE = "#EDEDE8", DIM = "#999";
@@ -198,7 +199,6 @@ export default function SocialDashboard() {
   const sentNeuPct = 100 - sentPosPct - sentNegPct;
 
   if (loading && !b24 && !legacy) {
-    const { KpiStripSkeleton, PanelSkeleton } = require("./Skeleton");
     return (
       <div>
         <KpiStripSkeleton count={4} />

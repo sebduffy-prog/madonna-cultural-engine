@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { PanelSkeleton } from "./Skeleton";
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", WHITE = "#EDEDE8", MUTED = "#777", DIM = "#999", GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF", PURPLE = "#A78BFA", CORAL = "#FB923C", PINK = "#F472B6";
 
@@ -128,10 +129,7 @@ export default function IdeasBoard() {
     load();
   }
 
-  if (loading) {
-    const { PanelSkeleton } = require("./Skeleton");
-    return <div><PanelSkeleton rows={3} /><PanelSkeleton rows={4} /></div>;
-  }
+  if (loading) return <div><PanelSkeleton rows={3} /><PanelSkeleton rows={4} /></div>;
 
   const activeIdea = selectedIdea ? ideas.find(i => i.id === selectedIdea) : null;
 

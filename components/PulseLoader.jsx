@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
+import PulseWordmark from "./PulseWordmark";
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
@@ -167,22 +168,15 @@ export default function PulseLoader({ progress = 0 }) {
           VCCP Media Cultural Intelligence
         </motion.div>
 
-        {/* Pulse wordmark — large, with subtle gold ember halo */}
-        <motion.h1
-          initial={{ opacity: 0, y: 14, letterSpacing: "-0.1em" }}
-          animate={{ opacity: 1, y: 0, letterSpacing: "-0.03em" }}
+        {/* Pulse wordmark — cursor-interactive, no glow */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          style={{
-            fontSize: 120,
-            fontWeight: 900,
-            color: WHITE,
-            margin: "0 0 8px",
-            lineHeight: 1,
-            textShadow: `0 0 30px rgba(255, 213, 0, 0.25), 0 0 80px rgba(255, 213, 0, 0.12)`,
-          }}
+          style={{ margin: "0 0 8px" }}
         >
-          Pulse
-        </motion.h1>
+          <PulseWordmark size={120} />
+        </motion.div>
 
         <motion.div
           initial={{ scaleX: 0 }}
