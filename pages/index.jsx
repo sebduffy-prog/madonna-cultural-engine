@@ -116,14 +116,227 @@ function MasterRefresh() {
     setTimeout(() => setStatus(null), 8000);
   }
 
+  const [downloading, setDownloading] = useState(false);
+
+  async function downloadMemory() {
+    setDownloading(true);
+    setStatus("Collecting all platform data...");
+
+    const sources = [
+      { key: "mediaIndex", name: "Media Trend Index", url: "/api/media-index" },
+      { key: "newsMadonna", name: "Madonna News Feed", url: "/api/news?category=madonna" },
+      { key: "newsFashion", name: "Fashion Feed", url: "/api/news?category=fashion" },
+      { key: "newsGay", name: "LGBTQ+ Feed", url: "/api/news?category=gay" },
+      { key: "newsCulture", name: "Culture Feed", url: "/api/news?category=culture" },
+      { key: "brand24", name: "Social Listening", url: "/api/brand24" },
+      { key: "socialDashboard", name: "Social Dashboard", url: "/api/social-dashboard" },
+      { key: "social", name: "Social Composite", url: "/api/social" },
+      { key: "youtube", name: "YouTube Intelligence", url: "/api/youtube-rag" },
+      { key: "strategy", name: "AI Strategy", url: "/api/ai-strategy" },
+      { key: "ideas", name: "Ideas Board", url: "/api/ideas" },
+      { key: "calendar", name: "Campaign Calendar", url: "/api/calendar" },
+    ];
+
+    const data = {};
+    for (const src of sources) {
+      setStatus(`Collecting: ${src.name}...`);
+      try {
+        const r = await fetch(src.url);
+        if (r.ok) data[src.key] = await r.json();
+      } catch {}
+    }
+
+    const ts = new Date();
+    const tsStr = ts.toISOString().slice(0, 19).replace(/[T:]/g, "-");
+    const tsDisplay = ts.toLocaleString("en-GB", { dateStyle: "full", timeStyle: "medium" });
+
+    // Build HTML document (opens natively in Word/Google Docs)
+    let doc = `<html><head><meta charset="utf-8"><title>The Madonna Pulse — Data Export ${tsStr}</title>
+    <style>body{font-family:Calibri,Arial,sans-serif;color:#222;max-width:800px;margin:0 auto;padding:40px}
+    h1{font-size:28px;border-bottom:3px solid #FFD500;padding-bottom:8px}
+    h2{font-size:20px;color:#333;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:30px}
+    h3{font-size:15px;color:#555;margin-top:16px}
+    table{border-collapse:collapse;width:100%;margin:8px 0}
+    th,td{border:1px solid #ddd;padding:6px 10px;font-size:12px;text-align:left}
+    th{background:#f5f5f5;font-weight:700}
+    .meta{color:#888;font-size:11px;margin:4px 0}
+    .tag{display:inline-block;background:#f0f0f0;padding:2px 8px;border-radius:10px;font-size:11px;margin:2px}
+    </style></head><body>`;
+
+    doc += `<h1>The Madonna Pulse — Data Export</h1>`;
+    doc += `<p class="meta">Generated: ${tsDisplay}</p>`;
+    doc += `<p class="meta">VCCP Media Cultural Intelligence</p>`;
+
+    // 1. Media Index
+    if (data.mediaIndex) {
+      const m = data.mediaIndex;
+      doc += `<h2>1. Media Trend Index</h2>`;
+      doc += `<p>Total mentions: <b>${m.totalToday}</b> | Baseline: ${m.baseline} | Index: ${m.index}</p>`;
+      if (m.queryScores) {
+        doc += `<table><tr><th>Query</th><th>Count</th><th>Change</th></tr>`;
+        m.queryScores.forEach(q => { doc += `<tr><td>${q.label}</td><td>${q.todayCount}</td><td>${q.pctChange}%</td></tr>`; });
+        doc += `</table>`;
+      }
+      if (m.sentiment) doc += `<p>Sentiment: ${m.sentiment.positive}% positive, ${m.sentiment.negative}% negative, ${m.sentiment.neutral}% neutral (${m.sentiment.method})</p>`;
+    }
+
+    // 2. Social Listening (Brand24)
+    if (data.brand24?.configured) {
+      const b = data.brand24;
+      doc += `<h2>2. Social Listening</h2>`;
+      doc += `<p class="meta">Period: ${b.period?.from} to ${b.period?.to}</p>`;
+      doc += `<p>Total mentions: <b>${b.totalMentions?.toLocaleString()}</b> | Reach: <b>${b.totalReach?.toLocaleString()}</b> | Engagement: <b>${b.totalEngagement?.toLocaleString()}</b></p>`;
+      doc += `<p>Sentiment: ${b.sentiment?.positivePercent}% positive, ${b.sentiment?.negativePercent}% negative</p>`;
+      if (b.platforms?.length) {
+        doc += `<h3>Platform Breakdown</h3><table><tr><th>Platform</th><th>Mentions</th><th>Reach</th></tr>`;
+        b.platforms.forEach(p => { doc += `<tr><td>${p.platform}</td><td>${p.mentions}</td><td>${p.reach?.toLocaleString()}</td></tr>`; });
+        doc += `</table>`;
+      }
+      if (b.dailyMetrics?.length) {
+        doc += `<h3>Daily Metrics</h3><table><tr><th>Date</th><th>Mentions</th><th>Reach</th><th>Pos</th><th>Neg</th></tr>`;
+        b.dailyMetrics.forEach(d => { doc += `<tr><td>${d.date}</td><td>${d.mentions}</td><td>${d.reach?.toLocaleString()}</td><td>${d.sentiment?.positive || 0}</td><td>${d.sentiment?.negative || 0}</td></tr>`; });
+        doc += `</table>`;
+      }
+      if (b.topics?.length) {
+        doc += `<h3>Discussion Topics</h3><table><tr><th>Topic</th><th>Mentions</th><th>Reach</th><th>SOV</th></tr>`;
+        b.topics.forEach(t => { doc += `<tr><td>${t.name || t.description?.slice(0, 60)}</td><td>${t.mentions}</td><td>${t.reach?.toLocaleString()}</td><td>${t.shareOfVoice}%</td></tr>`; });
+        doc += `</table>`;
+      }
+      if (b.hashtags?.length) {
+        doc += `<h3>Trending Hashtags</h3><table><tr><th>Hashtag</th><th>Mentions</th><th>Reach</th></tr>`;
+        b.hashtags.slice(0, 20).forEach(h => { doc += `<tr><td>${h.hashtag}</td><td>${h.mentions}</td><td>${h.reach?.toLocaleString()}</td></tr>`; });
+        doc += `</table>`;
+      }
+      if (b.influencers?.length) {
+        doc += `<h3>Top Influencers</h3><table><tr><th>Name</th><th>Followers</th><th>Mentions</th><th>Reach</th></tr>`;
+        b.influencers.forEach(i => { doc += `<tr><td>${i.name}</td><td>${i.followers?.toLocaleString()}</td><td>${i.mentions}</td><td>${i.reach?.toLocaleString()}</td></tr>`; });
+        doc += `</table>`;
+      }
+      if (b.domains?.length) {
+        doc += `<h3>Top Sources</h3><table><tr><th>Domain</th><th>Mentions</th><th>Reach</th><th>Influence</th></tr>`;
+        b.domains.slice(0, 15).forEach(d => { doc += `<tr><td>${d.domain}</td><td>${d.mentions}</td><td>${d.reach?.toLocaleString()}</td><td>${d.influence}/10</td></tr>`; });
+        doc += `</table>`;
+      }
+      if (b.events?.length) {
+        doc += `<h3>Anomaly Events</h3>`;
+        b.events.forEach(e => { doc += `<p><b>${e.date}</b>: ${(e.description || "").replace(/<[^>]+>/g, "")} (peak: ${e.peakMentions} mentions, ${e.peakReach?.toLocaleString()} reach)</p>`; });
+      }
+      if (b.aiSummary) doc += `<h3>AI Summary</h3><p>${b.aiSummary}</p>`;
+      if (b.derived) {
+        doc += `<h3>Derived Metrics</h3>`;
+        doc += `<p>Momentum Score: ${b.derived.momentumScore} | Engagement Rate: ${b.derived.engagementRate}% | Virality Index: ${b.derived.viralityIndex} | Platform Diversity: ${b.derived.platformDiversity}/100</p>`;
+        doc += `<p>Mention Velocity: ${b.derived.mentionVelocity?.perHour}/hr (trend: ${b.derived.mentionVelocity?.trend > 0 ? "+" : ""}${b.derived.mentionVelocity?.trend})</p>`;
+      }
+    }
+
+    // 3. News Feeds
+    ["newsMadonna", "newsFashion", "newsGay", "newsCulture"].forEach((key, idx) => {
+      const labels = ["Madonna", "Fashion", "LGBTQ+", "Culture"];
+      const feed = data[key];
+      if (!feed?.items?.length) return;
+      doc += `<h2>${idx + 3}. ${labels[idx]} Feed</h2>`;
+      doc += `<p class="meta">${feed.totalFound} total | ${feed.braveResults} from search, ${feed.rssResults} from RSS | Cached: ${feed.cachedAt}</p>`;
+      doc += `<table><tr><th>Title</th><th>Source</th><th>Date</th></tr>`;
+      feed.items.slice(0, 30).forEach(i => { doc += `<tr><td>${i.title}</td><td>${i.source}</td><td>${i.date?.slice(0, 10) || ""}</td></tr>`; });
+      doc += `</table>`;
+    });
+
+    // 7. YouTube
+    if (data.youtube?.videos?.length) {
+      const y = data.youtube;
+      doc += `<h2>7. YouTube Intelligence</h2>`;
+      doc += `<p>Videos: ${y.totalVideos} | Comments: ${y.totalComments?.toLocaleString()} | Viral: ${y.viralVideos}</p>`;
+      if (y.themes?.length) {
+        doc += `<h3>Themes</h3><table><tr><th>Theme</th><th>New</th><th>Total</th></tr>`;
+        y.themes.forEach(t => { doc += `<tr><td>${t.label}</td><td>${t.newCount}</td><td>${t.totalCount}</td></tr>`; });
+        doc += `</table>`;
+      }
+      if (y.videos?.length) {
+        doc += `<h3>Top Videos</h3><table><tr><th>Title</th><th>Views</th><th>Likes</th><th>Comments</th></tr>`;
+        y.videos.slice(0, 15).forEach(v => { doc += `<tr><td>${v.title}</td><td>${v.viewCount?.toLocaleString()}</td><td>${v.likeCount?.toLocaleString()}</td><td>${v.commentCount}</td></tr>`; });
+        doc += `</table>`;
+      }
+    }
+
+    // 8. AI Strategy
+    if (data.strategy?.recommendations) {
+      doc += `<h2>8. AI Strategy Recommendations</h2>`;
+      doc += `<p class="meta">Generated: ${data.strategy.generatedAt}</p>`;
+      ["madonna", "fashion", "gay", "culture"].forEach(cat => {
+        const recs = data.strategy.recommendations[cat];
+        if (!recs?.length) return;
+        const labels = { madonna: "Madonna", fashion: "Fashion", gay: "Gay Community", culture: "Culture" };
+        doc += `<h3>${labels[cat]}</h3>`;
+        recs.forEach(r => { doc += `<p><span class="tag">${r.type}</span> <b>${r.title}</b><br/>${r.description}</p>`; });
+      });
+    }
+
+    // 9. Ideas
+    if (data.ideas?.ideas?.length) {
+      doc += `<h2>9. Ideas Board</h2>`;
+      data.ideas.ideas.forEach(idea => {
+        doc += `<h3>${idea.name}</h3>`;
+        doc += `<p class="meta">By ${idea.createdBy} on ${new Date(idea.createdAt).toLocaleDateString("en-GB")} | Likes: ${idea.likes || 0} | Dislikes: ${idea.dislikes || 0}</p>`;
+        if (idea.description) doc += `<p>${idea.description}</p>`;
+        if (idea.tactics?.length) { doc += `<p><b>Tactics:</b></p><ul>`; idea.tactics.forEach(t => { doc += `<li>${t}</li>`; }); doc += `</ul>`; }
+        if (idea.comments?.length) {
+          doc += `<p><b>Comments:</b></p>`;
+          idea.comments.forEach(c => { doc += `<p class="meta"><b>${c.author}</b> (${new Date(c.date).toLocaleDateString("en-GB")}): ${c.text}</p>`; });
+        }
+      });
+    }
+
+    // 10. Calendar
+    if (data.calendar) {
+      doc += `<h2>10. Campaign Calendar</h2>`;
+      if (data.calendar.campaignEvents?.length) {
+        doc += `<h3>Campaign Events</h3><table><tr><th>Date</th><th>Event</th><th>Detail</th></tr>`;
+        data.calendar.campaignEvents.forEach(e => { doc += `<tr><td>${e.date}</td><td>${e.title}</td><td>${e.detail || ""}</td></tr>`; });
+        doc += `</table>`;
+      }
+      if (data.calendar.blockPlans?.length) {
+        doc += `<h3>Block Plans</h3><table><tr><th>Dates</th><th>Channel</th><th>Title</th><th>Description</th></tr>`;
+        data.calendar.blockPlans.forEach(b => { doc += `<tr><td>${b.startDate} to ${b.endDate}</td><td>${b.channel}</td><td>${b.title}</td><td>${b.description || ""}</td></tr>`; });
+        doc += `</table>`;
+      }
+    }
+
+    doc += `<hr/><p class="meta">End of export. Generated by The Madonna Pulse — VCCP Media Cultural Intelligence</p>`;
+    doc += `</body></html>`;
+
+    // Download as .doc (Word opens HTML natively)
+    const blob = new Blob([doc], { type: "application/msword" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Madonna-Pulse-Export-${tsStr}.doc`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    setStatus("Download complete");
+    setDownloading(false);
+    setTimeout(() => setStatus(null), 5000);
+  }
+
   return (
-    <div style={{ marginTop: 32, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
+    <div style={{ marginTop: 32, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+      <button onClick={downloadMemory} disabled={downloading || running} style={{
+        padding: "10px 24px", fontSize: 12, fontWeight: 700,
+        color: downloading ? "#777" : "#EDEDE8",
+        background: downloading ? "#222" : "transparent",
+        border: "1px solid #222",
+        borderRadius: 8, cursor: downloading ? "wait" : "pointer",
+        fontFamily: "'Inter Tight', system-ui, sans-serif",
+        transition: "all 0.15s",
+      }}>
+        {downloading ? "Collecting..." : "Download Memory"}
+      </button>
       {status && (
-        <span style={{ fontSize: 10, color: running ? "#A78BFA" : status.includes("failed") ? "#EF4444" : "#34D399", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+        <span style={{ fontSize: 10, color: running || downloading ? "#A78BFA" : status.includes("failed") ? "#EF4444" : "#34D399", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
           {status}
         </span>
       )}
-      <button onClick={refreshAll} disabled={running} style={{
+      <button onClick={refreshAll} disabled={running || downloading} style={{
         padding: "10px 24px", fontSize: 12, fontWeight: 700,
         color: running ? "#777" : "#0C0C0C",
         background: running ? "#222" : "#FFD500",
