@@ -530,7 +530,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
       <div style={{
         minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
         fontFamily: "'Inter Tight', system-ui, sans-serif",
-        backgroundImage: "url(/login-bg.png)", backgroundSize: "cover", backgroundPosition: "center bottom",
+        backgroundImage: "url(/login-bg.png)", backgroundSize: "cover", backgroundPosition: "center",
         position: "relative",
       }}>
         <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)" }} />
