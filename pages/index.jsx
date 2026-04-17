@@ -527,11 +527,17 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
   if (!authed) {
     return (
-      <div style={{ background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
-        <div style={{ textAlign: "center" }}>
+      <div style={{
+        minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: "'Inter Tight', system-ui, sans-serif",
+        backgroundImage: "url(/login-bg.png)", backgroundSize: "cover", backgroundPosition: "center",
+        position: "relative",
+      }}>
+        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)" }} />
+        <div style={{ textAlign: "center", position: "relative", zIndex: 1 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
-          <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, margin: "8px 0 24px", letterSpacing: "-0.02em" }}>Pulse</h1>
-          <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif" }} autoFocus />
+          <h1 style={{ fontSize: 42, fontWeight: 800, color: WHITE, margin: "8px 0 24px", letterSpacing: "-0.02em" }}>Pulse</h1>
+          <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: "rgba(21,21,21,0.8)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif", backdropFilter: "blur(10px)" }} autoFocus />
           <div style={{ marginTop: 12 }}>
             <button onClick={() => { if (pw === "Tune5") setAuthed(true); }} style={{ background: Y, color: BG, border: "none", borderRadius: 8, padding: "10px 32px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Enter</button>
           </div>
