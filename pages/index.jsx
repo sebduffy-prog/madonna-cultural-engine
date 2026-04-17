@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import fs from "fs";
 import path from "path";
@@ -524,13 +524,38 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
   const [authed, setAuthed] = useState(false);
   const [pw, setPw] = useState("");
   const [researchSubTab, setResearchSubTab] = useState("library");
+  const [loginImages, setLoginImages] = useState([
+    "/homepage-rotation/FirstImage.png",
+    "/homepage-rotation/SecondImage.png",
+  ]);
+  const [loginImageIndex, setLoginImageIndex] = useState(0);
+
+  useEffect(() => {
+    if (authed) return;
+    const rest = Array.from({ length: 16 }, (_, i) => `/homepage-rotation/rotation-${String(i + 1).padStart(2, "0")}.png`);
+    for (let i = rest.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [rest[i], rest[j]] = [rest[j], rest[i]];
+    }
+    const sequence = [
+      "/homepage-rotation/FirstImage.png",
+      "/homepage-rotation/SecondImage.png",
+      ...rest,
+    ];
+    setLoginImages(sequence);
+    sequence.forEach(src => { const img = new window.Image(); img.src = src; });
+    const timer = setInterval(() => {
+      setLoginImageIndex(i => (i + 1) % sequence.length);
+    }, 500);
+    return () => clearInterval(timer);
+  }, [authed]);
 
   if (!authed) {
     return (
       <div style={{
         minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
         fontFamily: "'Inter Tight', system-ui, sans-serif",
-        backgroundImage: "url(/login-bg.png)", backgroundSize: "cover", backgroundPosition: "center",
+        backgroundImage: `url(${loginImages[loginImageIndex]})`, backgroundSize: "cover", backgroundPosition: "center",
         position: "relative",
       }}>
         <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)" }} />
