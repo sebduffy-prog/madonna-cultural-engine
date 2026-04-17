@@ -65,14 +65,46 @@ export default async function handler(req, res) {
     } catch {}
   }
 
-  const [infoRaw, topTracksRaw, topAlbumsRaw, topTagsRaw, similarRaw, globalChartRaw] = await Promise.all([
-    lfmGet("artist.getInfo",     { artist: ARTIST, lang: "en" }, apiKey),
-    lfmGet("artist.getTopTracks",{ artist: ARTIST, limit: 20 },  apiKey),
-    lfmGet("artist.getTopAlbums",{ artist: ARTIST, limit: 15 },  apiKey),
-    lfmGet("artist.getTopTags",  { artist: ARTIST },              apiKey),
-    lfmGet("artist.getSimilar",  { artist: ARTIST, limit: 30 },   apiKey),
-    lfmGet("chart.getTopArtists",{ limit: 500 },                  apiKey),
+  const [infoRaw, topTracksRaw, topAlbumsRaw, topTagsRaw, similarRaw, globalChartRaw, weeklyListRaw] = await Promise.all([
+    lfmGet("artist.getInfo",              { artist: ARTIST, lang: "en" }, apiKey),
+    lfmGet("artist.getTopTracks",         { artist: ARTIST, limit: 20 },  apiKey),
+    lfmGet("artist.getTopAlbums",         { artist: ARTIST, limit: 15 },  apiKey),
+    lfmGet("artist.getTopTags",           { artist: ARTIST },              apiKey),
+    lfmGet("artist.getSimilar",           { artist: ARTIST, limit: 30 },   apiKey),
+    lfmGet("chart.getTopArtists",         { limit: 500 },                  apiKey),
+    lfmGet("artist.getWeeklyChartList",   { artist: ARTIST },              apiKey),
   ]);
+
+  // Weekly trending — compare this week vs previous week
+  const chartList = weeklyListRaw?.weeklychartlist?.chart || [];
+  const recentWeeks = chartList.slice(-2); // last two weekly periods
+  let trending = null;
+  if (recentWeeks.length === 2) {
+    const [prev, curr] = recentWeeks;
+    const [prevChart, currChart] = await Promise.all([
+      lfmGet("artist.getWeeklyTrackChart", { artist: ARTIST, from: prev.from, to: prev.to }, apiKey),
+      lfmGet("artist.getWeeklyTrackChart", { artist: ARTIST, from: curr.from, to: curr.to }, apiKey),
+    ]);
+    const prevTracks = (prevChart?.weeklytrackchart?.track || []).reduce((acc, t) => {
+      acc[t.name] = parseInt(t.playcount || 0);
+      return acc;
+    }, {});
+    const currTracks = (currChart?.weeklytrackchart?.track || []).map(t => {
+      const plays = parseInt(t.playcount || 0);
+      const prevPlays = prevTracks[t.name] || 0;
+      const delta = plays - prevPlays;
+      const deltaPct = prevPlays > 0 ? Math.round((delta / prevPlays) * 100) : (plays > 0 ? 100 : 0);
+      return { name: t.name, url: t.url, plays, prevPlays, delta, deltaPct, isNew: prevPlays === 0 && plays > 0 };
+    }).filter(t => t.plays > 0);
+    trending = {
+      weekStart: new Date(parseInt(curr.from) * 1000).toISOString(),
+      weekEnd: new Date(parseInt(curr.to) * 1000).toISOString(),
+      prevWeekStart: new Date(parseInt(prev.from) * 1000).toISOString(),
+      rising: currTracks.filter(t => t.delta > 0 || t.isNew).sort((a, b) => (b.deltaPct || 0) - (a.deltaPct || 0)).slice(0, 10),
+      falling: currTracks.filter(t => t.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 5),
+      topThisWeek: currTracks.sort((a, b) => b.plays - a.plays).slice(0, 10),
+    };
+  }
 
   // Geo rankings — batched with a small concurrency guard
   const countryRankings = [];
@@ -181,6 +213,7 @@ export default async function handler(req, res) {
     topAlbums,
     topTags,
     similarArtists: similar,
+    trending,
     momentum,
     history: (history || []).slice(0, 30),
   };

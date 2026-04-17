@@ -325,8 +325,6 @@ export default function MusicIntelligence() {
     return <p style={{ fontSize: 12, color: MUTED, fontFamily: FONT }}>Loading music data…</p>;
   }
 
-  const listeners = lastfm?.info?.listeners;
-  const globalRank = lastfm?.globalRank;
   const songHits = apple?.totalSongHits;
   const albumHits = apple?.totalAlbumHits;
   const marketsCharting = apple?.marketsCharting;
@@ -343,8 +341,8 @@ export default function MusicIntelligence() {
     .sort((a, b) => b.total - a.total);
   const maxMarketTotal = Math.max(1, ...marketStrength.map(m => m.total));
 
-  // Sparkline data for Last.fm listeners (reversed so newest on right)
-  const listenerSpark = [...(lastfm?.history || [])].reverse().map(h => h.listeners).concat([listeners]).filter(v => v != null);
+  // Sparkline data for Spotify streams + Apple chart hits
+  const spotifyStreamSpark = [...(kworb?.history || [])].reverse().map(h => h.totalStreams).concat([kworb?.totalStreams]).filter(v => v != null);
   const appleHitSpark = [...(apple?.history || [])].reverse().map(h => h.totalSongHits).concat([songHits]).filter(v => v != null);
 
   const maxTrackPlaycount = Math.max(1, ...((lastfm?.topTracks || []).map(t => t.playcount || 0)));
@@ -355,7 +353,7 @@ export default function MusicIntelligence() {
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: WHITE, margin: "0 0 4px", fontFamily: FONT, letterSpacing: "-0.01em" }}>Music intelligence</h2>
           <p style={{ fontSize: 12, color: MUTED, margin: 0, fontFamily: FONT }}>
-            Spotify streams (kworb) · Apple Music charts (15 markets) · Last.fm listeners
+            Spotify streams (kworb) · Apple Music chart trending (15 markets) · Last.fm weekly trending
           </p>
         </div>
         <button onClick={() => load(true)} disabled={refreshing} style={{
@@ -372,26 +370,24 @@ export default function MusicIntelligence() {
       )}
 
       {/* KPI strip */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8, marginBottom: 16 }}>
-        <Kpi label="Spotify streams (all-time)" value={kworb?.totalStreams != null ? fmt(kworb.totalStreams) : "—"} sub={kworb?.error ? "kworb unavailable" : "kworb.net · Madonna catalogue"} color={GREEN} delta={kworb?.momentum?.totalStreamsChange} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
+        <Kpi label="Spotify streams (all-time)" value={kworb?.totalStreams != null ? fmt(kworb.totalStreams) : "—"} sub={kworb?.error ? "kworb unavailable" : "kworb.net · full catalogue"} color={GREEN} delta={kworb?.momentum?.totalStreamsChange} />
         <Kpi label="Spotify streams (daily)" value={kworb?.dailyStreams ? fmt(kworb.dailyStreams) : "—"} sub={kworb?.trackCount ? `across ${kworb.trackCount} tracks` : ""} color={PINK} delta={kworb?.momentum?.dailyStreamsChange} />
-        <Kpi label="Last.fm listeners" value={listeners != null ? fmt(listeners) : "—"} sub="Fans tracking on Last.fm" color={TEAL} delta={lastfm?.momentum?.listenersChange} />
-        <Kpi label="Global rank" value={globalRank ? `#${globalRank}` : "—"} sub={globalRank ? `of ${lastfm?.globalOutOf || "500"} on Last.fm` : lastfm?.configured === false ? "not configured" : "not in top chart"} color={AMBER} />
-        <Kpi label="Song chart hits" value={songHits != null ? songHits : "—"} sub={marketsCharting != null ? `${marketsCharting} markets` : ""} color={PURPLE} delta={apple?.momentum?.totalSongHitsChange} />
-        <Kpi label="Album chart hits" value={albumHits != null ? albumHits : "—"} sub={apple?.albumAggregate?.length != null ? `${apple.albumAggregate.length} albums` : ""} color={CORAL} delta={apple?.momentum?.totalAlbumHitsChange} />
+        <Kpi label="Apple song chart hits" value={songHits != null ? songHits : "—"} sub={marketsCharting != null ? `${marketsCharting} markets charting` : ""} color={PURPLE} delta={apple?.momentum?.totalSongHitsChange} />
+        <Kpi label="Apple album chart hits" value={albumHits != null ? albumHits : "—"} sub={apple?.albumAggregate?.length != null ? `${apple.albumAggregate.length} albums in charts` : ""} color={CORAL} delta={apple?.momentum?.totalAlbumHitsChange} />
       </div>
 
       {/* Trends */}
-      {(listenerSpark.length > 2 || appleHitSpark.length > 2) && (
+      {(spotifyStreamSpark.length > 2 || appleHitSpark.length > 2) && (
         <Panel title="Trend" subtitle="Daily snapshots since first refresh" accent={PURPLE}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            {listenerSpark.length > 2 && (
+            {spotifyStreamSpark.length > 2 && (
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 10, color: TEAL, textTransform: "uppercase", fontFamily: FONT, letterSpacing: "0.05em" }}>Last.fm listeners</span>
-                  <span style={{ fontSize: 11, color: WHITE, fontFamily: FONT }}>{fmt(listeners)}</span>
+                  <span style={{ fontSize: 10, color: GREEN, textTransform: "uppercase", fontFamily: FONT, letterSpacing: "0.05em" }}>Spotify streams</span>
+                  <span style={{ fontSize: 11, color: WHITE, fontFamily: FONT }}>{fmt(kworb?.totalStreams)}</span>
                 </div>
-                <Sparkline data={listenerSpark} color={TEAL} width={380} height={60} />
+                <Sparkline data={spotifyStreamSpark} color={GREEN} width={380} height={60} />
               </div>
             )}
             {appleHitSpark.length > 2 && (
@@ -438,6 +434,68 @@ export default function MusicIntelligence() {
       {kworb?.error && (
         <div style={{ background: `${AMBER}11`, border: `1px solid ${AMBER}44`, borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 11, color: DIM, fontFamily: FONT }}>
           <b style={{ color: AMBER }}>Kworb unavailable:</b> {kworb.error}. Spotify stream counts will return when the scraper recovers.
+        </div>
+      )}
+
+      {/* Trending — Last.fm + Apple side by side */}
+      {(lastfm?.trending?.rising?.length > 0 || apple?.trending?.rising?.length > 0 || apple?.trending?.new?.length > 0) && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+          {/* Last.fm weekly trending */}
+          {lastfm?.trending?.rising?.length > 0 && (
+            <Panel title="Last.fm — weekly trending" subtitle={`Rising vs previous week (Last.fm scrobble signal)`} accent={TEAL}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {lastfm.trending.rising.slice(0, 8).map((t, i) => (
+                  <a key={`${t.name}-${i}`} href={t.url || "#"} target="_blank" rel="noreferrer noopener" style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: i < 7 ? `1px solid ${BORDER}` : "none", textDecoration: "none", color: WHITE }}>
+                    <span style={{ fontSize: 11, color: MUTED, minWidth: 20, fontFamily: FONT }}>#{i + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontFamily: FONT, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</div>
+                      <div style={{ fontSize: 10, color: DIM, fontFamily: FONT }}>{t.plays} plays {t.prevPlays > 0 ? `(was ${t.prevPlays})` : "(new entry)"}</div>
+                    </div>
+                    <div style={{ background: t.isNew ? `${Y}22` : `${GREEN}22`, color: t.isNew ? Y : GREEN, border: `1px solid ${t.isNew ? Y : GREEN}55`, padding: "3px 8px", borderRadius: 6, fontFamily: FONT, fontSize: 10, fontWeight: 800 }}>
+                      {t.isNew ? "NEW" : `+${t.deltaPct}%`}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </Panel>
+          )}
+
+          {/* Apple chart trending */}
+          {(apple?.trending?.rising?.length > 0 || apple?.trending?.new?.length > 0) ? (
+            <Panel title="Apple Music — chart climbers" subtitle={apple.trending.hasBaseline ? "Tracks improving position or market count vs last snapshot" : "Building baseline — climbers appear after next snapshot"} accent={GREEN}>
+              {apple.trending.rising.length > 0 && (
+                <div style={{ marginBottom: apple.trending.new.length > 0 ? 12 : 0 }}>
+                  {apple.trending.rising.slice(0, 6).map((t, i) => (
+                    <a key={`R-${t.name}-${i}`} href={t.url} target="_blank" rel="noreferrer noopener" style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: `1px solid ${BORDER}`, textDecoration: "none", color: WHITE }}>
+                      {t.artwork && <img src={t.artwork} alt="" width={32} height={32} style={{ borderRadius: 4 }} />}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontFamily: FONT, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</div>
+                        <div style={{ fontSize: 10, color: DIM, fontFamily: FONT }}>#{t.prevBestPosition} → #{t.bestPosition} · {t.prevMarketCount} → {t.marketCount} markets</div>
+                      </div>
+                      <div style={{ background: `${GREEN}22`, color: GREEN, border: `1px solid ${GREEN}55`, padding: "3px 8px", borderRadius: 6, fontFamily: FONT, fontSize: 10, fontWeight: 800 }}>
+                        {t.posDelta > 0 ? `↑${t.posDelta}` : `+${t.marketDelta} mkts`}
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+              {apple.trending.new.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 10, color: Y, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6, fontFamily: FONT, fontWeight: 700 }}>New entries</div>
+                  {apple.trending.new.slice(0, 4).map((t, i) => (
+                    <a key={`N-${t.name}-${i}`} href={t.url} target="_blank" rel="noreferrer noopener" style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: i < Math.min(3, apple.trending.new.length - 1) ? `1px solid ${BORDER}` : "none", textDecoration: "none", color: WHITE }}>
+                      {t.artwork && <img src={t.artwork} alt="" width={32} height={32} style={{ borderRadius: 4 }} />}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontFamily: FONT, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</div>
+                        <div style={{ fontSize: 10, color: DIM, fontFamily: FONT }}>#{t.bestPosition} · {t.marketCount} markets</div>
+                      </div>
+                      <div style={{ background: `${Y}22`, color: Y, border: `1px solid ${Y}55`, padding: "3px 8px", borderRadius: 6, fontFamily: FONT, fontSize: 10, fontWeight: 800 }}>NEW</div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </Panel>
+          ) : null}
         </div>
       )}
 

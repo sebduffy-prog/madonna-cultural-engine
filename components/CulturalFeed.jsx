@@ -292,7 +292,7 @@ export default function CulturalFeed() {
   const recs = (aiRecs?.recommendations?.[tabKey]) || RECOMMENDATIONS[tabKey] || [];
 
   return (
-    <div style={{ background: BG, borderRadius: 12 }}>
+    <div style={{ background: "transparent", borderRadius: 12 }}>
       {/* Media Trend Index */}
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "16px 20px", marginBottom: 20, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>

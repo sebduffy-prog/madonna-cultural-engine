@@ -436,7 +436,7 @@ export default function AudienceIntelligence({ gwiData }) {
   const [topTab, setTopTab] = useState("gwi");
 
   return (
-    <div style={{ background: BG, padding: 24, borderRadius: 12 }}>
+    <div style={{ background: "transparent", padding: 24, borderRadius: 12 }}>
       {/* section header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <div style={{ width: 3, height: 18, background: Y, borderRadius: 2 }} />

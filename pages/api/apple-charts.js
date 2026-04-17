@@ -189,6 +189,42 @@ export default async function handler(req, res) {
     previousSnapshotAt: previous.date,
   } : null;
 
+  // Per-track trending: compare each song's best position and marketCount vs previous snapshot
+  const prevSongs = previous?.songsDetail || {};
+  const trending = {
+    rising: [], falling: [], new: [],
+    hasBaseline: Object.keys(prevSongs).length > 0,
+  };
+  songAggregate.forEach(s => {
+    const key = normaliseTitle(s.name);
+    const prev = prevSongs[key];
+    if (!prev) {
+      if (trending.hasBaseline) {
+        trending.new.push({ name: s.name, artwork: s.artwork, url: s.url, marketCount: s.marketCount, bestPosition: s.bestPosition });
+      }
+      return;
+    }
+    const posDelta = prev.bestPosition - s.bestPosition; // positive = climbed
+    const marketDelta = s.marketCount - prev.marketCount;
+    if (posDelta >= 5 || marketDelta >= 2) {
+      trending.rising.push({
+        name: s.name, artwork: s.artwork, url: s.url,
+        marketCount: s.marketCount, bestPosition: s.bestPosition,
+        prevBestPosition: prev.bestPosition, prevMarketCount: prev.marketCount,
+        posDelta, marketDelta,
+      });
+    } else if (posDelta <= -5 || marketDelta <= -2) {
+      trending.falling.push({
+        name: s.name, artwork: s.artwork, url: s.url,
+        marketCount: s.marketCount, bestPosition: s.bestPosition,
+        prevBestPosition: prev.bestPosition, prevMarketCount: prev.marketCount,
+        posDelta, marketDelta,
+      });
+    }
+  });
+  trending.rising.sort((a, b) => (b.posDelta || 0) - (a.posDelta || 0));
+  trending.falling.sort((a, b) => (a.posDelta || 0) - (b.posDelta || 0));
+
   const result = {
     source: "apple-music-rss",
     fetchedAt: new Date().toISOString(),
@@ -203,6 +239,7 @@ export default async function handler(req, res) {
     newReleases,
     bestPositions: bestPositions.slice(0, 25),
     momentum,
+    trending,
     history: (history || []).slice(0, 30),
   };
 
@@ -210,11 +247,16 @@ export default async function handler(req, res) {
 
   // Record a snapshot for trend analysis
   try {
+    const songsDetail = {};
+    songAggregate.forEach(s => {
+      songsDetail[normaliseTitle(s.name)] = { bestPosition: s.bestPosition, marketCount: s.marketCount };
+    });
     await kvListPush(HISTORY_KEY, {
       date: new Date().toISOString(),
       totalSongHits, totalAlbumHits, marketsCharting,
       topSongName: songAggregate[0]?.name || null,
       topSongMarkets: songAggregate[0]?.marketCount || 0,
+      songsDetail,
     }, 60);
   } catch {}
 

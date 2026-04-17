@@ -657,7 +657,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             transition: "opacity 700ms ease-in-out",
           }} />
         )}
-        <div style={{ position: "absolute", inset: 0, background: "rgba(12,12,12,0.82)" }} />
+        <div style={{ position: "absolute", inset: 0, background: "rgba(12,12,12,0.55)" }} />
       </div>
 
       <div style={{ position: "relative", zIndex: 1, maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","music","dashboard","ideas","calendar","strategy"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
