@@ -447,9 +447,6 @@ export default function AudienceIntelligence({ gwiData }) {
         <h2 style={{ fontSize: 14, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase", margin: 0, fontFamily: "'Inter Tight', sans-serif" }}>
           Audience Intelligence
         </h2>
-        <span style={{ fontSize: 11, color: MUTED, marginLeft: 8 }}>
-          {data.length} statements
-        </span>
       </div>
 
       {/* top-level sub-tabs */}
