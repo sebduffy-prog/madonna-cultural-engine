@@ -105,7 +105,7 @@ export default function DashboardSummary() {
           <div style={{ fontSize: 24, fontWeight: 800, color: isBaseline ? MUTED : trendIndex > 0 ? GREEN : trendIndex < 0 ? RED : WHITE, fontFamily: "'Inter Tight', sans-serif" }}>
             {isBaseline ? "BASELINE" : `${trendIndex > 0 ? "+" : ""}${trendIndex}%`}
           </div>
-          <div style={{ fontSize: 9, color: DIM }}>{isBaseline ? "tracking starts tomorrow" : `${trendTotal} mentions vs ${trendBaseline} baseline`}</div>
+          <div style={{ fontSize: 9, color: DIM }}>{isBaseline ? "tracking starts tomorrow" : "vs baseline"}</div>
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
           <div style={{ fontSize: 9, color: TEAL, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Total Reach</div>
