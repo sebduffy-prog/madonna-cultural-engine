@@ -568,16 +568,23 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
     return () => clearInterval(timer);
   }, [authed, loginImagesReady, loginImages.length]);
 
-  // Tab background — one darkened rotation image per tab, random crossfade on switch
-  const tabBackgrounds = useMemo(() => [
-    "/homepage-rotation/FirstImage.png",
-    ...Array.from({ length: 16 }, (_, i) => `/homepage-rotation/rotation-${String(i + 1).padStart(2, "0")}.png`),
-  ], []);
-  const [tabBg, setTabBg] = useState({
-    a: tabBackgrounds[Math.floor(Math.random() * tabBackgrounds.length)],
-    b: null,
-    active: "a",
-  });
+  // Per-tab background image — hand-picked from the rotation pool to maximise
+  // hue separation between tabs and exclude the monochrome/sepia variants.
+  const TAB_BG_MAP = {
+    dashboard:    "/homepage-rotation/rotation-08.png", // red
+    culturalfeed: "/homepage-rotation/rotation-03.png", // orange + magenta
+    socialpulse:  "/homepage-rotation/rotation-11.png", // cyan
+    music:        "/homepage-rotation/rotation-10.png", // hot pink
+    youtube:      "/homepage-rotation/rotation-04.png", // orange + purple
+    gwi:          "/homepage-rotation/rotation-02.png", // deep blue
+    strategy:     "/homepage-rotation/rotation-06.png", // acid yellow
+    streetmap:    "/homepage-rotation/rotation-09.png", // deep green
+    ideas:        "/homepage-rotation/rotation-01.png", // blue + yellow duotone
+    calendar:     "/homepage-rotation/rotation-05.png", // violet
+    research:     "/homepage-rotation/rotation-07.png", // teal
+  };
+  const DEFAULT_TAB_BG = TAB_BG_MAP.dashboard;
+  const [tabBg, setTabBg] = useState({ a: DEFAULT_TAB_BG, b: null, active: "a" });
   const prevTabRef = useRef(null);
 
   useEffect(() => {
@@ -586,15 +593,15 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
     const isFirstTabChange = prevTabRef.current === null;
     prevTabRef.current = tab;
     if (isFirstTabChange) return;
+    const nextImg = TAB_BG_MAP[tab] || DEFAULT_TAB_BG;
     setTabBg(prev => {
       const currentImg = prev.active === "a" ? prev.a : prev.b;
-      const pool = tabBackgrounds.filter(img => img && img !== currentImg);
-      const next = pool[Math.floor(Math.random() * pool.length)];
+      if (currentImg === nextImg) return prev;
       return prev.active === "a"
-        ? { ...prev, b: next, active: "b" }
-        : { ...prev, a: next, active: "a" };
+        ? { ...prev, b: nextImg, active: "b" }
+        : { ...prev, a: nextImg, active: "a" };
     });
-  }, [tab, authed, tabBackgrounds]);
+  }, [tab, authed]);
 
   if (!authed) {
     return (
