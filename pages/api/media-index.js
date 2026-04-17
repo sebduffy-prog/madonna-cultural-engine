@@ -10,10 +10,7 @@ const CACHE_KEY = "media_trend_cache";
 const FEED_KEY = "media_feed_pool";
 const CACHE_TTL = 86400;
 const MAX_FEED = 200;
-// Baseline = typical week of Madonna media coverage from Brave + RSS
-// 29 RSS feeds × ~5 relevant articles each = ~145, plus ~80 Brave results = ~225
-// Adjust this after collecting a few weeks of data
-const MENTION_BASELINE = 225;
+const MENTION_BASELINE = 59;
 
 // Focused queries — Madonna and the new album only
 const QUERIES = [
@@ -196,12 +193,23 @@ export default async function handler(req, res) {
   }
   const sentTotal = Math.max(pos + neg + neu, 1);
 
+  // Daily change: compare to previous history entry
+  let dailyChange = null;
+  try {
+    const prevHistory = await kvListGet(HISTORY_KEY, 0, 0);
+    if (prevHistory?.length > 0 && prevHistory[0].totalToday > 0) {
+      const prev = prevHistory[0].totalToday;
+      dailyChange = Math.round(((totalToday - prev) / prev) * 1000) / 10;
+    }
+  } catch {}
+
   const result = {
     fetchedAt: new Date().toISOString(),
     isFirstRun: false,
     baselineDate: null,
     baseline: MENTION_BASELINE,
-    index: overallIndex,
+    index: totalToday,
+    dailyChange,
     totalToday,
     totalBaseline,
     queryScores,

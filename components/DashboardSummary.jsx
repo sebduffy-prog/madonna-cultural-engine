@@ -75,12 +75,10 @@ export default function DashboardSummary() {
   }
 
   const madonnaArticles = media?.items || [];
-  const trendIndex = mediaIndex?.index ?? social?.index ?? 0;
-  const isBaseline = mediaIndex?.isFirstRun || social?.isFirstRun;
+  const trendIndex = mediaIndex?.index ?? 0;
+  const dailyChange = mediaIndex?.dailyChange;
   const sentiment = social?.sentiment;
   const aiRecs = ai?.recommendations?.madonna || [];
-  const trendTotal = mediaIndex?.totalToday || 0;
-  const trendBaseline = mediaIndex?.baseline || 59;
 
   return (
     <div>
@@ -102,10 +100,10 @@ export default function DashboardSummary() {
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
           <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Trend Index</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: isBaseline ? MUTED : trendIndex > 0 ? GREEN : trendIndex < 0 ? RED : WHITE, fontFamily: "'Inter Tight', sans-serif" }}>
-            {isBaseline ? "BASELINE" : `${trendIndex > 0 ? "+" : ""}${trendIndex}%`}
+          <div style={{ fontSize: 24, fontWeight: 800, color: Y, fontFamily: "'Inter Tight', sans-serif" }}>{trendIndex.toLocaleString()}</div>
+          <div style={{ fontSize: 9, color: dailyChange > 0 ? GREEN : dailyChange < 0 ? RED : DIM }}>
+            {dailyChange != null ? `${dailyChange > 0 ? "+" : ""}${dailyChange}% today` : "media mentions"}
           </div>
-          <div style={{ fontSize: 9, color: DIM }}>{isBaseline ? "tracking starts tomorrow" : "vs baseline"}</div>
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
           <div style={{ fontSize: 9, color: TEAL, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Total Reach</div>
