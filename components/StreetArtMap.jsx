@@ -30,7 +30,7 @@ function findNearestMural(venue, murals) {
 
 const COLORS = {
   BG: "#0C0C0C",
-  CARD: "#151515",
+  CARD: "rgba(21,21,21,0.68)",
   BORDER: "#222",
   Y: "#FFD500",
   WHITE: "#EDEDE8",
@@ -505,7 +505,7 @@ export default function StreetArtMap({ murals, venues }) {
             onClick={handleStartPlacing}
             style={{
               background: "none",
-              color: COLORS.MUTED,
+              color: COLORS.WHITE,
               border: `1px solid ${COLORS.BORDER}`,
               borderRadius: 6,
               padding: "8px 18px",
@@ -525,7 +525,7 @@ export default function StreetArtMap({ murals, venues }) {
             onClick={handleCancelPlacing}
             style={{
               background: "none",
-              color: COLORS.MUTED,
+              color: COLORS.WHITE,
               border: `1px solid ${COLORS.BORDER}`,
               borderRadius: 6,
               padding: "8px 18px",
@@ -761,6 +761,8 @@ export default function StreetArtMap({ murals, venues }) {
             padding: "14px 20px",
             flex: 1,
             minWidth: 140,
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
           }}
         >
           <div
@@ -786,6 +788,8 @@ export default function StreetArtMap({ murals, venues }) {
             padding: "14px 20px",
             flex: 1,
             minWidth: 140,
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
           }}
         >
           <div
@@ -811,6 +815,8 @@ export default function StreetArtMap({ murals, venues }) {
             padding: "14px 20px",
             flex: 1,
             minWidth: 140,
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
           }}
         >
           <div

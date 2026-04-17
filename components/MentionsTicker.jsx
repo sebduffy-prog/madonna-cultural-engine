@@ -108,8 +108,8 @@ export default function MentionsTicker() {
             }}
           >
             <span style={{
-              fontSize: 9, color: BG, background: MUTED, padding: "1px 5px",
-              borderRadius: 3, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif",
+              fontSize: 9, color: BG, background: WHITE, padding: "1px 5px",
+              borderRadius: 3, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif",
             }}>{item.source}</span>
             {renderTitle(item.displayTitle)}
           </a>

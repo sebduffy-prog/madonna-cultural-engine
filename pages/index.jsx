@@ -437,7 +437,7 @@ export async function getStaticProps() {
       if (r[0] && r[0].trim()) {
         lastQuestion = r[0].trim();
         isShifted = false;
-      } else if (r[1] && r[1].trim() && r[2] && r[2].trim() && VALID_METRICS.includes(r[3])) {
+      } else if (r[1] && r[1].trim() && r[2] && r[2].trim() && (VALID_METRICS.includes(r[3]) || r[3] === "Universe")) {
         lastQuestion = r[1].trim();
         isShifted = true;
       }
@@ -660,13 +660,13 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         <div style={{ position: "absolute", inset: 0, background: "rgba(12,12,12,0.55)" }} />
       </div>
 
-      <div style={{ position: "relative", zIndex: 1, maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","music","dashboard","ideas","calendar","strategy"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
+      <div style={{ position: "relative", zIndex: 1, maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","music","dashboard","ideas","calendar","strategy"].includes(tab) ? "min(1600px, 96vw)" : "min(960px, 92vw)", margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
         </div>
         <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, lineHeight: 1.1, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Pulse</h1>
-        <p style={{ fontSize: 15, color: MUTED, margin: "0 0 4px", fontStyle: "italic" }}>Cultural intelligence dashboard</p>
+        <p style={{ fontSize: 15, color: WHITE, margin: "0 0 4px", fontStyle: "italic", opacity: 0.85 }}>Cultural intelligence dashboard</p>
         <div style={{ height: 3, background: Y, borderRadius: 2, margin: "16px 0 24px" }} />
 
         <MentionsTicker />
@@ -686,8 +686,8 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "research", label: "Research" },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
-              padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 400,
-              color: tab === t.id ? BG : MUTED, background: tab === t.id ? Y : "transparent",
+              padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 500,
+              color: tab === t.id ? BG : WHITE, background: tab === t.id ? Y : "transparent",
               border: tab === t.id ? "none" : `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
               fontFamily: "'Inter Tight', system-ui, sans-serif", transition: "all 0.15s"
             }}>{t.label}</button>

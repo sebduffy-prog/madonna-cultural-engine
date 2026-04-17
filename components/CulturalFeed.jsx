@@ -410,8 +410,8 @@ export default function CulturalFeed() {
             key={t.id}
             onClick={() => setActiveTab(t.id)}
             style={{
-              padding: "8px 16px", fontSize: 12, fontWeight: activeTab === t.id ? 700 : 400,
-              color: activeTab === t.id ? BG : DIM,
+              padding: "8px 16px", fontSize: 12, fontWeight: activeTab === t.id ? 700 : 500,
+              color: activeTab === t.id ? BG : WHITE,
               background: activeTab === t.id ? t.color : "transparent",
               border: activeTab === t.id ? "none" : `1px solid ${BORDER}`,
               borderRadius: 6, cursor: "pointer",
@@ -681,8 +681,8 @@ export default function CulturalFeed() {
               <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
                 {[{ id: "date", label: "Newest" }, { id: "relevance", label: "Most Relevant" }].map(s => (
                   <button key={s.id} onClick={() => setSortMode(s.id)} style={{
-                    padding: "4px 12px", fontSize: 10, fontWeight: sortMode === s.id ? 700 : 400,
-                    color: sortMode === s.id ? BG : DIM,
+                    padding: "4px 12px", fontSize: 10, fontWeight: sortMode === s.id ? 700 : 500,
+                    color: sortMode === s.id ? BG : WHITE,
                     background: sortMode === s.id ? Y : "transparent",
                     border: sortMode === s.id ? "none" : `1px solid ${BORDER}`,
                     borderRadius: 4, cursor: "pointer", fontFamily: "'Inter Tight', sans-serif",

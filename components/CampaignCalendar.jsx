@@ -186,8 +186,8 @@ export default function CampaignCalendar() {
       <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
         {MONTHS.map(m => (
           <button key={m} onClick={() => setActiveMonth(m)} style={{
-            padding: "6px 16px", fontSize: 12, fontWeight: activeMonth === m ? 700 : 400,
-            color: activeMonth === m ? BG : MUTED, background: activeMonth === m ? Y : "transparent",
+            padding: "6px 16px", fontSize: 12, fontWeight: activeMonth === m ? 700 : 500,
+            color: activeMonth === m ? BG : WHITE, background: activeMonth === m ? Y : "transparent",
             border: activeMonth === m ? "none" : `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
             fontFamily: "'Inter Tight', system-ui, sans-serif",
           }}>{m} 2026</button>
