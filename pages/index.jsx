@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import fs from "fs";
 import path from "path";
@@ -568,6 +568,34 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
     return () => clearInterval(timer);
   }, [authed, loginImagesReady, loginImages.length]);
 
+  // Tab background — one darkened rotation image per tab, random crossfade on switch
+  const tabBackgrounds = useMemo(() => [
+    "/homepage-rotation/FirstImage.png",
+    ...Array.from({ length: 16 }, (_, i) => `/homepage-rotation/rotation-${String(i + 1).padStart(2, "0")}.png`),
+  ], []);
+  const [tabBg, setTabBg] = useState({
+    a: tabBackgrounds[Math.floor(Math.random() * tabBackgrounds.length)],
+    b: null,
+    active: "a",
+  });
+  const prevTabRef = useRef(null);
+
+  useEffect(() => {
+    if (!authed) return;
+    if (prevTabRef.current === tab) return;
+    const isFirstTabChange = prevTabRef.current === null;
+    prevTabRef.current = tab;
+    if (isFirstTabChange) return;
+    setTabBg(prev => {
+      const currentImg = prev.active === "a" ? prev.a : prev.b;
+      const pool = tabBackgrounds.filter(img => img && img !== currentImg);
+      const next = pool[Math.floor(Math.random() * pool.length)];
+      return prev.active === "a"
+        ? { ...prev, b: next, active: "b" }
+        : { ...prev, a: next, active: "a" };
+    });
+  }, [tab, authed, tabBackgrounds]);
+
   if (!authed) {
     return (
       <div style={{
@@ -608,8 +636,29 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
   }
 
   return (
-    <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Inter Tight', system-ui, sans-serif", color: WHITE }}>
-      <div style={{ maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","music","dashboard","ideas","calendar","strategy"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
+    <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Inter Tight', system-ui, sans-serif", color: WHITE, position: "relative" }}>
+      {/* Per-tab background image with smooth crossfade on tab switch */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
+        {tabBg.a && (
+          <img src={tabBg.a} alt="" aria-hidden="true" decoding="async" style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%",
+            objectFit: "cover", objectPosition: "center",
+            opacity: tabBg.active === "a" ? 1 : 0,
+            transition: "opacity 700ms ease-in-out",
+          }} />
+        )}
+        {tabBg.b && (
+          <img src={tabBg.b} alt="" aria-hidden="true" decoding="async" style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%",
+            objectFit: "cover", objectPosition: "center",
+            opacity: tabBg.active === "b" ? 1 : 0,
+            transition: "opacity 700ms ease-in-out",
+          }} />
+        )}
+        <div style={{ position: "absolute", inset: 0, background: "rgba(12,12,12,0.82)" }} />
+      </div>
+
+      <div style={{ position: "relative", zIndex: 1, maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","music","dashboard","ideas","calendar","strategy"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
