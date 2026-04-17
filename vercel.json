@@ -27,6 +27,10 @@
     {
       "path": "/api/lastfm?refresh=1",
       "schedule": "0 */12 * * *"
+    },
+    {
+      "path": "/api/kworb?refresh=1",
+      "schedule": "0 10 * * *"
     }
   ]
 }

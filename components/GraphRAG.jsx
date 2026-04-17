@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
-const CARD = "#151515";
+const CARD = "rgba(21,21,21,0.68)";
 const BORDER = "#222";
 const MUTED = "#777";
 const WHITE = "#EDEDE8";
@@ -15,7 +15,7 @@ const TEAL = "#2DD4BF";
 
 function StatBox({ label, value, color = WHITE }) {
   return (
-    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", flex: 1, minWidth: 90 }}>
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", flex: 1, minWidth: 90, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
       <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>{label}</div>
       <div style={{ fontSize: 20, fontWeight: 800, color, fontFamily: "'Inter Tight', sans-serif" }}>{typeof value === "number" ? value.toLocaleString() : value}</div>
     </div>
@@ -126,7 +126,7 @@ export default function GraphRAG() {
 
           {/* Thematic breakdown — bar chart */}
           {themes.length > 0 && (
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", marginBottom: 14 }}>
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", marginBottom: 14, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
               <div style={{ fontSize: 10, color: RED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>
                 Thematic Breakdown — New Comments
               </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const BG = "#0C0C0C", CARD = "#151515", BORDER = "#222", MUTED = "#777", WHITE = "#EDEDE8", DIM = "#999";
+const BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", MUTED = "#777", WHITE = "#EDEDE8", DIM = "#999";
 const GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF";
 const FONT = "'Inter Tight', system-ui, sans-serif";
 
@@ -45,7 +45,7 @@ export default function WikipediaPageviews() {
   if (!articles.length) return null;
 
   return (
-    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "18px 20px", marginTop: 32 }}>
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "18px 20px", marginTop: 32, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 10, color: TEAL, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, fontFamily: FONT }}>Wikipedia pageviews</div>

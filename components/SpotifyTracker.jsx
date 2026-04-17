@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
-const CARD = "#151515";
+const CARD = "rgba(21,21,21,0.68)";
 const BORDER = "#222";
 const MUTED = "#777";
 const WHITE = "#EDEDE8";
@@ -19,6 +19,7 @@ function Panel({ title, color = GREEN, children, span = 1 }) {
     <div style={{
       background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10,
       padding: "14px 16px", gridColumn: `span ${span}`, overflow: "hidden",
+      backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
     }}>
       <div style={{
         fontSize: 10, fontWeight: 700, color, textTransform: "uppercase",

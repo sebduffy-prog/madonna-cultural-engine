@@ -4,7 +4,7 @@ import { DualLineChart } from "./SocialCharts";
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
-const CARD = "#151515";
+const CARD = "rgba(21,21,21,0.68)";
 const BORDER = "#222";
 const MUTED = "#777";
 const WHITE = "#EDEDE8";
@@ -23,7 +23,7 @@ function decodeEntities(str) {
 
 function Panel({ title, color = Y, children, action }) {
   return (
-    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px" }}>
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ width: 2, height: 12, background: color, borderRadius: 1 }} />
@@ -95,12 +95,12 @@ export default function DashboardSummary() {
 
       {/* Top metrics row */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
-        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
+        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
           <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Madonna in media</div>
           <div style={{ fontSize: 24, fontWeight: 800, color: Y, fontFamily: "'Inter Tight', sans-serif" }}>{madonnaArticles.length}</div>
           <div style={{ fontSize: 9, color: DIM }}>articles mentioning Madonna</div>
         </div>
-        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
+        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
           <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Trend Index</div>
           <div style={{ fontSize: 24, fontWeight: 800, color: trendIndex > 0 ? GREEN : trendIndex < 0 ? RED : WHITE, fontFamily: "'Inter Tight', sans-serif" }}>
             {trendIndex > 0 ? "+" : ""}{trendIndex}%
@@ -110,12 +110,12 @@ export default function DashboardSummary() {
             {todayMentions != null ? ` · ${todayMentions} social today` : ""}
           </div>
         </div>
-        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
+        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
           <div style={{ fontSize: 9, color: TEAL, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Total Reach</div>
           <div style={{ fontSize: 24, fontWeight: 800, color: TEAL, fontFamily: "'Inter Tight', sans-serif" }}>{b24?.totalReach ? (b24.totalReach >= 1000000 ? `${(b24.totalReach / 1000000).toFixed(1)}M` : `${(b24.totalReach / 1000).toFixed(0)}K`) : "---"}</div>
           <div style={{ fontSize: 9, color: DIM }}>{b24?.totalMentions ? `${b24.totalMentions.toLocaleString()} mentions` : "no data"}</div>
         </div>
-        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
+        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
           <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Sentiment</div>
           {sentiment ? (
             <>
@@ -132,7 +132,7 @@ export default function DashboardSummary() {
 
       {/* Trend index chart */}
       {social?.history && social.history.length > 1 && (
-        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", marginBottom: 16 }}>
+        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", marginBottom: 16, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
           <div style={{ fontSize: 10, color: PURPLE, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>
             Trend Index Over Time
           </div>

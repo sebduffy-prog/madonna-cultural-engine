@@ -1,4 +1,4 @@
-const CARD = "#151515";
+const CARD = "rgba(21,21,21,0.68)";
 const BORDER = "#222";
 const MUTED = "#777";
 const WHITE = "#EDEDE8";

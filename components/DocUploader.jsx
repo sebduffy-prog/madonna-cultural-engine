@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-const Y = "#FFD500", BG = "#0C0C0C", CARD = "#151515", BORDER = "#222", WHITE = "#EDEDE8", MUTED = "#777", DIM = "#999", TEAL = "#2DD4BF", RED = "#EF4444";
+const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", WHITE = "#EDEDE8", MUTED = "#777", DIM = "#999", TEAL = "#2DD4BF", RED = "#EF4444";
 
 export default function DocUploader({ apiEndpoint, title, description }) {
   const [docs, setDocs] = useState([]);

@@ -5,7 +5,7 @@ const DocUploader = dynamic(() => import("./DocUploader"), { ssr: false });
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
-const CARD = "#151515";
+const CARD = "rgba(21,21,21,0.68)";
 const BORDER = "#222";
 const MUTED = "#777";
 const WHITE = "#EDEDE8";

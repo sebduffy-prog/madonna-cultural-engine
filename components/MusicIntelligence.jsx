@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const Y = "#FFD500", BG = "#0C0C0C", CARD = "#151515", BORDER = "#222", MUTED = "#777", WHITE = "#EDEDE8", DIM = "#999";
+const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", MUTED = "#777", WHITE = "#EDEDE8", DIM = "#999";
 const GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF", PURPLE = "#A78BFA", AMBER = "#F59E0B", PINK = "#F472B6", CORAL = "#FB923C";
 const FONT = "'Inter Tight', system-ui, sans-serif";
 
@@ -16,7 +16,7 @@ function Kpi({ label, value, sub, color = WHITE, delta }) {
   const deltaColor = delta == null ? null : delta > 0 ? GREEN : delta < 0 ? RED : MUTED;
   const deltaGlyph = delta == null ? "" : delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
   return (
-    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${color}` }}>
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${color}`, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
       <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", fontFamily: FONT, letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 24, fontWeight: 800, color, fontFamily: FONT, display: "flex", alignItems: "baseline", gap: 6 }}>
         {value}
@@ -31,7 +31,7 @@ function Kpi({ label, value, sub, color = WHITE, delta }) {
 
 function Panel({ title, subtitle, children, right, accent = PURPLE }) {
   return (
-    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "16px 18px", marginBottom: 14 }}>
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "16px 18px", marginBottom: 14, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 10, color: accent, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, fontFamily: FONT }}>{title}</div>
@@ -300,18 +300,21 @@ function SimilarArtistsNetwork({ similar }) {
 export default function MusicIntelligence() {
   const [apple, setApple] = useState(null);
   const [lastfm, setLastfm] = useState(null);
+  const [kworb, setKworb] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = async (force) => {
     setRefreshing(true);
     const q = force ? "?refresh=1" : "";
-    const [a, l] = await Promise.all([
+    const [a, l, k] = await Promise.all([
       fetch(`/api/apple-charts${q}`).then(r => r.json()).catch(() => ({ error: true })),
       fetch(`/api/lastfm${q}`).then(r => r.json()).catch(() => ({ error: true })),
+      fetch(`/api/kworb${q}`).then(r => r.json()).catch(() => ({ error: true })),
     ]);
     setApple(a);
     setLastfm(l);
+    setKworb(k);
     setLoading(false);
     setRefreshing(false);
   };
@@ -323,18 +326,27 @@ export default function MusicIntelligence() {
   }
 
   const listeners = lastfm?.info?.listeners;
-  const scrobbles = lastfm?.info?.playcount;
   const globalRank = lastfm?.globalRank;
   const songHits = apple?.totalSongHits;
   const albumHits = apple?.totalAlbumHits;
   const marketsCharting = apple?.marketsCharting;
-  const countriesWhereRanked = lastfm?.countryRankings?.length;
+
+  // Apple Music — total chart entries per market (songs + albums + new releases)
+  const marketStrength = Object.entries(apple?.byMarket || {})
+    .map(([code, m]) => {
+      const songs = m?.charts?.songs?.hits?.length || 0;
+      const albums = m?.charts?.albums?.hits?.length || 0;
+      const releases = m?.charts?.releases?.hits?.length || 0;
+      return { code, label: m?.label || code, flag: m?.flag || "", songs, albums, releases, total: songs + albums + releases };
+    })
+    .filter(m => m.total > 0)
+    .sort((a, b) => b.total - a.total);
+  const maxMarketTotal = Math.max(1, ...marketStrength.map(m => m.total));
 
   // Sparkline data for Last.fm listeners (reversed so newest on right)
   const listenerSpark = [...(lastfm?.history || [])].reverse().map(h => h.listeners).concat([listeners]).filter(v => v != null);
   const appleHitSpark = [...(apple?.history || [])].reverse().map(h => h.totalSongHits).concat([songHits]).filter(v => v != null);
 
-  const maxCountryListeners = Math.max(1, ...((lastfm?.countryRankings || []).map(c => c.listeners || 0)));
   const maxTrackPlaycount = Math.max(1, ...((lastfm?.topTracks || []).map(t => t.playcount || 0)));
 
   return (
@@ -343,7 +355,7 @@ export default function MusicIntelligence() {
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: WHITE, margin: "0 0 4px", fontFamily: FONT, letterSpacing: "-0.01em" }}>Music intelligence</h2>
           <p style={{ fontSize: 12, color: MUTED, margin: 0, fontFamily: FONT }}>
-            Chart performance (Apple Music, 15 markets) and listener base (Last.fm, 20 countries)
+            Spotify streams (kworb) · Apple Music charts (15 markets) · Last.fm listeners
           </p>
         </div>
         <button onClick={() => load(true)} disabled={refreshing} style={{
@@ -355,18 +367,18 @@ export default function MusicIntelligence() {
 
       {lastfm?.configured === false && (
         <div style={{ background: `${RED}11`, border: `1px solid ${RED}44`, borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 11, color: DIM, fontFamily: FONT }}>
-          <b style={{ color: RED }}>Last.fm not configured.</b> Add <code style={{ color: WHITE, background: BG, padding: "1px 5px", borderRadius: 3 }}>LASTFM_API_KEY</code> to Vercel env vars and redeploy. Listener geography, top tracks, fan tags, and similar-artists panels will populate once the key is live.
+          <b style={{ color: RED }}>Last.fm not configured.</b> Add <code style={{ color: WHITE, background: BG, padding: "1px 5px", borderRadius: 3 }}>LASTFM_API_KEY</code> to Vercel env vars and redeploy. Top tracks, fan tags, and similar-artists panels will populate once the key is live.
         </div>
       )}
 
       {/* KPI strip */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8, marginBottom: 16 }}>
-        <Kpi label="Monthly listeners" value={listeners != null ? fmt(listeners) : "—"} sub="Last.fm" color={TEAL} delta={lastfm?.momentum?.listenersChange} />
-        <Kpi label="All-time scrobbles" value={scrobbles != null ? fmt(scrobbles) : "—"} sub="Last.fm" color={PURPLE} delta={lastfm?.momentum?.playcountChange} />
-        <Kpi label="Global artist rank" value={globalRank ? `#${globalRank}` : "—"} sub={globalRank ? `of ${lastfm?.globalOutOf || "500"}` : lastfm?.configured === false ? "not configured" : "not in top chart"} color={AMBER} />
-        <Kpi label="Countries ranked" value={countriesWhereRanked != null ? countriesWhereRanked : "—"} sub={lastfm?.countryRankingsAll?.length ? `of ${lastfm.countryRankingsAll.length} checked` : ""} color={CORAL} />
-        <Kpi label="Song chart hits" value={songHits != null ? songHits : "—"} sub={marketsCharting != null ? `${marketsCharting} markets` : ""} color={GREEN} delta={apple?.momentum?.totalSongHitsChange} />
-        <Kpi label="Album chart hits" value={albumHits != null ? albumHits : "—"} sub={apple?.albumAggregate?.length != null ? `${apple.albumAggregate.length} albums` : ""} color={PINK} delta={apple?.momentum?.totalAlbumHitsChange} />
+        <Kpi label="Spotify streams (all-time)" value={kworb?.totalStreams != null ? fmt(kworb.totalStreams) : "—"} sub={kworb?.error ? "kworb unavailable" : "kworb.net · Madonna catalogue"} color={GREEN} delta={kworb?.momentum?.totalStreamsChange} />
+        <Kpi label="Spotify streams (daily)" value={kworb?.dailyStreams ? fmt(kworb.dailyStreams) : "—"} sub={kworb?.trackCount ? `across ${kworb.trackCount} tracks` : ""} color={PINK} delta={kworb?.momentum?.dailyStreamsChange} />
+        <Kpi label="Last.fm listeners" value={listeners != null ? fmt(listeners) : "—"} sub="Fans tracking on Last.fm" color={TEAL} delta={lastfm?.momentum?.listenersChange} />
+        <Kpi label="Global rank" value={globalRank ? `#${globalRank}` : "—"} sub={globalRank ? `of ${lastfm?.globalOutOf || "500"} on Last.fm` : lastfm?.configured === false ? "not configured" : "not in top chart"} color={AMBER} />
+        <Kpi label="Song chart hits" value={songHits != null ? songHits : "—"} sub={marketsCharting != null ? `${marketsCharting} markets` : ""} color={PURPLE} delta={apple?.momentum?.totalSongHitsChange} />
+        <Kpi label="Album chart hits" value={albumHits != null ? albumHits : "—"} sub={apple?.albumAggregate?.length != null ? `${apple.albumAggregate.length} albums` : ""} color={CORAL} delta={apple?.momentum?.totalAlbumHitsChange} />
       </div>
 
       {/* Trends */}
@@ -393,6 +405,40 @@ export default function MusicIntelligence() {
             )}
           </div>
         </Panel>
+      )}
+
+      {/* Spotify streams (kworb) */}
+      {kworb?.tracks?.length > 0 && (
+        <Panel title="Spotify most-streamed tracks" subtitle={`${fmt(kworb.totalStreams)} all-time streams · ${fmt(kworb.dailyStreams)}/day across catalogue (source: kworb.net)`} accent={GREEN}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {kworb.tracks.slice(0, 20).map((t, i) => {
+              const maxTotal = Math.max(1, ...kworb.tracks.map(x => x.total || 0));
+              const pct = Math.max(2, (t.total / maxTotal) * 100);
+              return (
+                <a key={`${t.name}-${i}`} href={t.url || "#"} target="_blank" rel="noreferrer noopener" style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 4px", borderBottom: `1px solid ${BORDER}`, textDecoration: "none", color: WHITE }}>
+                  <span style={{ fontSize: 11, color: MUTED, minWidth: 22, fontFamily: FONT }}>#{i + 1}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontFamily: FONT, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</div>
+                    <div style={{ background: BG, borderRadius: 2, height: 5, overflow: "hidden", marginTop: 4 }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: GREEN }} />
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right", minWidth: 70 }}>
+                    <div style={{ fontSize: 12, color: WHITE, fontFamily: FONT, fontWeight: 700 }}>{fmt(t.total)}</div>
+                    {t.daily != null && <div style={{ fontSize: 9, color: DIM, fontFamily: FONT }}>{fmt(t.daily)}/day</div>}
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+          {kworb.note && <p style={{ fontSize: 10, color: DIM, margin: "12px 0 0", fontFamily: FONT, fontStyle: "italic" }}>{kworb.note}</p>}
+        </Panel>
+      )}
+
+      {kworb?.error && (
+        <div style={{ background: `${AMBER}11`, border: `1px solid ${AMBER}44`, borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 11, color: DIM, fontFamily: FONT }}>
+          <b style={{ color: AMBER }}>Kworb unavailable:</b> {kworb.error}. Spotify stream counts will return when the scraper recovers.
+        </div>
       )}
 
       {/* Apple Music: chart heatmap */}
@@ -450,31 +496,43 @@ export default function MusicIntelligence() {
         </div>
       )}
 
-      {/* Country rankings (Last.fm) */}
-      {lastfm?.countryRankings?.length > 0 && (
-        <Panel title="Listener geography" subtitle="Madonna's rank among all artists on Last.fm, per country" accent={TEAL}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
-            {(lastfm.countryRankings || []).slice(0, 20).map((c, i) => (
-              <div key={c.country} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 18, minWidth: 26 }}>{c.flag}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, color: WHITE, fontFamily: FONT }}>{c.label}</span>
-                    <span style={{ fontSize: 11, color: TEAL, fontFamily: FONT, fontWeight: 700 }}>#{c.rank}</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <HorizontalBar value={c.listeners || 0} max={maxCountryListeners} color={TEAL} />
-                    <span style={{ fontSize: 9, color: DIM, fontFamily: FONT, minWidth: 40, textAlign: "right" }}>{fmt(c.listeners)}</span>
+      {/* Market strength — total Apple Music chart entries per market */}
+      {marketStrength.length > 0 && (
+        <Panel title="Market strength" subtitle="Total Madonna chart entries per market — songs + albums + new releases (Apple Music)" accent={TEAL}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
+            {marketStrength.map((m) => {
+              const pctTotal = Math.max(2, (m.total / maxMarketTotal) * 100);
+              const songsPct = (m.songs / m.total) * pctTotal;
+              const albumsPct = (m.albums / m.total) * pctTotal;
+              const releasesPct = (m.releases / m.total) * pctTotal;
+              return (
+                <div key={m.code} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 18, minWidth: 26 }}>{m.flag}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, color: WHITE, fontFamily: FONT }}>{m.label}</span>
+                      <span style={{ fontSize: 11, color: TEAL, fontFamily: FONT, fontWeight: 700 }}>{m.total}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ background: BG, borderRadius: 2, height: 8, overflow: "hidden", flex: 1, display: "flex" }}>
+                        {m.songs > 0 && <div style={{ width: `${songsPct}%`, height: "100%", background: GREEN }} title={`${m.songs} song chart entries`} />}
+                        {m.albums > 0 && <div style={{ width: `${albumsPct}%`, height: "100%", background: PINK }} title={`${m.albums} album chart entries`} />}
+                        {m.releases > 0 && <div style={{ width: `${releasesPct}%`, height: "100%", background: Y }} title={`${m.releases} new release chart entries`} />}
+                      </div>
+                      <span style={{ fontSize: 9, color: DIM, fontFamily: FONT, minWidth: 60, textAlign: "right" }}>
+                        {m.songs}s · {m.albums}a{m.releases > 0 ? ` · ${m.releases}r` : ""}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-          {lastfm.countryRankingsAll?.some(c => !c.rank) && (
-            <p style={{ fontSize: 10, color: DIM, marginTop: 12, fontFamily: FONT }}>
-              Not ranked in top 500 in: {lastfm.countryRankingsAll.filter(c => !c.rank).map(c => `${c.flag} ${c.label}`).join(" · ")}
-            </p>
-          )}
+          <div style={{ display: "flex", gap: 16, marginTop: 14, fontSize: 10, color: DIM, fontFamily: FONT }}>
+            <span><span style={{ display: "inline-block", width: 10, height: 10, background: GREEN, borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> Songs</span>
+            <span><span style={{ display: "inline-block", width: 10, height: 10, background: PINK, borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> Albums</span>
+            <span><span style={{ display: "inline-block", width: 10, height: 10, background: Y, borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> New releases</span>
+          </div>
         </Panel>
       )}
 

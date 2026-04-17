@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { DualLineChart, SentimentLineChart, DonutChart, StackedBarChart, WordCloud } from "./SocialCharts";
 
-const Y = "#FFD500", BG = "#0C0C0C", CARD = "#151515", BORDER = "#222", MUTED = "#777", WHITE = "#EDEDE8", DIM = "#999";
+const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", MUTED = "#777", WHITE = "#EDEDE8", DIM = "#999";
 const GREEN = "#34D399", RED = "#EF4444", PURPLE = "#A78BFA", AMBER = "#F59E0B", TEAL = "#2DD4BF", PINK = "#F472B6", CORAL = "#FB923C";
 
 const PLATFORM_COLORS = {
@@ -36,7 +36,7 @@ function Stat({ label, value, sub, color = WHITE, onClick, period, source, estim
   const deltaGlyph = delta == null ? "" : delta > 0 ? "\u2191" : delta < 0 ? "\u2193" : "\u2192";
   return (
     <div onClick={onClick} style={{
-      background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px",
+      background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
       cursor: onClick ? "pointer" : "default", transition: "border-color 0.15s",
     }} onMouseEnter={e => { if (onClick) e.currentTarget.style.borderColor = color; }}
        onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; }}>
@@ -64,7 +64,7 @@ function Stat({ label, value, sub, color = WHITE, onClick, period, source, estim
 
 function Section({ title, color = PURPLE, children, right }) {
   return (
-    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px" }}>
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <div style={{ fontSize: 10, color, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>{title}</div>
         {right}
@@ -500,12 +500,12 @@ export default function SocialDashboard() {
         {/* Derived metrics row */}
         {hasB24 && b24.derived && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginBottom: 16 }}>
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${TEAL}` }}>
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${TEAL}`, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
               <div style={{ fontSize: 9, color: TEAL, textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Engagement Rate</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: TEAL, fontFamily: "'Inter Tight', sans-serif" }}>{b24.derived.engagementRate}%</div>
               <div style={{ fontSize: 8, color: DIM }}>{b24.derived.totalLikes?.toLocaleString()} likes · {b24.derived.totalComments?.toLocaleString()} comments · {b24.derived.totalShares?.toLocaleString()} shares (Brand24, {b24.period?.days || 7}d)</div>
             </div>
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${PURPLE}` }}>
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${PURPLE}`, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
               <div style={{ fontSize: 9, color: PURPLE, textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Platform Diversity</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: PURPLE, fontFamily: "'Inter Tight', sans-serif" }}>{b24.derived.platformDiversity}</div>
               <div style={{ fontSize: 8, color: DIM }}>Shannon entropy across {b24.platforms?.length} platforms (0 = all one platform, 100 = perfectly even)</div>
@@ -614,7 +614,7 @@ export default function SocialDashboard() {
                 const pct = b24.totalMentions > 0 ? Math.round((p.mentions / b24.totalMentions) * 100) : 0;
                 return (
                   <div key={p.platform} style={{
-                    background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "16px",
+                    background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "16px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
                     borderTop: `3px solid ${pc}`, cursor: "pointer", transition: "transform 0.15s",
                   }} onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
                      onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}>
@@ -679,7 +679,7 @@ export default function SocialDashboard() {
               const sentTotalT = Math.max(sentPosT + sentNegT + (t.sentiment?.neutral || 0), 1);
               return (
                 <div key={t.id || i} onClick={() => setExpandedTopic(isExpanded ? null : i)} style={{
-                  background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "16px", cursor: "pointer",
+                  background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "16px", cursor: "pointer", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
                   borderLeft: `3px solid ${PURPLE}`, transition: "all 0.15s",
                 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>

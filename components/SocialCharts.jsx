@@ -5,7 +5,7 @@ const WHITE = "#EDEDE8";
 const MUTED = "#777";
 const DIM = "#999";
 const BORDER = "#222";
-const CARD = "#151515";
+const CARD = "rgba(21,21,21,0.68)";
 const BG = "#0C0C0C";
 
 function fmt(n) {

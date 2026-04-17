@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
-const CARD = "#151515";
+const CARD = "rgba(21,21,21,0.68)";
 const BORDER = "#222";
 const MUTED = "#777";
 const WHITE = "#EDEDE8";
@@ -115,7 +115,7 @@ export default function StrategyRecommendations() {
 
       {/* Error state */}
       {data?.error && (
-        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "16px 20px", marginBottom: 16 }}>
+        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "16px 20px", marginBottom: 16, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
           <p style={{ fontSize: 13, color: MUTED, margin: 0 }}>{data.error}</p>
         </div>
       )}

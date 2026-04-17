@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
-const CARD = "#151515";
+const CARD = "rgba(21,21,21,0.68)";
 const BORDER = "#222";
 const MUTED = "#777";
 const WHITE = "#EDEDE8";
@@ -221,7 +221,7 @@ export default function CulturalFeed() {
   const [loading, setLoading] = useState({});
   const [errors, setErrors] = useState({});
   const [aiRecs, setAiRecs] = useState(null);
-  const [sortMode, setSortMode] = useState("date"); // "date" or "relevance"
+  const [sortMode, setSortMode] = useState("relevance"); // "date" or "relevance"
   const [aiLoading, setAiLoading] = useState(false);
   const [mediaIndex, setMediaIndex] = useState(null);
   const [mediaIndexLoading, setMediaIndexLoading] = useState(false);
@@ -294,7 +294,7 @@ export default function CulturalFeed() {
   return (
     <div style={{ background: BG, borderRadius: 12 }}>
       {/* Media Trend Index */}
-      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "16px 20px", marginBottom: 20 }}>
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "16px 20px", marginBottom: 20, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 3, height: 18, background: Y, borderRadius: 2 }} />
@@ -556,7 +556,7 @@ export default function CulturalFeed() {
               {/* Sentiment */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
                 {currentFeed.sentiment && (
-                  <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                       <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Inter Tight', sans-serif" }}>Sentiment</div>
                       {currentFeed.sentiment.method?.startsWith("claude") && (
@@ -582,7 +582,7 @@ export default function CulturalFeed() {
                 )}
                 {/* Day-by-day history */}
                 {currentFeed.history?.length > 1 && (
-                  <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
                     <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>Daily Index</div>
                     <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 50 }}>
                       {currentFeed.history.slice(0, 14).reverse().map((day, i) => {

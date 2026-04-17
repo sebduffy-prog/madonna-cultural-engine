@@ -6,7 +6,7 @@ const AudienceCommentsGraph = dynamic(() => import("./AudienceCommentsGraph"), {
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
-const CARD = "#151515";
+const CARD = "rgba(21,21,21,0.68)";
 const BORDER = "#222";
 const MUTED = "#777";
 const WHITE = "#EDEDE8";
@@ -150,7 +150,7 @@ export default function YouTubeIntelligence({ comments, fullThemeCounts, totalCo
               totalCommentCount={liveTotalCount}
             />
           ) : (
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "32px 24px", textAlign: "center" }}>
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "32px 24px", textAlign: "center", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
               <p style={{ fontSize: 14, color: WHITE, margin: "0 0 8px", fontFamily: "'Inter Tight', sans-serif" }}>No new comments in the graph yet</p>
               <p style={{ fontSize: 12, color: MUTED, margin: 0 }}>Go to New & Viral tab and hit Search to pull comments from recent Madonna videos. They'll appear here as a live Comment Universe.</p>
             </div>
