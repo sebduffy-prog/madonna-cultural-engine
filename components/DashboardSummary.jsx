@@ -31,6 +31,7 @@ function Panel({ title, color = Y, children, action }) {
       animate="animate"
       whileHover={hoverLift}
       style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
+    >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ width: 2, height: 12, background: color, borderRadius: 1 }} />
