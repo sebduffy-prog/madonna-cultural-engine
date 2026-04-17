@@ -15,6 +15,26 @@
     {
       "path": "/api/social-dashboard?refresh=1",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/gdelt?refresh=1",
+      "schedule": "0 */8 * * *"
+    },
+    {
+      "path": "/api/apple-charts?refresh=1",
+      "schedule": "0 */12 * * *"
+    },
+    {
+      "path": "/api/wikipedia-pageviews?refresh=1",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/lastfm?refresh=1",
+      "schedule": "0 */12 * * *"
+    },
+    {
+      "path": "/api/google-trends?refresh=1",
+      "schedule": "30 9 * * *"
     }
   ]
 }

@@ -18,6 +18,7 @@ const YouTubeIntelligence = dynamic(() => import("../components/YouTubeIntellige
 const IdeasBoard = dynamic(() => import("../components/IdeasBoard"), { ssr: false });
 const CampaignCalendar = dynamic(() => import("../components/CampaignCalendar"), { ssr: false });
 const DocUploader = dynamic(() => import("../components/DocUploader"), { ssr: false });
+const ExternalSignals = dynamic(() => import("../components/ExternalSignals"), { ssr: false });
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
@@ -603,7 +604,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Inter Tight', system-ui, sans-serif", color: WHITE }}>
-      <div style={{ maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","dashboard","ideas","calendar","strategy"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
+      <div style={{ maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","signals","dashboard","ideas","calendar","strategy"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
@@ -619,6 +620,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "dashboard", label: "Dashboard" },
             { id: "culturalfeed", label: "Media" },
             { id: "socialpulse", label: "Social listening" },
+            { id: "signals", label: "External signals" },
             { id: "youtube", label: "YouTube" },
             { id: "gwi", label: "Audience" },
             { id: "strategy", label: "Strategy" },
@@ -989,6 +991,8 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         {tab === "culturalfeed" && <CulturalFeed />}
 
         {tab === "socialpulse" && <SocialDashboard />}
+
+        {tab === "signals" && <ExternalSignals />}
 
         {tab === "ideas" && <IdeasBoard />}
         {tab === "calendar" && <CampaignCalendar />}
