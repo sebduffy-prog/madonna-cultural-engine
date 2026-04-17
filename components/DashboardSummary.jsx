@@ -39,7 +39,6 @@ function Panel({ title, color = Y, children, action }) {
 export default function DashboardSummary() {
   const [media, setMedia] = useState(null);
   const [social, setSocial] = useState(null);
-  const [spotify, setSpotify] = useState(null);
   const [ai, setAi] = useState(null);
   const [mediaIndex, setMediaIndex] = useState(null);
   const [b24, setB24] = useState(null);
@@ -67,16 +66,6 @@ export default function DashboardSummary() {
       // Finish any refreshes in background
       if (refreshes.length > 0) Promise.all(refreshes).catch(() => {});
 
-      // Load Spotify separately — slow and can fail
-      fetch("/api/spotify").then(r => r.ok ? r.json() : null).then(sp => {
-        if (sp) setSpotify(sp);
-        // If empty, try one refresh
-        if (!sp?.topTracks?.length) {
-          fetch("/api/spotify?refresh=1").then(r => r.ok ? r.json() : null).then(sp2 => {
-            if (sp2) setSpotify(sp2);
-          }).catch(() => {});
-        }
-      }).catch(() => {});
     }
     load();
   }, []);
@@ -89,7 +78,6 @@ export default function DashboardSummary() {
   const trendIndex = mediaIndex?.index ?? social?.index ?? 0;
   const isBaseline = mediaIndex?.isFirstRun || social?.isFirstRun;
   const sentiment = social?.sentiment;
-  const spotifyTracks = spotify?.topTracks?.length || 0;
   const aiRecs = ai?.recommendations?.madonna || [];
   const trendTotal = mediaIndex?.totalToday || 0;
   const trendBaseline = mediaIndex?.baseline || 59;
@@ -120,9 +108,9 @@ export default function DashboardSummary() {
           <div style={{ fontSize: 9, color: DIM }}>{isBaseline ? "tracking starts tomorrow" : `${trendTotal} mentions vs ${trendBaseline} baseline`}</div>
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
-          <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Spotify</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: GREEN, fontFamily: "'Inter Tight', sans-serif" }}>{spotifyTracks || "---"}</div>
-          <div style={{ fontSize: 9, color: DIM }}>{spotify?.artist ? `${spotify.artist.popularity}/100 popularity` : "connecting..."}</div>
+          <div style={{ fontSize: 9, color: TEAL, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Total Reach</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: TEAL, fontFamily: "'Inter Tight', sans-serif" }}>{b24?.totalReach ? (b24.totalReach >= 1000000 ? `${(b24.totalReach / 1000000).toFixed(1)}M` : `${(b24.totalReach / 1000).toFixed(0)}K`) : "---"}</div>
+          <div style={{ fontSize: 9, color: DIM }}>{b24?.totalMentions ? `${b24.totalMentions.toLocaleString()} mentions` : "no data"}</div>
         </div>
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
           <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Sentiment</div>
@@ -188,32 +176,22 @@ export default function DashboardSummary() {
           )}
         </Panel>
 
-        {/* Streaming snapshot */}
-        <Panel title="Streaming snapshot" color={GREEN}>
-          {!spotify?.artist ? (
-            <p style={{ fontSize: 12, color: MUTED }}>Spotify not connected or no data yet. Check the Streaming tab.</p>
+        {/* Platform breakdown */}
+        <Panel title="Platform breakdown" color={GREEN}>
+          {b24?.platforms?.length > 0 ? (
+            <div>
+              {b24.platforms.slice(0, 6).map((p, i) => (
+                <div key={p.platform} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0", borderBottom: `1px solid ${BORDER}22` }}>
+                  <span style={{ fontSize: 10, color: DIM, width: 60, fontFamily: "'Inter Tight', sans-serif" }}>{p.platform}</span>
+                  <div style={{ flex: 1, height: 5, background: BORDER, borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ width: `${Math.max(2, (p.mentions / Math.max(b24.platforms[0]?.mentions, 1)) * 100)}%`, height: "100%", background: GREEN, borderRadius: 3 }} />
+                  </div>
+                  <span style={{ fontSize: 10, color: WHITE, fontWeight: 600, width: 35, textAlign: "right", fontFamily: "'Inter Tight', sans-serif" }}>{p.mentions?.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
           ) : (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                {spotify.artist.image && <img src={spotify.artist.imageSmall || spotify.artist.image} alt="" style={{ width: 40, height: 40, borderRadius: "50%" }} />}
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: WHITE }}>{spotify.artist.name}</div>
-                  <div style={{ fontSize: 10, color: DIM }}>{spotify.topTracks?.length || 0} tracks \u00B7 {spotify.albums?.length || 0} albums</div>
-                </div>
-              </div>
-              {spotify.topTracks?.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", marginBottom: 4 }}>Top tracks right now</div>
-                  {spotify.topTracks.slice(0, 5).map((t, i) => (
-                    <div key={t.name} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0", borderBottom: `1px solid ${BORDER}22` }}>
-                      <span style={{ fontSize: 10, color: MUTED, width: 14, fontFamily: "'Inter Tight', sans-serif" }}>{i + 1}</span>
-                      <span style={{ fontSize: 11, color: WHITE, flex: 1 }}>{t.name}</span>
-                      <span style={{ fontSize: 10, color: GREEN, fontWeight: 600, fontFamily: "'Inter Tight', sans-serif" }}>{t.popularity}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
+            <p style={{ fontSize: 12, color: MUTED }}>No platform data yet.</p>
           )}
         </Panel>
 
@@ -286,7 +264,7 @@ export default function DashboardSummary() {
         Showing cached data. Run searches in individual tabs to refresh.
         {media?.cachedAt && ` Media: ${new Date(media.cachedAt).toLocaleString("en-GB")}.`}
         {social?.fetchedAt && ` Social: ${new Date(social.fetchedAt).toLocaleString("en-GB")}.`}
-        {spotify?.fetchedAt && ` Streaming: ${new Date(spotify.fetchedAt).toLocaleString("en-GB")}.`}
+        {b24?.fetchedAt && ` Social: ${new Date(b24.fetchedAt).toLocaleString("en-GB")}.`}
       </div>
     </div>
   );

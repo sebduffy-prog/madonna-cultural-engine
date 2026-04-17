@@ -91,7 +91,6 @@ function MasterRefresh() {
       { name: "Brand24", url: "/api/brand24?refresh=1" },
       { name: "Social Dashboard", url: "/api/social-dashboard?refresh=1" },
       { name: "Social Composite", url: "/api/social?refresh=1" },
-      { name: "Spotify", url: "/api/spotify?refresh=1" },
       { name: "YouTube RAG", url: "/api/youtube-rag?refresh=1" },
       { name: "AI Strategy", url: "/api/ai-strategy?refresh=1" },
     ];
@@ -348,7 +347,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Newsreader', 'Georgia', serif", color: WHITE }}>
-      <div style={{ maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","spotify","dashboard","ideas","calendar"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
+      <div style={{ maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","dashboard","ideas","calendar"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
@@ -364,7 +363,6 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "dashboard", label: "Dashboard" },
             { id: "culturalfeed", label: "Media" },
             { id: "socialpulse", label: "Social listening" },
-            { id: "spotify", label: "Streaming" },
             { id: "youtube", label: "YouTube" },
             { id: "gwi", label: "Audience" },
             { id: "streetmap", label: "Locations" },
@@ -734,7 +732,6 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
         {tab === "socialpulse" && <SocialDashboard />}
 
-        {tab === "spotify" && <SpotifyTracker />}
         {tab === "ideas" && <IdeasBoard />}
         {tab === "calendar" && <CampaignCalendar />}
 
