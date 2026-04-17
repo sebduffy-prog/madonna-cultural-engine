@@ -139,9 +139,10 @@ function MasterRefresh() {
     const tsDisplay = ts.toLocaleString("en-GB", { dateStyle: "full", timeStyle: "medium" });
     const esc = (s) => (s || "").toString().replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-    let doc = `<html><head><meta charset="utf-8"><title>Pulse — Full Data Export ${tsStr}</title>
+    let doc = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Pulse — Full Data Export ${tsStr}</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>body{font-family:'Inter Tight',system-ui,sans-serif;color:#222;max-width:900px;margin:0 auto;padding:40px}
+    <style>body{font-family:'Inter Tight',system-ui,-apple-system,sans-serif;color:#222;max-width:900px;margin:0 auto;padding:40px;background:#fff}
     h1{font-size:28px;border-bottom:3px solid #FFD500;padding-bottom:8px}
     h2{font-size:20px;color:#333;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:30px}
     h3{font-size:15px;color:#555;margin-top:16px}
@@ -291,13 +292,18 @@ function MasterRefresh() {
     doc += `<p class="meta">Pulse — VCCP Media Cultural Intelligence</p>`;
     doc += `</body></html>`;
 
-    const blob = new Blob([doc], { type: "application/msword" });
+    // Export as real HTML rather than fake .doc (Word's HTML-in-.doc rendering is unreliable).
+    // The output file opens perfectly in any browser and can also be imported by Word / Pages.
+    const blob = new Blob([doc], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Pulse-Full-Export-${tsStr}.doc`;
+    a.download = `Pulse-Full-Export-${tsStr}.html`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    // Revoke after a tick so Safari/Firefox complete the download
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
 
     setStatus("Download complete");
     setDownloading(false);

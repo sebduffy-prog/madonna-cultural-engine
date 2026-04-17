@@ -62,6 +62,20 @@ export default function StrategyRecommendations() {
 
   return (
     <div>
+      {/* Strategy brief */}
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${Y}`, borderRadius: 8, padding: "18px 22px", marginBottom: 20 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: Y, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: "'Inter Tight', sans-serif" }}>The strategy</div>
+        <p style={{ fontSize: 14, color: WHITE, margin: "0 0 10px", lineHeight: 1.55, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+          Position Madonna not as a legacy act making a comeback, but as the <b style={{ color: Y }}>Source Code</b> — the originator still writing the playbook for club culture. For <i>Confessions on a Dance Floor 2</i> we're chasing three KPIs: UK No.1 physical sales, growth in first-party fan data, and cultural belonging inside LGBTQ+ and club communities.
+        </p>
+        <p style={{ fontSize: 13, color: DIM, margin: "0 0 10px", lineHeight: 1.55, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+          Distinctive media behaviour: <b style={{ color: WHITE }}>Media That Strikes A Pose</b> — high-fashion, unapologetically bold, curated for the right environment. Three pillars carry the campaign: <span style={{ color: PINK }}>Own the Dancefloor</span> (grassroots club takeover) · <span style={{ color: TEAL }}>Own the Feed</span> (premium paid social surrounding earned hype) · <span style={{ color: CORAL }}>Own Haute-Culture</span> (the D&G film, cinema, fashion-district OOH).
+        </p>
+        <p style={{ fontSize: 12, color: MUTED, margin: 0, lineHeight: 1.5, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+          Recommendations below are generated weekly against this brief, grounded in the week's intelligence data (media, social, YouTube, Spotify). Full brief lives in <code style={{ color: WHITE, background: BG, padding: "1px 6px", borderRadius: 3 }}>strategy-prompt.md</code>.
+        </p>
+      </div>
+
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

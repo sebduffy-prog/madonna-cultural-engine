@@ -5,7 +5,7 @@ const GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF", PURPLE = "#A78BFA", 
 const FONT = "'Inter Tight', system-ui, sans-serif";
 
 function fmt(n) {
-  if (n == null) return "\u2014";
+  if (n == null) return "—";
   if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
   if (n >= 1e3) return `${(n / 1e3).toFixed(n >= 1e4 ? 0 : 1)}K`;
@@ -14,7 +14,7 @@ function fmt(n) {
 
 function Kpi({ label, value, sub, color = WHITE, delta }) {
   const deltaColor = delta == null ? null : delta > 0 ? GREEN : delta < 0 ? RED : MUTED;
-  const deltaGlyph = delta == null ? "" : delta > 0 ? "\u2191" : delta < 0 ? "\u2193" : "\u2192";
+  const deltaGlyph = delta == null ? "" : delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
   return (
     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${color}` }}>
       <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", fontFamily: FONT, letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
@@ -97,7 +97,7 @@ function ChartHeatmap({ songs, markets }) {
           return (
             <g key={s.name}>
               <text x={labelW - 6} y={headerH + rowIdx * cellH + cellH / 2 + 4} textAnchor="end" fontSize="10.5" fill={WHITE}>
-                {s.name.length > 32 ? s.name.slice(0, 30) + "\u2026" : s.name}
+                {s.name.length > 32 ? s.name.slice(0, 30) + "…" : s.name}
               </text>
               {markets.map((m, colIdx) => {
                 const pos = posByMarket[m.code];
@@ -128,9 +128,9 @@ function ChartHeatmap({ songs, markets }) {
       </svg>
       <div style={{ display: "flex", gap: 16, marginTop: 10, fontSize: 10, color: DIM, fontFamily: FONT }}>
         <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#34D399", borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> Top 10</span>
-        <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#2DD4BF", borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> 11\u201340</span>
-        <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#A78BFA", borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> 41\u2013100</span>
-        <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#555", borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> 101\u2013200</span>
+        <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#2DD4BF", borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> 11–40</span>
+        <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#A78BFA", borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> 41–100</span>
+        <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#555", borderRadius: 2, marginRight: 4, verticalAlign: "middle" }} /> 101–200</span>
       </div>
     </div>
   );
@@ -189,7 +189,7 @@ export default function MusicIntelligence() {
   useEffect(() => { load(false); }, []);
 
   if (loading) {
-    return <p style={{ fontSize: 12, color: MUTED, fontFamily: FONT }}>Loading music data\u2026</p>;
+    return <p style={{ fontSize: 12, color: MUTED, fontFamily: FONT }}>Loading music data…</p>;
   }
 
   const listeners = lastfm?.info?.listeners;
@@ -220,17 +220,23 @@ export default function MusicIntelligence() {
           padding: "6px 16px", fontSize: 10, fontWeight: 700, color: refreshing ? MUTED : BG,
           background: refreshing ? BORDER : PURPLE, border: "none", borderRadius: 6, cursor: refreshing ? "default" : "pointer",
           fontFamily: FONT, textTransform: "uppercase", letterSpacing: "0.06em",
-        }}>{refreshing ? "Refreshing\u2026" : "Refresh"}</button>
+        }}>{refreshing ? "Refreshing…" : "Refresh"}</button>
       </div>
+
+      {lastfm?.configured === false && (
+        <div style={{ background: `${RED}11`, border: `1px solid ${RED}44`, borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 11, color: DIM, fontFamily: FONT }}>
+          <b style={{ color: RED }}>Last.fm not configured.</b> Add <code style={{ color: WHITE, background: BG, padding: "1px 5px", borderRadius: 3 }}>LASTFM_API_KEY</code> to Vercel env vars and redeploy. Listener geography, top tracks, fan tags, and similar-artists panels will populate once the key is live.
+        </div>
+      )}
 
       {/* KPI strip */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8, marginBottom: 16 }}>
-        <Kpi label="Monthly listeners" value={fmt(listeners)} sub="Last.fm" color={TEAL} delta={lastfm?.momentum?.listenersChange} />
-        <Kpi label="All-time scrobbles" value={fmt(scrobbles)} sub="Last.fm" color={PURPLE} delta={lastfm?.momentum?.playcountChange} />
-        <Kpi label="Global artist rank" value={globalRank ? `#${globalRank}` : "—"} sub={globalRank ? `of ${lastfm?.globalOutOf || "500"}` : "not in top chart"} color={AMBER} />
-        <Kpi label="Countries ranked" value={countriesWhereRanked || 0} sub={`of ${lastfm?.countryRankingsAll?.length || 20} checked`} color={CORAL} />
-        <Kpi label="Song chart hits" value={songHits || 0} sub={`${marketsCharting || 0} markets`} color={GREEN} delta={apple?.momentum?.totalSongHitsChange} />
-        <Kpi label="Album chart hits" value={albumHits || 0} sub={`${apple?.albumAggregate?.length || 0} albums`} color={PINK} delta={apple?.momentum?.totalAlbumHitsChange} />
+        <Kpi label="Monthly listeners" value={listeners != null ? fmt(listeners) : "—"} sub="Last.fm" color={TEAL} delta={lastfm?.momentum?.listenersChange} />
+        <Kpi label="All-time scrobbles" value={scrobbles != null ? fmt(scrobbles) : "—"} sub="Last.fm" color={PURPLE} delta={lastfm?.momentum?.playcountChange} />
+        <Kpi label="Global artist rank" value={globalRank ? `#${globalRank}` : "—"} sub={globalRank ? `of ${lastfm?.globalOutOf || "500"}` : lastfm?.configured === false ? "not configured" : "not in top chart"} color={AMBER} />
+        <Kpi label="Countries ranked" value={countriesWhereRanked != null ? countriesWhereRanked : "—"} sub={lastfm?.countryRankingsAll?.length ? `of ${lastfm.countryRankingsAll.length} checked` : ""} color={CORAL} />
+        <Kpi label="Song chart hits" value={songHits != null ? songHits : "—"} sub={marketsCharting != null ? `${marketsCharting} markets` : ""} color={GREEN} delta={apple?.momentum?.totalSongHitsChange} />
+        <Kpi label="Album chart hits" value={albumHits != null ? albumHits : "—"} sub={apple?.albumAggregate?.length != null ? `${apple.albumAggregate.length} albums` : ""} color={PINK} delta={apple?.momentum?.totalAlbumHitsChange} />
       </div>
 
       {/* Trends */}
@@ -261,7 +267,7 @@ export default function MusicIntelligence() {
 
       {/* Apple Music: chart heatmap */}
       {apple && !apple.error && apple.songAggregate?.length > 0 && (
-        <Panel title="Apple Music \u2014 song chart heatmap" subtitle={`Madonna tracks in top-200 across ${apple.markets?.length || 15} markets`} accent={GREEN}>
+        <Panel title="Apple Music — song chart heatmap" subtitle={`Madonna tracks in top-200 across ${apple.markets?.length || 15} markets`} accent={GREEN}>
           <ChartHeatmap songs={apple.songAggregate.slice(0, 20)} markets={apple.markets} />
         </Panel>
       )}
@@ -279,7 +285,7 @@ export default function MusicIntelligence() {
                   {p.artwork && <img src={p.artwork} alt="" width={40} height={40} style={{ borderRadius: 4 }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, fontFamily: FONT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
-                    <div style={{ fontSize: 10, color: MUTED, fontFamily: FONT }}>{p.marketFlag} {p.marketLabel} \u00b7 {p.chart}</div>
+                    <div style={{ fontSize: 10, color: MUTED, fontFamily: FONT }}>{p.marketFlag} {p.marketLabel} · {p.chart}</div>
                   </div>
                   <div style={{
                     background: p.position <= 10 ? GREEN : p.position <= 40 ? TEAL : p.position <= 100 ? PURPLE : "#555",
@@ -300,7 +306,7 @@ export default function MusicIntelligence() {
                   {a.artwork && <img src={a.artwork} alt="" width={40} height={40} style={{ borderRadius: 4 }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, fontFamily: FONT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</div>
-                    <div style={{ fontSize: 10, color: MUTED, fontFamily: FONT }}>{a.marketCount} markets \u00b7 best #{a.bestPosition}</div>
+                    <div style={{ fontSize: 10, color: MUTED, fontFamily: FONT }}>{a.marketCount} markets · best #{a.bestPosition}</div>
                   </div>
                   <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: 120 }}>
                     {a.markets.slice(0, 8).map(m => (
@@ -336,14 +342,16 @@ export default function MusicIntelligence() {
           </div>
           {lastfm.countryRankingsAll?.some(c => !c.rank) && (
             <p style={{ fontSize: 10, color: DIM, marginTop: 12, fontFamily: FONT }}>
-              Not ranked in top 500 in: {lastfm.countryRankingsAll.filter(c => !c.rank).map(c => `${c.flag} ${c.label}`).join(" \u00b7 ")}
+              Not ranked in top 500 in: {lastfm.countryRankingsAll.filter(c => !c.rank).map(c => `${c.flag} ${c.label}`).join(" · ")}
             </p>
           )}
         </Panel>
       )}
 
       {/* Top tracks + tags */}
+      {(lastfm?.topTracks?.length > 0 || lastfm?.topTags?.length > 0) && (
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
+        {lastfm?.topTracks?.length > 0 && (
         <Panel title="Top tracks on Last.fm" subtitle="By all-time playcount" accent={PURPLE}>
           {(lastfm?.topTracks || []).slice(0, 10).map((t, i) => (
             <div key={t.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 2px", borderBottom: i < 9 ? `1px solid ${BORDER}` : "none" }}>
@@ -360,26 +368,31 @@ export default function MusicIntelligence() {
             </div>
           ))}
         </Panel>
+        )}
 
+        {lastfm?.topTags?.length > 0 && (
         <Panel title="Fan tags" subtitle="Most-applied Last.fm tags" accent={AMBER}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {(lastfm?.topTags || []).slice(0, 24).map(t => {
               const maxCount = Math.max(1, ...(lastfm.topTags || []).map(x => x.count || 0));
-              const scale = Math.max(0.6, Math.min(1.3, (t.count || 0) / maxCount + 0.4));
+              const scale = Math.max(0.8, Math.min(1.25, (t.count || 0) / maxCount + 0.5));
               return (
                 <span key={t.name} style={{
-                  fontSize: `${11 * scale}px`, padding: "4px 9px", borderRadius: 20,
-                  background: `${AMBER}22`, color: AMBER, fontFamily: FONT, fontWeight: 600,
+                  fontSize: `${12 * scale}px`, padding: "5px 11px", borderRadius: 20,
+                  background: `${AMBER}1a`, border: `1px solid ${AMBER}55`,
+                  color: WHITE, fontFamily: FONT, fontWeight: 600,
                 }}>{t.name}</span>
               );
             })}
           </div>
         </Panel>
+        )}
       </div>
+      )}
 
       {/* Similar artists network */}
       {(lastfm?.similarArtists || []).length > 0 && (
-        <Panel title="Artists fans also play" subtitle="Similarity network \u2014 larger = stronger co-listening overlap" accent={PURPLE}>
+        <Panel title="Artists fans also play" subtitle="Similarity network — larger = stronger co-listening overlap" accent={PURPLE}>
           <SimilarArtistsNetwork similar={lastfm.similarArtists} />
         </Panel>
       )}
@@ -407,19 +420,13 @@ export default function MusicIntelligence() {
               <a key={`${r.market}-${r.name}-${i}`} href={r.url} target="_blank" rel="noreferrer noopener" style={{ textDecoration: "none", color: WHITE }}>
                 {r.artwork && <img src={r.artwork} alt="" style={{ width: "100%", aspectRatio: "1/1", borderRadius: 6, display: "block" }} />}
                 <div style={{ fontSize: 11, color: WHITE, marginTop: 6, fontFamily: FONT, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</div>
-                <div style={{ fontSize: 9, color: MUTED, fontFamily: FONT }}>{r.marketFlag} {r.marketLabel} \u00b7 #{r.position}</div>
+                <div style={{ fontSize: 9, color: MUTED, fontFamily: FONT }}>{r.marketFlag} {r.marketLabel} · #{r.position}</div>
               </a>
             ))}
           </div>
         </Panel>
       )}
 
-      {/* Not configured state */}
-      {lastfm?.configured === false && (
-        <Panel title="Last.fm not configured" subtitle="Add LASTFM_API_KEY to Vercel env vars" accent={RED}>
-          <p style={{ fontSize: 11, color: DIM, margin: 0 }}>{lastfm.error}</p>
-        </Panel>
-      )}
     </div>
   );
 }

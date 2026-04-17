@@ -179,11 +179,31 @@ export default async function handler(req, res) {
     };
   });
 
-  // Platform breakdown
+  // Platform breakdown — normalise every incoming source name to a canonical key,
+  // because Brand24 uses a mix of singular/plural/numeric/capitalised forms across
+  // endpoints (e.g. "blog" vs "blogs", "video" vs "videos", source id 7 vs "news").
+  function normaliseSource(s) {
+    const v = String(s || "").toLowerCase().trim();
+    if (["1", "twitter", "x", "tweet", "tweets"].includes(v)) return "twitter";
+    if (["2", "instagram", "ig"].includes(v)) return "instagram";
+    if (["5", "facebook", "fb"].includes(v)) return "facebook";
+    if (["11", "tiktok"].includes(v)) return "tiktok";
+    if (["4", "video", "videos", "youtube", "vimeo"].includes(v)) return "videos";
+    if (["6", "forum", "forums", "reddit", "discussion"].includes(v)) return "forums";
+    if (["3", "blog", "blogs"].includes(v)) return "blogs";
+    if (["9", "podcast", "podcasts"].includes(v)) return "podcasts";
+    if (["7", "news"].includes(v)) return "news";
+    if (["8", "web", "website", "webpage"].includes(v)) return "web";
+    return v || "web";
+  }
+
   const platformTotals = {};
+  const rawSourceKeys = new Set();
   days.forEach(d => {
     safeArray(d, "by_source").forEach(src => {
-      const p = src.source || "web";
+      const rawKey = src.source ?? src.source_type ?? src.type ?? src.name ?? src.id;
+      rawSourceKeys.add(String(rawKey));
+      const p = normaliseSource(rawKey);
       if (!platformTotals[p]) platformTotals[p] = { mentions: 0, reach: 0, engagement: 0 };
       platformTotals[p].mentions += src.mentions_count || 0;
       platformTotals[p].reach += src.reach || 0;
@@ -281,9 +301,35 @@ export default async function handler(req, res) {
     ? Math.round((reachSocial / (reachSocial + reachNonSocial)) * 100)
     : 50;
 
+  // ─── Anomaly types from Brand24's project_events endpoint ───
+  // Brand24 classifies each anomaly with flags: hashtag / user-discussion / emotional
+  // / news / social-media / non-social-media. Surface them so the UI can say WHY a day spiked.
+  function anomalyTypes(e) {
+    const types = [];
+    if (e.is_hashtag_anomaly)          types.push("hashtag");
+    if (e.is_emotional_anomaly)        types.push("emotional");
+    if (e.is_news_anomaly)             types.push("news");
+    if (e.is_social_media_anomaly)     types.push("social");
+    if (e.is_non_social_media_anomaly) types.push("media");
+    if (e.is_user_discussion_anomaly)  types.push("discussion");
+    return types;
+  }
+  const eventsByDate = {};
+  eventsArr.forEach(e => {
+    const d = (e.anomaly_date || e.date || "").slice(0, 10);
+    if (!d) return;
+    eventsByDate[d] = {
+      description: e.description || null,
+      peakMentions: e.peak_mentions || 0,
+      peakReach: e.peak_reach || 0,
+      types: anomalyTypes(e),
+    };
+  });
+
   // ─── Significant days: flag spikes above 2x the trailing 7-day average ───
   // For each day compute the mean of the preceding up-to-7 days (excluding itself).
-  // Days with mentions >= 2x that average are flagged as significant.
+  // Days with mentions >= 2x that average are flagged as significant, then merged
+  // with any matching Brand24 anomaly entry so we can label WHY the day spiked.
   const significantDays = [];
   for (let i = 0; i < days.length; i++) {
     const d = days[i];
@@ -294,6 +340,7 @@ export default async function handler(req, res) {
     if (baseline < 1) continue;
     const multiple = m / baseline;
     if (multiple >= 2) {
+      const event = eventsByDate[d.date];
       significantDays.push({
         date: d.date,
         mentions: m,
@@ -301,6 +348,8 @@ export default async function handler(req, res) {
         multiple: Math.round(multiple * 10) / 10,
         reach: d.reach_total || 0,
         severity: multiple >= 4 ? "major" : multiple >= 3 ? "notable" : "mild",
+        anomalyTypes: event?.types || [],
+        anomalyDescription: event?.description || null,
       });
     }
   }
@@ -407,7 +456,15 @@ export default async function handler(req, res) {
     events: eventsArr.map(e => ({
       date: e.anomaly_date || e.date,
       description: e.description,
-      peakMentions: e.peak_mentions, peakReach: e.peak_reach,
+      peakMentions: e.peak_mentions,
+      peakReach: e.peak_reach,
+      types: anomalyTypes(e),
+      isHashtag: !!e.is_hashtag_anomaly,
+      isEmotional: !!e.is_emotional_anomaly,
+      isNews: !!e.is_news_anomaly,
+      isSocial: !!e.is_social_media_anomaly,
+      isNonSocial: !!e.is_non_social_media_anomaly,
+      isDiscussion: !!e.is_user_discussion_anomaly,
     })),
 
     hotHours: hotHoursArr.slice(0, 10).map(h => ({
@@ -471,6 +528,7 @@ export default async function handler(req, res) {
 
     // Debug info
     _debug: {
+      rawSourceKeys: Array.from(rawSourceKeys).slice(0, 15),
       dailyMetricsType: typeof dailyMetricsRaw,
       dailyMetricsKeys: dailyMetricsRaw ? Object.keys(dailyMetricsRaw).slice(0, 5) : null,
       influencersType: typeof influencersRaw,

@@ -5,7 +5,7 @@ const GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF";
 const FONT = "'Inter Tight', system-ui, sans-serif";
 
 function fmt(n) {
-  if (n == null) return "\u2014";
+  if (n == null) return "—";
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
   if (n >= 1e3) return `${(n / 1e3).toFixed(n >= 1e4 ? 0 : 1)}K`;
   return n.toLocaleString();
@@ -14,7 +14,7 @@ function fmt(n) {
 function Delta({ pct }) {
   if (pct == null || pct === 0) return null;
   const color = pct > 0 ? GREEN : RED;
-  const glyph = pct > 0 ? "\u2191" : "\u2193";
+  const glyph = pct > 0 ? "↑" : "↓";
   return <span style={{ fontSize: 10, color, fontWeight: 700, fontFamily: FONT }}>{glyph} {Math.abs(pct)}%</span>;
 }
 
@@ -50,7 +50,7 @@ export default function WikipediaPageviews() {
         <div>
           <div style={{ fontSize: 10, color: TEAL, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, fontFamily: FONT }}>Wikipedia pageviews</div>
           <div style={{ fontSize: 11, color: MUTED, marginTop: 3, fontFamily: FONT }}>
-            Daily attention signal across Madonna-related English Wikipedia articles \u2014 last {data.period?.days || 60} days
+            Daily attention signal across Madonna-related English Wikipedia articles — last {data.period?.days || 60} days
           </div>
         </div>
         {data.topMover && (
@@ -72,7 +72,7 @@ export default function WikipediaPageviews() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: TEAL, fontFamily: FONT }}>{fmt(a.last7days)}</div>
-                <div style={{ fontSize: 9, color: MUTED, fontFamily: FONT }}>views \u00b7 last 7d</div>
+                <div style={{ fontSize: 9, color: MUTED, fontFamily: FONT }}>views · last 7d</div>
               </div>
               <Spark data={(a.daily || []).slice(-30).map(d => d.views)} color={TEAL} width={140} height={36} />
             </div>
@@ -80,7 +80,7 @@ export default function WikipediaPageviews() {
         ))}
       </div>
       <p style={{ fontSize: 9, color: DIM, marginTop: 12, marginBottom: 0, fontFamily: FONT }}>
-        Source: Wikimedia REST API. Data lags \u223c1 day.
+        Source: Wikimedia REST API. Data lags ~1 day.
       </p>
     </div>
   );

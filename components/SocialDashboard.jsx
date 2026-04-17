@@ -250,20 +250,31 @@ export default function SocialDashboard() {
       {view === "overview" && <>
         {/* Significant days alert */}
         {hasB24 && b24.significantDays?.length > 0 && (
-          <div style={{ background: `${AMBER}11`, border: `1px solid ${AMBER}44`, borderRadius: 8, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ background: `${AMBER}11`, border: `1px solid ${AMBER}44`, borderRadius: 8, padding: "12px 14px", marginBottom: 12, display: "flex", alignItems: "flex-start", gap: 12 }}>
             <div style={{ fontSize: 18, lineHeight: 1 }}>{"\u26A0"}</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: AMBER, textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif", letterSpacing: "0.05em" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: AMBER, textTransform: "uppercase", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif", letterSpacing: "0.05em" }}>
                 {b24.significantDays.length === 1 ? "Significant day detected" : `${b24.significantDays.length} significant days detected`}
               </div>
-              <div style={{ fontSize: 11, color: DIM, lineHeight: 1.6 }}>
-                {b24.significantDays.slice(0, 3).map((d, i) => (
-                  <span key={d.date}>
-                    {i > 0 ? " \u00b7 " : ""}
-                    <b style={{ color: WHITE }}>{d.date}</b>: {d.mentions.toLocaleString()} mentions ({d.multiple}x the {d.baselineMentions.toLocaleString()} baseline, {d.severity})
-                  </span>
-                ))}
-                {b24.significantDays.length > 3 && ` \u00b7 +${b24.significantDays.length - 3} more`}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {b24.significantDays.slice(0, 4).map(d => {
+                  const typeColours = { hashtag: PURPLE, emotional: PINK, news: TEAL, social: GREEN, media: AMBER, discussion: CORAL };
+                  return (
+                    <div key={d.date} style={{ fontSize: 11, color: DIM, lineHeight: 1.55, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <b style={{ color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{d.date}</b>
+                      <span>{d.mentions.toLocaleString()} mentions · {d.multiple}× baseline ({d.baselineMentions.toLocaleString()}) · {d.severity}</span>
+                      {d.anomalyTypes && d.anomalyTypes.map(t => (
+                        <span key={t} style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 3, background: `${typeColours[t] || MUTED}22`, color: typeColours[t] || MUTED, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Inter Tight', sans-serif" }}>{t}</span>
+                      ))}
+                      {d.anomalyDescription && <span style={{ fontSize: 10, color: MUTED, fontStyle: "italic" }}>— {d.anomalyDescription}</span>}
+                    </div>
+                  );
+                })}
+                {b24.significantDays.length > 4 && (
+                  <div style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
+                    +{b24.significantDays.length - 4} more
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -375,16 +386,26 @@ export default function SocialDashboard() {
         {hasB24 && b24.events?.length > 0 && (
           <Section title="Anomaly Events" color={CORAL}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {b24.events.slice(0, 4).map((e, i) => (
-                <div key={i} style={{ background: `${CORAL}08`, border: `1px solid ${CORAL}22`, borderRadius: 6, padding: "10px 12px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: WHITE }}>{e.date}</span>
-                    <span style={{ fontSize: 9, color: CORAL, fontWeight: 700 }}>+{e.peakMentions?.toLocaleString()} mentions</span>
+              {b24.events.slice(0, 4).map((e, i) => {
+                const typeColours = { hashtag: PURPLE, emotional: PINK, news: TEAL, social: GREEN, media: AMBER, discussion: CORAL };
+                return (
+                  <div key={i} style={{ background: `${CORAL}08`, border: `1px solid ${CORAL}22`, borderRadius: 6, padding: "10px 12px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: WHITE }}>{(e.date || "").slice(0, 10)}</span>
+                      <span style={{ fontSize: 9, color: CORAL, fontWeight: 700 }}>+{e.peakMentions?.toLocaleString()} mentions</span>
+                    </div>
+                    {e.types?.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                        {e.types.map(t => (
+                          <span key={t} style={{ fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 3, background: `${typeColours[t] || MUTED}22`, color: typeColours[t] || MUTED, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Inter Tight', sans-serif" }}>{t}</span>
+                        ))}
+                      </div>
+                    )}
+                    <p style={{ fontSize: 10, color: DIM, margin: 0, lineHeight: 1.4 }}>{(e.description || "").replace(/<[^>]+>/g, "").slice(0, 150)}</p>
+                    {e.peakReach > 0 && <div style={{ fontSize: 9, color: MUTED, marginTop: 4 }}>Peak reach: {fmtNum(e.peakReach || 0)}</div>}
                   </div>
-                  <p style={{ fontSize: 10, color: DIM, margin: 0, lineHeight: 1.4 }}>{(e.description || "").replace(/<[^>]+>/g, "").slice(0, 150)}</p>
-                  {e.peakReach > 0 && <div style={{ fontSize: 9, color: MUTED, marginTop: 4 }}>Peak reach: {fmtNum(e.peakReach || 0)}</div>}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </Section>
         )}
