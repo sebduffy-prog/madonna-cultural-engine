@@ -137,16 +137,18 @@ function FeedCard({ item }) {
       rel="noopener noreferrer"
       style={{
         display: "block",
-        background: CARD,
+        background: "rgba(21,21,21,0.68)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
         border: `1px solid ${hasMadonna ? Y + "44" : BORDER}`,
         borderLeft: hasMadonna ? `3px solid ${Y}` : undefined,
         borderRadius: 8,
         padding: "14px 18px",
         textDecoration: "none",
-        transition: "border-color 0.15s ease",
+        transition: "border-color 0.15s ease, background 0.15s ease",
       }}
-      onMouseOver={(e) => (e.currentTarget.style.borderColor = Y)}
-      onMouseOut={(e) => (e.currentTarget.style.borderColor = hasMadonna ? Y + "44" : BORDER)}
+      onMouseOver={(e) => { e.currentTarget.style.borderColor = Y; e.currentTarget.style.background = "rgba(28,28,28,0.82)"; }}
+      onMouseOut={(e) => { e.currentTarget.style.borderColor = hasMadonna ? Y + "44" : BORDER; e.currentTarget.style.background = "rgba(21,21,21,0.68)"; }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 6 }}>
         <h3 style={{ fontSize: 14, fontWeight: 600, color: WHITE, margin: 0, lineHeight: 1.4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
@@ -642,7 +644,7 @@ export default function CulturalFeed() {
               </div>
 
               {/* Feed for selected platform */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 500, overflowY: "auto" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 500, overflowY: "auto" }}>
                 {displayItems.length === 0 ? (
                   <p style={{ color: MUTED, fontSize: 12, padding: "16px 0" }}>No mentions found for this platform.</p>
                 ) : (
@@ -654,7 +656,7 @@ export default function CulturalFeed() {
               {currentFeed.metrics?.hashtagArticles?.length > 0 && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontSize: 10, color: AMBER, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>Hashtag Coverage</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 250, overflowY: "auto" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 250, overflowY: "auto" }}>
                     {currentFeed.metrics.hashtagArticles.map((item, i) => <FeedCard key={item.url || i} item={item} />)}
                   </div>
                 </div>
@@ -688,7 +690,7 @@ export default function CulturalFeed() {
                 ))}
               </div>
             )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: activeTab === "madonna" ? 800 : 600, overflowY: "auto" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: activeTab === "madonna" ? 800 : 600, overflowY: "auto" }}>
               {(currentFeed.items || []).length === 0 ? (
                 <p style={{ color: MUTED, fontSize: 13, padding: 20 }}>No results found. Try New Search or check back after the weekly search runs Tuesday 14:05.</p>
               ) : (

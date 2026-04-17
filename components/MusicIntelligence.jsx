@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "#151515", BORDER = "#222", MUTED = "#777", WHITE = "#EDEDE8", DIM = "#999";
 const GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF", PURPLE = "#A78BFA", AMBER = "#F59E0B", PINK = "#F472B6", CORAL = "#FB923C";
@@ -137,33 +137,163 @@ function ChartHeatmap({ songs, markets }) {
 }
 
 function SimilarArtistsNetwork({ similar }) {
-  if (!similar.length) return null;
-  const size = 320, cx = size / 2, cy = size / 2;
-  const centerRadius = 32;
-  const maxR = size / 2 - 16;
+  const size = 560;
+  const cx = size / 2, cy = size / 2;
+  const centerRadius = 44;
+
+  const artists = useMemo(() => (similar || []).slice(0, 16), [similar]);
+
+  // Rest positions — radial, closer to the centre when match is higher
+  const initial = useMemo(() => {
+    const maxR = size / 2 - 48;
+    return artists.map((a, i) => {
+      const angle = (i / Math.max(artists.length, 1)) * Math.PI * 2 - Math.PI / 2;
+      const rest = centerRadius + 60 + (1 - a.match) * (maxR - centerRadius - 60);
+      return {
+        id: a.name,
+        name: a.name,
+        match: a.match,
+        url: a.url,
+        rx: cx + Math.cos(angle) * rest,
+        ry: cy + Math.sin(angle) * rest,
+      };
+    });
+  }, [artists, cx, cy]);
+
+  const [nodes, setNodes] = useState(() => initial.map(n => ({ ...n, x: n.rx, y: n.ry, vx: 0, vy: 0 })));
+  const [draggingId, setDraggingId] = useState(null);
+  const dragRef = useRef(null);
+  const svgRef = useRef(null);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    setNodes(initial.map(n => ({ ...n, x: n.rx, y: n.ry, vx: 0, vy: 0 })));
+  }, [initial]);
+
+  useEffect(() => {
+    let last = performance.now();
+    function tick(now) {
+      const dt = Math.min(0.032, (now - last) / 1000);
+      last = now;
+      setNodes(curr => {
+        const next = curr.map(n => ({ ...n }));
+        for (let i = 0; i < next.length; i++) {
+          const n = next[i];
+          if (dragRef.current && dragRef.current.id === n.id) {
+            n.x = dragRef.current.x;
+            n.y = dragRef.current.y;
+            n.vx = 0; n.vy = 0;
+            continue;
+          }
+          // Spring toward rest position
+          const dxr = n.rx - n.x, dyr = n.ry - n.y;
+          n.vx += dxr * 4.5 * dt;
+          n.vy += dyr * 4.5 * dt;
+          // Repulsion away from Madonna hub (don't overlap the centre)
+          const toX = n.x - cx, toY = n.y - cy;
+          const distC = Math.sqrt(toX * toX + toY * toY) || 0.001;
+          const clearance = centerRadius + 22;
+          if (distC < clearance) {
+            const push = (clearance - distC) * 20 * dt;
+            n.vx += (toX / distC) * push;
+            n.vy += (toY / distC) * push;
+          }
+          // Repulsion between nodes
+          for (let j = 0; j < next.length; j++) {
+            if (i === j) continue;
+            const m = next[j];
+            const dxx = n.x - m.x, dyy = n.y - m.y;
+            const d2 = dxx * dxx + dyy * dyy;
+            const minD = 54;
+            if (d2 > 0.1 && d2 < minD * minD) {
+              const d = Math.sqrt(d2);
+              const push = (minD - d) * 10 * dt;
+              n.vx += (dxx / d) * push;
+              n.vy += (dyy / d) * push;
+            }
+          }
+          // Damping + integrate
+          n.vx *= 0.88;
+          n.vy *= 0.88;
+          n.x += n.vx * dt * 60;
+          n.y += n.vy * dt * 60;
+        }
+        return next;
+      });
+      rafRef.current = requestAnimationFrame(tick);
+    }
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [cx, cy, centerRadius]);
+
+  function toSvgCoords(e) {
+    const r = svgRef.current.getBoundingClientRect();
+    return {
+      x: ((e.clientX - r.left) / r.width) * size,
+      y: ((e.clientY - r.top) / r.height) * size,
+    };
+  }
+  function onPointerDown(e, node) {
+    e.preventDefault();
+    const { x, y } = toSvgCoords(e);
+    dragRef.current = { id: node.id, x, y };
+    setDraggingId(node.id);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+  }
+  function onPointerMove(e) {
+    if (!dragRef.current) return;
+    const { x, y } = toSvgCoords(e);
+    dragRef.current = { ...dragRef.current, x, y };
+  }
+  function onPointerUp() {
+    dragRef.current = null;
+    setDraggingId(null);
+  }
+
+  if (!artists.length) return null;
+
   return (
-    <svg width={size} height={size} style={{ fontFamily: FONT, display: "block", margin: "0 auto" }}>
-      {similar.slice(0, 16).map((s, i) => {
-        const angle = (i / Math.min(similar.length, 16)) * Math.PI * 2 - Math.PI / 2;
-        const distance = centerRadius + 16 + (1 - s.match) * (maxR - centerRadius - 16);
-        const x = cx + Math.cos(angle) * distance;
-        const y = cy + Math.sin(angle) * distance;
-        const edgeEndX = cx + Math.cos(angle) * (centerRadius + 2);
-        const edgeEndY = cy + Math.sin(angle) * (centerRadius + 2);
-        const opacity = 0.25 + s.match * 0.75;
-        return (
-          <g key={s.name}>
-            <line x1={edgeEndX} y1={edgeEndY} x2={x} y2={y} stroke={PURPLE} strokeWidth={s.match * 2 + 0.3} opacity={opacity} />
-            <circle cx={x} cy={y} r={4 + s.match * 6} fill={PURPLE} opacity={opacity}>
-              <title>{`${s.name} — ${Math.round(s.match * 100)}% match`}</title>
-            </circle>
-            <text x={x} y={y - (s.match * 6 + 8)} textAnchor="middle" fontSize="10" fill={WHITE}>{s.name}</text>
-          </g>
-        );
-      })}
-      <circle cx={cx} cy={cy} r={centerRadius} fill={Y} />
-      <text x={cx} y={cy + 4} textAnchor="middle" fontSize="13" fontWeight="700" fill={BG}>Madonna</text>
-    </svg>
+    <div style={{ position: "relative", width: "100%", maxWidth: 640, margin: "0 auto" }}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${size} ${size}`}
+        style={{ width: "100%", height: "auto", display: "block", fontFamily: FONT, userSelect: "none", touchAction: "none", cursor: draggingId ? "grabbing" : "default" }}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerUp}
+      >
+        {/* Links to Madonna */}
+        {nodes.map(n => {
+          const op = 0.25 + (n.match || 0) * 0.75;
+          return (
+            <line key={`L-${n.id}`} x1={cx} y1={cy} x2={n.x} y2={n.y}
+              stroke={PURPLE} strokeWidth={(n.match || 0) * 2 + 0.3} opacity={op} />
+          );
+        })}
+        {/* Madonna hub */}
+        <circle cx={cx} cy={cy} r={centerRadius} fill={Y} />
+        <text x={cx} y={cy + 5} textAnchor="middle" fontSize="15" fontWeight="700" fill={BG}>Madonna</text>
+        {/* Artist nodes */}
+        {nodes.map(n => {
+          const op = 0.4 + (n.match || 0) * 0.6;
+          const r = 6 + (n.match || 0) * 10;
+          const active = draggingId === n.id;
+          return (
+            <g key={n.id} style={{ cursor: active ? "grabbing" : "grab" }} onPointerDown={(e) => onPointerDown(e, n)}>
+              <circle cx={n.x} cy={n.y} r={r + 14} fill="transparent" pointerEvents="all" />
+              <circle cx={n.x} cy={n.y} r={r} fill={PURPLE} opacity={active ? 1 : op}
+                stroke={active ? WHITE : "none"} strokeWidth={active ? 2 : 0}>
+                <title>{`${n.name} — ${Math.round((n.match || 0) * 100)}% match`}</title>
+              </circle>
+              <text x={n.x} y={n.y - (r + 8)} textAnchor="middle" fontSize="11" fill={WHITE} style={{ pointerEvents: "none" }}>{n.name}</text>
+            </g>
+          );
+        })}
+      </svg>
+      <p style={{ fontSize: 10, color: MUTED, textAlign: "center", margin: "8px 0 0", fontFamily: FONT }}>
+        Drag any artist to reposition — release to let it spring back
+      </p>
+    </div>
   );
 }
 
