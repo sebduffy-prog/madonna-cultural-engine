@@ -41,13 +41,6 @@ function cleanData(gwiData, metricFilter = "Index") {
   return gwiData.filter((row) => {
     if (!row.name || row.name.trim() === "" || row.name === "Totals") return false;
     if (row.metric && row.metric !== metricFilter) return false;
-    const vals = SEGMENTS.map((s) => Number(row[s.key]) || 0);
-    if (vals.every((v) => v === 0)) return false;
-    // For Index, keep rows where at least one segment deviates meaningfully from 100
-    if (metricFilter === "Index") {
-      const hasDeviation = vals.some((v) => v > 0 && Math.abs(v - 100) >= 3);
-      if (!hasDeviation) return false;
-    }
     return true;
   });
 }

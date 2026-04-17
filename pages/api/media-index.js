@@ -10,7 +10,9 @@ const CACHE_KEY = "media_trend_cache";
 const FEED_KEY = "media_feed_pool";
 const CACHE_TTL = 86400;
 const MAX_FEED = 200;
-const MENTION_BASELINE = 59;
+// Baseline: typical weekly Madonna media mentions from 29 RSS feeds + 8 Brave queries
+// Set to approximate normal-week volume. Album announcement week was ~600.
+const MENTION_BASELINE = 350;
 
 // Focused queries — Madonna and the new album only
 const QUERIES = [
