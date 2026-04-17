@@ -158,7 +158,7 @@ export default function IdeasBoard() {
             <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>DESCRIPTION</label>
             <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} rows={4} style={{
               width: "100%", padding: "10px 14px", fontSize: 13, color: WHITE, background: BG,
-              border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", resize: "vertical", fontFamily: "'Newsreader', Georgia, serif", lineHeight: 1.7, boxSizing: "border-box",
+              border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", resize: "vertical", fontFamily: "'Inter Tight', system-ui, sans-serif", lineHeight: 1.7, boxSizing: "border-box",
             }} />
           </div>
           <div style={{ marginBottom: 16 }}>

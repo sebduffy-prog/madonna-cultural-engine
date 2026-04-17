@@ -138,7 +138,8 @@ function MasterRefresh() {
     const esc = (s) => (s || "").toString().replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
     let doc = `<html><head><meta charset="utf-8"><title>Pulse — Full Data Export ${tsStr}</title>
-    <style>body{font-family:Calibri,Arial,sans-serif;color:#222;max-width:900px;margin:0 auto;padding:40px}
+    <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>body{font-family:'Inter Tight',system-ui,sans-serif;color:#222;max-width:900px;margin:0 auto;padding:40px}
     h1{font-size:28px;border-bottom:3px solid #FFD500;padding-bottom:8px}
     h2{font-size:20px;color:#333;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:30px}
     h3{font-size:15px;color:#555;margin-top:16px}
@@ -529,6 +530,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
     "/homepage-rotation/SecondImage.png",
   ]);
   const [loginImageIndex, setLoginImageIndex] = useState(0);
+  const [loginImagesReady, setLoginImagesReady] = useState(false);
 
   useEffect(() => {
     if (authed) return;
@@ -543,21 +545,48 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
       ...rest,
     ];
     setLoginImages(sequence);
-    sequence.forEach(src => { const img = new window.Image(); img.src = src; });
+    let cancelled = false;
+    Promise.all(sequence.map(src => new Promise(resolve => {
+      const img = new window.Image();
+      img.onload = img.onerror = () => resolve();
+      img.src = src;
+    }))).then(() => { if (!cancelled) setLoginImagesReady(true); });
+    return () => { cancelled = true; };
+  }, [authed]);
+
+  useEffect(() => {
+    if (authed || !loginImagesReady || loginImages.length < 2) return;
     const timer = setInterval(() => {
-      setLoginImageIndex(i => (i + 1) % sequence.length);
+      setLoginImageIndex(i => (i + 1) % loginImages.length);
     }, 500);
     return () => clearInterval(timer);
-  }, [authed]);
+  }, [authed, loginImagesReady, loginImages.length]);
 
   if (!authed) {
     return (
       <div style={{
         minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
         fontFamily: "'Inter Tight', system-ui, sans-serif",
-        backgroundImage: `url(${loginImages[loginImageIndex]})`, backgroundSize: "cover", backgroundPosition: "center",
+        background: BG,
         position: "relative",
+        overflow: "hidden",
       }}>
+        {loginImages.map((src, i) => (
+          <img
+            key={src}
+            src={src}
+            alt=""
+            aria-hidden="true"
+            decoding="async"
+            style={{
+              position: "absolute", inset: 0, width: "100%", height: "100%",
+              objectFit: "cover", objectPosition: "center",
+              opacity: i === loginImageIndex ? 1 : 0,
+              transition: "opacity 180ms ease-in-out",
+              pointerEvents: "none",
+            }}
+          />
+        ))}
         <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)" }} />
         <div style={{ textAlign: "center", position: "relative", zIndex: 1 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
@@ -573,7 +602,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
   }
 
   return (
-    <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Newsreader', 'Georgia', serif", color: WHITE }}>
+    <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Inter Tight', system-ui, sans-serif", color: WHITE }}>
       <div style={{ maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","dashboard","ideas","calendar","strategy"].includes(tab) ? 1100 : 720, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>

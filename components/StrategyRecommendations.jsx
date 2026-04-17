@@ -36,7 +36,7 @@ function RecCard({ rec }) {
           letterSpacing: "0.06em", fontFamily: "'Inter Tight', sans-serif",
         }}>{rec.type}</span>
       </div>
-      <h4 style={{ fontSize: 15, fontWeight: 700, color: WHITE, margin: "0 0 8px", fontFamily: "'Newsreader', serif" }}>
+      <h4 style={{ fontSize: 15, fontWeight: 700, color: WHITE, margin: "0 0 8px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
         {rec.title}
       </h4>
       <p style={{ fontSize: 13, color: DIM, margin: 0, lineHeight: 1.6 }}>

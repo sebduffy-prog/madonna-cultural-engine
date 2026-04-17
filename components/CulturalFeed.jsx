@@ -149,7 +149,7 @@ function FeedCard({ item }) {
       onMouseOut={(e) => (e.currentTarget.style.borderColor = hasMadonna ? Y + "44" : BORDER)}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 6 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: WHITE, margin: 0, lineHeight: 1.4, fontFamily: "'Newsreader', serif" }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: WHITE, margin: 0, lineHeight: 1.4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
           {highlightMadonna(decodeEntities(item.title))}
         </h3>
         <span style={{
@@ -191,7 +191,7 @@ function RecommendationCard({ rec }) {
           {rec.type}
         </span>
       </div>
-      <h4 style={{ fontSize: 15, fontWeight: 700, color: WHITE, margin: "0 0 8px", fontFamily: "'Newsreader', serif" }}>
+      <h4 style={{ fontSize: 15, fontWeight: 700, color: WHITE, margin: "0 0 8px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
         {rec.title}
       </h4>
       <p style={{ fontSize: 13, color: DIM, margin: 0, lineHeight: 1.6 }}>

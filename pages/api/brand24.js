@@ -10,7 +10,7 @@
 import { kvGet, kvSet, kvListPush } from "../../lib/kv";
 
 const CACHE_KEY = "brand24_data";
-const CACHE_TTL = 43200;
+const CACHE_TTL = 10800;
 const B24_BASE = "https://api-data.brand24.com/api-data/v1";
 
 async function b24Get(path, apiKey) {
@@ -134,13 +134,50 @@ export default async function handler(req, res) {
     return s + (e.likes || 0) + (e.comments || 0) + (e.shares || 0);
   }, 0);
 
-  // Sentiment — Brand24 daily sentiment is proportions (0.0-1.0), not counts
-  // Use the dedicated sentiment endpoint which has actual mention counts
-  const sentimentMentions = sentimentRaw?.total_mentions || sentimentRaw?.mentions?.total || 0;
-  const posTotal = sentimentRaw?.total_positive_mentions || sentimentRaw?.positive_mentions?.total || 0;
-  const negTotal = sentimentRaw?.total_negative_mentions || sentimentRaw?.negative_mentions?.total || 0;
-  const neuTotal = Math.max((sentimentMentions || totalMentions) - posTotal - negTotal, 0);
+  // ─── Sentiment: reconcile across endpoints ───
+  // daily-metrics gives us mentions_count per day (source of truth for totals).
+  // sentiment endpoint gives positive/negative counts.
+  // Per-day sentiment counts come from sentimentRaw.daily when available (raw ints),
+  // otherwise fall back to proportion * mentions_count (introduces rounding drift).
+  const sentimentMentionsTotal = sentimentRaw?.total_mentions ?? sentimentRaw?.mentions?.total ?? null;
+  const posTotal = sentimentRaw?.total_positive_mentions ?? sentimentRaw?.positive_mentions?.total ?? 0;
+  const negTotal = sentimentRaw?.total_negative_mentions ?? sentimentRaw?.negative_mentions?.total ?? 0;
+
+  // Use daily-metrics mentions sum as the canonical total; neutral derived against it.
+  const canonicalMentionsTotal = totalMentions;
+  const neuTotal = Math.max(canonicalMentionsTotal - posTotal - negTotal, 0);
   const sentDenominator = Math.max(posTotal + negTotal + neuTotal, 1);
+
+  // Build a reconciliation record so discrepancies are visible instead of hidden.
+  const sentimentEndpointMismatch =
+    sentimentMentionsTotal !== null && sentimentMentionsTotal !== canonicalMentionsTotal;
+  const reconciliation = {
+    dailyMetricsTotal: canonicalMentionsTotal,
+    sentimentEndpointTotal: sentimentMentionsTotal,
+    mentionCountEndpointTotal: mentionCountRaw?.total ?? null,
+    canonicalSource: "daily-metrics",
+    delta: sentimentEndpointMismatch ? (sentimentMentionsTotal - canonicalMentionsTotal) : 0,
+    deltaPercent: sentimentEndpointMismatch && canonicalMentionsTotal > 0
+      ? Math.round(((sentimentMentionsTotal - canonicalMentionsTotal) / canonicalMentionsTotal) * 1000) / 10
+      : 0,
+    note: sentimentEndpointMismatch
+      ? "Brand24's sentiment endpoint and daily-metrics endpoint returned different mention totals for the same window. Displayed totals use daily-metrics; investigate if delta > 5%."
+      : null,
+  };
+
+  // Index raw per-day sentiment counts from the sentiment endpoint (if provided).
+  const sentimentDailyRaw = safeArray(sentimentRaw, "daily").concat(safeArray(sentimentRaw, "data"));
+  const sentimentDailyByDate = {};
+  sentimentDailyRaw.forEach(d => {
+    const date = d.date || d.day;
+    if (!date) return;
+    sentimentDailyByDate[date] = {
+      positive: d.positive ?? d.positive_mentions ?? null,
+      negative: d.negative ?? d.negative_mentions ?? null,
+      neutral: d.neutral ?? d.neutral_mentions ?? null,
+      total: d.total ?? d.mentions ?? null,
+    };
+  });
 
   // Platform breakdown
   const platformTotals = {};
@@ -222,9 +259,7 @@ export default async function handler(req, res) {
     ? Math.round(totalReach * ((posTotal - negTotal) / sentDenominator))
     : 0;
 
-  // Virality index = shares / total mentions (how shareable is the conversation)
   const totalShares = days.reduce((s, d) => s + (d.engagement?.shares || 0), 0);
-  const viralityIndex = totalMentions > 0 ? Math.round((totalShares / totalMentions) * 100) / 10 : 0; // as a ratio, not %
 
   // Platform diversity score (0-100, higher = more evenly spread across platforms)
   const platformMentions = Object.values(platformTotals).map(p => p.mentions);
@@ -246,13 +281,59 @@ export default async function handler(req, res) {
     ? Math.round((reachSocial / (reachSocial + reachNonSocial)) * 100)
     : 50;
 
-  // Momentum score (0-100 composite: velocity + sentiment + engagement)
-  const posPct = posTotal / Math.max(sentDenominator, 1);
-  const momentumScore = Math.min(100, Math.max(0, Math.round(
-    (mentionVelocity?.trend > 0 ? 25 : mentionVelocity?.trend === 0 ? 15 : 5) +
-    (posPct * 50) +
-    (Math.min(engagementRate, 10) * 2.5)
-  )));
+  // ─── Significant days: flag spikes above 2x the trailing 7-day average ───
+  // For each day compute the mean of the preceding up-to-7 days (excluding itself).
+  // Days with mentions >= 2x that average are flagged as significant.
+  const significantDays = [];
+  for (let i = 0; i < days.length; i++) {
+    const d = days[i];
+    const m = d.mentions_count || 0;
+    const window = days.slice(Math.max(0, i - 7), i);
+    if (window.length < 3) continue; // need at least 3 days of baseline
+    const baseline = window.reduce((s, w) => s + (w.mentions_count || 0), 0) / window.length;
+    if (baseline < 1) continue;
+    const multiple = m / baseline;
+    if (multiple >= 2) {
+      significantDays.push({
+        date: d.date,
+        mentions: m,
+        baselineMentions: Math.round(baseline),
+        multiple: Math.round(multiple * 10) / 10,
+        reach: d.reach_total || 0,
+        severity: multiple >= 4 ? "major" : multiple >= 3 ? "notable" : "mild",
+      });
+    }
+  }
+
+  // ─── Source coverage: all known Brand24 source categories with status ───
+  // Makes Brand24 blind spots (Instagram, Facebook) explicit rather than silently absent.
+  const KNOWN_SOURCES = [
+    { key: "news",      label: "News",                   typicallyCovered: true },
+    { key: "twitter",   label: "Twitter / X",            typicallyCovered: true },
+    { key: "tiktok",    label: "TikTok",                 typicallyCovered: true },
+    { key: "forums",    label: "Forums",                 typicallyCovered: true },
+    { key: "blogs",     label: "Blogs",                  typicallyCovered: true },
+    { key: "videos",    label: "Videos (YouTube etc.)",  typicallyCovered: true },
+    { key: "web",       label: "Web",                    typicallyCovered: true },
+    { key: "podcasts",  label: "Podcasts",               typicallyCovered: true, caveat: "Partial coverage — only podcasts Brand24 has indexed." },
+    { key: "instagram", label: "Instagram",              typicallyCovered: false, caveat: "Meta blocks third-party API access. Brand24 cannot collect Instagram mentions." },
+    { key: "facebook",  label: "Facebook",               typicallyCovered: false, caveat: "Meta blocks third-party API access. Brand24 cannot collect Facebook mentions." },
+  ];
+  const coverage = KNOWN_SOURCES.map(s => {
+    const found = platformTotals[s.key];
+    const mentions = found?.mentions || 0;
+    const status = !s.typicallyCovered ? "not-covered"
+                 : mentions === 0 ? "no-mentions"
+                 : "covered";
+    return {
+      key: s.key,
+      label: s.label,
+      mentions,
+      reach: found?.reach || 0,
+      status,
+      caveat: s.caveat || null,
+    };
+  });
 
   const result = {
     configured: true,
@@ -273,19 +354,24 @@ export default async function handler(req, res) {
     },
 
     dailyMetrics: days.map(d => {
-      // Convert sentiment proportions to counts for this day
       const m = d.mentions_count || 0;
       const sp = d.sentiment || {};
+      const rawCounts = sentimentDailyByDate[d.date];
+      // Prefer raw integer counts from the sentiment endpoint; fall back to proportion × mentions.
+      const pos = rawCounts?.positive != null ? rawCounts.positive : Math.round((sp.positive || 0) * m);
+      const neg = rawCounts?.negative != null ? rawCounts.negative : Math.round((sp.negative || 0) * m);
+      const neu = rawCounts?.neutral != null ? rawCounts.neutral : Math.max(m - pos - neg, 0);
       return {
         date: d.date,
         mentions: m,
         reach: d.reach_total || 0,
         sentiment: {
-          positive: Math.round((sp.positive || 0) * m),
-          negative: Math.round((sp.negative || 0) * m),
-          neutral: Math.round((sp.neutral || 0) * m),
-          positivePct: Math.round((sp.positive || 0) * 100),
-          negativePct: Math.round((sp.negative || 0) * 100),
+          positive: pos,
+          negative: neg,
+          neutral: neu,
+          positivePct: m > 0 ? Math.round((pos / m) * 100) : 0,
+          negativePct: m > 0 ? Math.round((neg / m) * 100) : 0,
+          source: rawCounts ? "sentiment-endpoint" : "daily-metrics-proportion",
         },
         engagement: d.engagement || {},
         bySource: safeArray(d, "by_source"),
@@ -356,6 +442,17 @@ export default async function handler(req, res) {
       socialPct: socialReachPct,
     },
 
+    // Source coverage: all 10 Brand24 source categories with explicit status
+    // so blind spots (Instagram, Facebook) are visible instead of appearing as
+    // "no conversation on that platform".
+    coverage,
+
+    // Days where mentions exceeded 2x the trailing 7-day average
+    significantDays,
+
+    // Totals reconciliation across Brand24 endpoints
+    _reconciliation: reconciliation,
+
     // Mention count daily (granular from dedicated endpoint)
     mentionCountDaily: typeof mentionCountDaily === "object" && !Array.isArray(mentionCountDaily) ? mentionCountDaily : null,
 
@@ -364,11 +461,9 @@ export default async function handler(req, res) {
       mentionVelocity,
       engagementRate,
       sentimentWeightedReach,
-      viralityIndex,
       platformDiversity,
       influenceConcentration,
       socialReachPct,
-      momentumScore,
       totalShares,
       totalLikes: days.reduce((s, d) => s + (d.engagement?.likes || 0), 0),
       totalComments: days.reduce((s, d) => s + (d.engagement?.comments || 0), 0),

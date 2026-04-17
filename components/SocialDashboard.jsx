@@ -31,16 +31,33 @@ function MiniBar({ value, max, color }) {
   );
 }
 
-function Stat({ label, value, sub, color = WHITE, onClick }) {
+function Stat({ label, value, sub, color = WHITE, onClick, period, source, estimated, delta }) {
+  const deltaColor = delta == null ? null : delta > 0 ? GREEN : delta < 0 ? RED : MUTED;
+  const deltaGlyph = delta == null ? "" : delta > 0 ? "\u2191" : delta < 0 ? "\u2193" : "\u2192";
   return (
     <div onClick={onClick} style={{
       background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px",
       cursor: onClick ? "pointer" : "default", transition: "border-color 0.15s",
     }} onMouseEnter={e => { if (onClick) e.currentTarget.style.borderColor = color; }}
        onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; }}>
-      <div style={{ fontSize: 9, color: typeof color === "string" ? color : MUTED, textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif", letterSpacing: "0.05em" }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 800, color, fontFamily: "'Inter Tight', sans-serif" }}>{value}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+        <div style={{ fontSize: 9, color: typeof color === "string" ? color : MUTED, textTransform: "uppercase", fontFamily: "'Inter Tight', sans-serif", letterSpacing: "0.05em" }}>{label}</div>
+        {period && <div style={{ fontSize: 8, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>{period}</div>}
+      </div>
+      <div style={{ fontSize: 24, fontWeight: 800, color, fontFamily: "'Inter Tight', sans-serif", display: "flex", alignItems: "baseline", gap: 6 }}>
+        {value}
+        {delta != null && (
+          <span style={{ fontSize: 11, color: deltaColor, fontWeight: 600 }}>
+            {deltaGlyph} {Math.abs(delta)}%
+          </span>
+        )}
+      </div>
       {sub && <div style={{ fontSize: 8, color: DIM }}>{sub}</div>}
+      {(source || estimated) && (
+        <div style={{ fontSize: 8, color: MUTED, marginTop: 2, fontFamily: "'Inter Tight', sans-serif" }}>
+          {source}{source && estimated ? " \u00b7 " : ""}{estimated ? "estimated" : ""}
+        </div>
+      )}
     </div>
   );
 }
@@ -231,13 +248,41 @@ export default function SocialDashboard() {
 
       {/* ═══ OVERVIEW ═══ */}
       {view === "overview" && <>
+        {/* Significant days alert */}
+        {hasB24 && b24.significantDays?.length > 0 && (
+          <div style={{ background: `${AMBER}11`, border: `1px solid ${AMBER}44`, borderRadius: 8, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <div style={{ fontSize: 18, lineHeight: 1 }}>{"\u26A0"}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: AMBER, textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif", letterSpacing: "0.05em" }}>
+                {b24.significantDays.length === 1 ? "Significant day detected" : `${b24.significantDays.length} significant days detected`}
+              </div>
+              <div style={{ fontSize: 11, color: DIM, lineHeight: 1.6 }}>
+                {b24.significantDays.slice(0, 3).map((d, i) => (
+                  <span key={d.date}>
+                    {i > 0 ? " \u00b7 " : ""}
+                    <b style={{ color: WHITE }}>{d.date}</b>: {d.mentions.toLocaleString()} mentions ({d.multiple}x the {d.baselineMentions.toLocaleString()} baseline, {d.severity})
+                  </span>
+                ))}
+                {b24.significantDays.length > 3 && ` \u00b7 +${b24.significantDays.length - 3} more`}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reconciliation warning */}
+        {hasB24 && b24._reconciliation?.note && Math.abs(b24._reconciliation.deltaPercent) >= 5 && (
+          <div style={{ background: `${RED}11`, border: `1px solid ${RED}44`, borderRadius: 8, padding: "8px 14px", marginBottom: 12, fontSize: 11, color: DIM }}>
+            <b style={{ color: RED, fontFamily: "'Inter Tight', sans-serif" }}>Data check:</b> Brand24 endpoints disagree on total mentions by {b24._reconciliation.deltaPercent}% (daily-metrics: {b24._reconciliation.dailyMetricsTotal?.toLocaleString()}, sentiment: {b24._reconciliation.sentimentEndpointTotal?.toLocaleString()}). Displayed totals use daily-metrics.
+          </div>
+        )}
+
         {/* Hero stats */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
-          <Stat label="Total Mentions" value={totalMentions.toLocaleString()} sub={hasB24 ? `across ${b24.platforms?.length || 0} platforms (7d)` : `Reddit + YouTube`} color={WHITE} />
-          <Stat label="Total Reach" value={totalReach > 0 ? `${fmtNum(totalReach)}` : "—"} sub={totalReach > 0 ? "estimated impressions" : "no reach data"} color={TEAL} />
-          <Stat label="Engagement" value={totalEngagement > 0 ? totalEngagement.toLocaleString() : "—"} sub="likes + comments + shares" color={AMBER} />
-          <Stat label="Positive" value={`${sentPosPct}%`} color={GREEN} />
-          <Stat label="Negative" value={`${sentNegPct}%`} color={RED} />
+          <Stat label="Total Mentions" value={totalMentions.toLocaleString()} sub={hasB24 ? `across ${b24.platforms?.length || 0} platforms` : "Reddit + YouTube"} color={WHITE} period={`${timeRange}d`} source={hasB24 ? "Brand24" : "Reddit + YouTube"} />
+          <Stat label="Total Reach" value={totalReach > 0 ? fmtNum(totalReach) : "—"} sub={totalReach > 0 ? "potential impressions" : "no reach data"} color={TEAL} period={`${timeRange}d`} source={hasB24 ? "Brand24" : ""} estimated={totalReach > 0} />
+          <Stat label="Engagement" value={totalEngagement > 0 ? totalEngagement.toLocaleString() : "—"} sub="likes + comments + shares" color={AMBER} period={`${timeRange}d`} source={hasB24 ? "Brand24" : ""} />
+          <Stat label="Positive" value={`${sentPosPct}%`} color={GREEN} period={`${timeRange}d`} source={hasB24 ? "Brand24 classifier" : ""} estimated={hasB24} />
+          <Stat label="Negative" value={`${sentNegPct}%`} color={RED} period={`${timeRange}d`} source={hasB24 ? "Brand24 classifier" : ""} estimated={hasB24} />
         </div>
 
         {/* Mentions & Reach line chart + Mentions by category donut */}
@@ -257,6 +302,37 @@ export default function SocialDashboard() {
             ) : <p style={{ fontSize: 11, color: MUTED }}>No platform data</p>}
           </Section>
         </div>
+
+        {/* Source coverage — explicit about what Brand24 can and cannot see */}
+        {hasB24 && b24.coverage?.length > 0 && (
+          <Section title={`Source coverage (${timeRange}d)`} color={PURPLE}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+              {b24.coverage.map(s => {
+                const dotColor = s.status === "covered" ? GREEN
+                              : s.status === "no-mentions" ? MUTED
+                              : RED;
+                const valueColor = s.status === "not-covered" ? MUTED : WHITE;
+                return (
+                  <div key={s.key} title={s.caveat || ""} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "8px 10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, display: "inline-block" }} />
+                      <span style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", fontFamily: "'Inter Tight', sans-serif", letterSpacing: "0.05em" }}>{s.label}</span>
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: valueColor, fontFamily: "'Inter Tight', sans-serif" }}>
+                      {s.status === "not-covered" ? "not covered" : s.mentions.toLocaleString()}
+                    </div>
+                    {s.caveat && (
+                      <div style={{ fontSize: 8, color: DIM, marginTop: 2, lineHeight: 1.3 }}>{s.caveat}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p style={{ fontSize: 10, color: DIM, margin: "10px 0 0", lineHeight: 1.5 }}>
+              Brand24 captures mentions from News, Twitter/X, TikTok, Forums, Blogs, YouTube, Web, and partial Podcast coverage. It does not have access to Instagram or Facebook (Meta blocks third-party APIs), so conversations on those platforms are not reflected in the totals above.
+            </p>
+          </Section>
+        )}
 
         {/* Sentiment line chart + Sentiment by category stacked bar */}
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 16 }}>
@@ -402,26 +478,16 @@ export default function SocialDashboard() {
 
         {/* Derived metrics row */}
         {hasB24 && b24.derived && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 16 }}>
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${AMBER}` }}>
-              <div style={{ fontSize: 9, color: AMBER, textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Momentum Score</div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: b24.derived.momentumScore > 50 ? GREEN : b24.derived.momentumScore > 20 ? AMBER : RED, fontFamily: "'Inter Tight', sans-serif" }}>{b24.derived.momentumScore}</div>
-              <div style={{ fontSize: 8, color: DIM }}>velocity + sentiment + engagement</div>
-            </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginBottom: 16 }}>
             <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${TEAL}` }}>
               <div style={{ fontSize: 9, color: TEAL, textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Engagement Rate</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: TEAL, fontFamily: "'Inter Tight', sans-serif" }}>{b24.derived.engagementRate}%</div>
-              <div style={{ fontSize: 8, color: DIM }}>{b24.derived.totalLikes?.toLocaleString()} likes · {b24.derived.totalComments?.toLocaleString()} comments · {b24.derived.totalShares?.toLocaleString()} shares</div>
-            </div>
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${PINK}` }}>
-              <div style={{ fontSize: 9, color: PINK, textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Virality Index</div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: PINK, fontFamily: "'Inter Tight', sans-serif" }}>{b24.derived.viralityIndex}%</div>
-              <div style={{ fontSize: 8, color: DIM }}>share rate per mention</div>
+              <div style={{ fontSize: 8, color: DIM }}>{b24.derived.totalLikes?.toLocaleString()} likes · {b24.derived.totalComments?.toLocaleString()} comments · {b24.derived.totalShares?.toLocaleString()} shares (Brand24, {b24.period?.days || 7}d)</div>
             </div>
             <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px", borderTop: `2px solid ${PURPLE}` }}>
               <div style={{ fontSize: 9, color: PURPLE, textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', sans-serif" }}>Platform Diversity</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: PURPLE, fontFamily: "'Inter Tight', sans-serif" }}>{b24.derived.platformDiversity}</div>
-              <div style={{ fontSize: 8, color: DIM }}>0-100 spread score ({b24.platforms?.length} platforms)</div>
+              <div style={{ fontSize: 8, color: DIM }}>Shannon entropy across {b24.platforms?.length} platforms (0 = all one platform, 100 = perfectly even)</div>
             </div>
           </div>
         )}

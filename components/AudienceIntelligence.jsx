@@ -119,7 +119,7 @@ function SegmentExplorer({ data, metricSuffix = "" }) {
         ))}
       </div>
       {items.length === 0 ? (
-        <p style={{ color: MUTED, fontFamily: "'Newsreader', serif", fontSize: 14 }}>
+        <p style={{ color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif", fontSize: 14 }}>
           No statements found for this segment.
         </p>
       ) : (
@@ -227,7 +227,7 @@ function CompareSegments({ data, metricSuffix = "" }) {
         </select>
       </div>
       {items.length === 0 ? (
-        <p style={{ color: MUTED, fontFamily: "'Newsreader', serif", fontSize: 14 }}>
+        <p style={{ color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif", fontSize: 14 }}>
           No statements found for either segment.
         </p>
       ) : (
@@ -338,7 +338,7 @@ function PopularStatements({ data, metricSuffix = "" }) {
 
   if (items.length === 0) {
     return (
-      <p style={{ color: MUTED, fontFamily: "'Newsreader', serif", fontSize: 14 }}>
+      <p style={{ color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif", fontSize: 14 }}>
         No statements strong enough across 2 or more segments.
       </p>
     );
@@ -357,7 +357,7 @@ function PopularStatements({ data, metricSuffix = "" }) {
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: WHITE, fontFamily: "'Newsreader', serif" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: WHITE, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
               {d.name}
             </span>
             <span style={{ fontSize: 11, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
