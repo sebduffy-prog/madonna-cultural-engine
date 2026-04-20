@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { AUDIENCE_OPTIONS, resolveAudience } from "../lib/audiences";
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", WHITE = "#EDEDE8", MUTED = "#777", DIM = "#999", GREEN = "#34D399", TEAL = "#2DD4BF";
 
@@ -32,11 +33,12 @@ function guessChannel(raw) {
  *  - size: "sm" (card row) | "md" (detail modal)
  *  - onAdded: optional callback
  */
-export default function AddToPlanButton({ title, description = "", defaultChannel, size = "sm", onAdded }) {
+export default function AddToPlanButton({ title, description = "", defaultChannel, defaultAudience, size = "sm", onAdded }) {
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [channel, setChannel] = useState(guessChannel(defaultChannel));
+  const [audience, setAudience] = useState(resolveAudience(defaultAudience)?.key || "");
   const [status, setStatus] = useState("idle"); // idle | saving | saved | error
   const [errMsg, setErrMsg] = useState("");
 
@@ -45,6 +47,7 @@ export default function AddToPlanButton({ title, description = "", defaultChanne
     // reset transient state each time the modal opens
     setStatus("idle"); setErrMsg("");
     setChannel(guessChannel(defaultChannel));
+    setAudience(resolveAudience(defaultAudience)?.key || "");
     // default start date to today (YYYY-MM-DD in local tz)
     if (!start) {
       const d = new Date();
@@ -69,6 +72,7 @@ export default function AddToPlanButton({ title, description = "", defaultChanne
           title,
           description,
           comment: "",
+          audience,
           createdBy: userName,
         }),
       });
@@ -171,19 +175,30 @@ export default function AddToPlanButton({ title, description = "", defaultChanne
               </div>
             </div>
 
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>Channel</label>
-              <select value={channel} onChange={e => setChannel(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
-                {CHANNEL_OPTIONS.map(c => (
-                  <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-                ))}
-              </select>
-              {defaultChannel && guessChannel(defaultChannel) !== String(defaultChannel).toLowerCase() && (
-                <div style={{ fontSize: 10, color: DIM, marginTop: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
-                  Source channel: &ldquo;{defaultChannel}&rdquo; &middot; mapped for calendar colour
-                </div>
-              )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+              <div>
+                <label style={labelStyle}>Channel</label>
+                <select value={channel} onChange={e => setChannel(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+                  {CHANNEL_OPTIONS.map(c => (
+                    <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Audience</label>
+                <select value={audience} onChange={e => setAudience(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+                  <option value="">All / unspecified</option>
+                  {AUDIENCE_OPTIONS.map(a => (
+                    <option key={a.key} value={a.key}>{a.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
+            {defaultChannel && guessChannel(defaultChannel) !== String(defaultChannel).toLowerCase() && (
+              <div style={{ fontSize: 10, color: DIM, margin: "-8px 0 12px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                Source channel: &ldquo;{defaultChannel}&rdquo; &middot; mapped for calendar colour
+              </div>
+            )}
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, paddingTop: 6, borderTop: `1px solid ${BORDER}55` }}>
               <div style={{ fontSize: 11, minHeight: 16, fontFamily: "'Inter Tight', system-ui, sans-serif",

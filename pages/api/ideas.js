@@ -29,7 +29,7 @@ export default async function handler(req, res) {
   let ideas = await kvGet(CACHE_KEY) || [];
 
   if (action === "create") {
-    const { name, description, mockupUrl, extensions, tactics, createdBy } = body;
+    const { name, description, mockupUrl, extensions, tactics, audience, createdBy } = body;
     if (!name) return res.status(400).json({ error: "Name is required" });
 
     const idea = {
@@ -39,6 +39,7 @@ export default async function handler(req, res) {
       mockupUrl: mockupUrl || "",
       tactics: tactics || [],
       extensions: extensions || [],
+      audience: audience || "",
       likes: 0,
       dislikes: 0,
       likedBy: [],

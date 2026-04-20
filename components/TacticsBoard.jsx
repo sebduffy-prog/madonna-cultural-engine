@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { PanelSkeleton } from "./Skeleton";
 import AddToPlanButton from "./AddToPlanButton";
+import { AUDIENCE_OPTIONS, audienceLabel } from "../lib/audiences";
 
 function tacticDescription(t) {
   return [
     t.roleOfChannel && `Role: ${t.roleOfChannel}`,
-    t.audience && `Audience: ${t.audience}`,
+    t.audience && `Audience: ${audienceLabel(t.audience)}`,
     t.format && `Format: ${t.format}`,
     t.notes && `Notes: ${t.notes}`,
   ].filter(Boolean).join(" \u2014 ");
@@ -16,7 +17,7 @@ const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#22
 const FIELDS = [
   { key: "channel", label: "Channel", placeholder: "e.g. TikTok, OOH, Spotify, Radio, Experiential" },
   { key: "roleOfChannel", label: "Role of Channel", placeholder: "What this channel is doing in the mix (reach, reappraisal, proof, depth...)" },
-  { key: "audience", label: "Audience", placeholder: "Who this is for (cohort, behaviour, mindset)" },
+  { key: "audience", label: "Audience", type: "select" },
   { key: "format", label: "Format", placeholder: "Specific executional format (15s vertical, 6-sheet, native article...)" },
   { key: "notes", label: "Notes", placeholder: "Anything else — rationale, dependencies, references" },
 ];
@@ -139,10 +140,22 @@ export default function TacticsBoard() {
           {FIELDS.map((f, i) => {
             const required = f.key === "channel";
             const isNotes = f.key === "notes";
+            const isSelect = f.type === "select";
             return (
               <div key={f.key} style={{ marginBottom: i === FIELDS.length - 1 ? 20 : 16 }}>
                 <label style={labelStyle}>{f.label}{required ? " *" : ""}</label>
-                {isNotes ? (
+                {isSelect ? (
+                  <select
+                    value={form[f.key]}
+                    onChange={e => setForm({ ...form, [f.key]: e.target.value })}
+                    style={{ ...inputStyle, cursor: "pointer", colorScheme: "dark" }}
+                  >
+                    <option value="">Select audience&hellip;</option>
+                    {AUDIENCE_OPTIONS.map(a => (
+                      <option key={a.key} value={a.key}>{a.label}</option>
+                    ))}
+                  </select>
+                ) : isNotes ? (
                   <textarea
                     value={form[f.key]}
                     onChange={e => setForm({ ...form, [f.key]: e.target.value })}
@@ -192,7 +205,7 @@ export default function TacticsBoard() {
                 )}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
                   {tactic.audience && (
-                    <span style={{ fontSize: 10, color: TEAL, background: `${TEAL}12`, border: `1px solid ${TEAL}44`, borderRadius: 4, padding: "2px 8px" }}>{tactic.audience}</span>
+                    <span style={{ fontSize: 10, color: TEAL, background: `${TEAL}12`, border: `1px solid ${TEAL}44`, borderRadius: 4, padding: "2px 8px" }}>{audienceLabel(tactic.audience)}</span>
                   )}
                   {tactic.format && (
                     <span style={{ fontSize: 10, color: WHITE, background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "2px 8px" }}>{tactic.format}</span>
@@ -211,7 +224,7 @@ export default function TacticsBoard() {
                   color: (tactic.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
                   border: `1px solid ${(tactic.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                 }}>&#9660; {tactic.dislikes || 0}</button>
-                <AddToPlanButton title={tactic.channel} description={tacticDescription(tactic)} defaultChannel={tactic.channel} size="sm" />
+                <AddToPlanButton title={tactic.channel} description={tacticDescription(tactic)} defaultChannel={tactic.channel} defaultAudience={tactic.audience} size="sm" />
                 <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                   {(tactic.comments || []).length} comment{(tactic.comments || []).length !== 1 ? "s" : ""}
                 </span>
@@ -238,12 +251,13 @@ export default function TacticsBoard() {
               <div style={{ fontSize: 11, color: MUTED, marginBottom: 20 }}>{activeTactic.createdBy} &middot; {new Date(activeTactic.createdAt).toLocaleDateString()}</div>
 
               {FIELDS.filter(f => f.key !== "channel").map(f => {
-                const v = activeTactic[f.key];
-                if (!v) return null;
+                const raw = activeTactic[f.key];
+                if (!raw) return null;
+                const display = f.key === "audience" ? audienceLabel(raw) : raw;
                 return (
                   <div key={f.key} style={{ marginBottom: 18 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{f.label}</div>
-                    <p style={{ fontSize: 14, color: DIM, lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" }}>{v}</p>
+                    <p style={{ fontSize: 14, color: DIM, lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" }}>{display}</p>
                   </div>
                 );
               })}
@@ -260,7 +274,7 @@ export default function TacticsBoard() {
                   border: `1px solid ${(activeTactic.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 8, cursor: "pointer",
                 }}>&#9660; {activeTactic.dislikes || 0}</button>
                 <span style={{ marginLeft: "auto" }}>
-                  <AddToPlanButton title={activeTactic.channel} description={tacticDescription(activeTactic)} defaultChannel={activeTactic.channel} size="md" />
+                  <AddToPlanButton title={activeTactic.channel} description={tacticDescription(activeTactic)} defaultChannel={activeTactic.channel} defaultAudience={activeTactic.audience} size="md" />
                 </span>
               </div>
 

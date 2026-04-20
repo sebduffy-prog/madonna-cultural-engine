@@ -19,8 +19,8 @@ const AMBER = "#F59E0B";
 
 const SEGMENTS = [
   { key: "genJones", label: "Gen Jones", color: PURPLE },
-  { key: "millennial", label: "Millennial", color: PINK },
   { key: "genX", label: "Gen X", color: CORAL },
+  { key: "millennial", label: "Millennial", color: PINK },
   { key: "genZ", label: "Gen Z", color: TEAL },
   { key: "disco", label: "Gay Community", color: Y },
   { key: "fashion", label: "Fashion", color: AMBER },

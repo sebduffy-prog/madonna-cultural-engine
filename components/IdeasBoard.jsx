@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { PanelSkeleton } from "./Skeleton";
 import AddToPlanButton from "./AddToPlanButton";
+import { AUDIENCE_OPTIONS, audienceLabel } from "../lib/audiences";
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", WHITE = "#EDEDE8", MUTED = "#777", DIM = "#999", GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF", PURPLE = "#A78BFA", CORAL = "#FB923C", PINK = "#F472B6";
 
@@ -32,6 +33,7 @@ export default function IdeasBoard() {
   const [formDesc, setFormDesc] = useState("");
   const [formMockup, setFormMockup] = useState("");
   const [formTactics, setFormTactics] = useState([""]);
+  const [formAudience, setFormAudience] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -71,14 +73,14 @@ export default function IdeasBoard() {
         body: JSON.stringify({
           action: "create", name: formName, description: formDesc,
           mockupUrl: mockup, tactics: formTactics.filter(t => t.trim()),
-          createdBy: userId,
+          audience: formAudience, createdBy: userId,
         }),
       });
       const data = await r.json();
       if (data.ok) {
         setShowForm(false);
         setFormName(""); setFormDesc(""); setFormMockup("");
-        setFormTactics([""]);
+        setFormTactics([""]); setFormAudience("");
         load();
       } else {
         alert("Failed to create idea: " + (data.error || r.status));
@@ -265,6 +267,20 @@ export default function IdeasBoard() {
             >Click here, then Ctrl+V to paste image</div>
           </div>
           <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>AUDIENCE</label>
+            <select value={formAudience} onChange={e => setFormAudience(e.target.value)} style={{
+              width: "100%", padding: "10px 14px", fontSize: 14, color: WHITE, background: BG,
+              border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none",
+              fontFamily: "'Inter Tight', system-ui, sans-serif", boxSizing: "border-box",
+              cursor: "pointer", colorScheme: "dark",
+            }}>
+              <option value="">Select audience&hellip;</option>
+              {AUDIENCE_OPTIONS.map(a => (
+                <option key={a.key} value={a.key}>{a.label}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>TACTICS</label>
             {formTactics.map((tactic, i) => (
               <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
@@ -315,7 +331,10 @@ export default function IdeasBoard() {
                   )}
                   <div style={{ padding: "12px 16px 8px" }}>
                     <h3 style={{ fontSize: 15, fontWeight: 700, color: WHITE, margin: 0, fontFamily: "'Inter Tight', system-ui, sans-serif", lineHeight: 1.3 }}>{idea.name}</h3>
-                    <span style={{ fontSize: 9, color: MUTED }}>{idea.createdBy} &middot; {new Date(idea.createdAt).toLocaleDateString()}</span>
+                    {idea.audience && (
+                      <span style={{ display: "inline-block", marginTop: 6, fontSize: 10, color: TEAL, background: `${TEAL}12`, border: `1px solid ${TEAL}44`, borderRadius: 4, padding: "2px 8px" }}>{audienceLabel(idea.audience)}</span>
+                    )}
+                    <div style={{ fontSize: 9, color: MUTED, marginTop: 4 }}>{idea.createdBy} &middot; {new Date(idea.createdAt).toLocaleDateString()}</div>
                   </div>
                 </div>
                 {/* Votes + comment count — always visible */}
@@ -330,7 +349,7 @@ export default function IdeasBoard() {
                     color: (idea.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
                     border: `1px solid ${(idea.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                   }}>&#9660; {idea.dislikes || 0}</button>
-                  <AddToPlanButton title={idea.name} description={idea.description} defaultChannel="social" size="sm" />
+                  <AddToPlanButton title={idea.name} description={idea.description} defaultChannel="social" defaultAudience={idea.audience} size="sm" />
                   <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                     {(idea.comments || []).length} comment{(idea.comments || []).length !== 1 ? "s" : ""}
                   </span>
@@ -365,7 +384,12 @@ export default function IdeasBoard() {
             <div style={{ padding: "20px 24px" }}>
               {/* Title + meta */}
               <h2 style={{ fontSize: 22, fontWeight: 800, color: WHITE, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{activeIdea.name}</h2>
-              <div style={{ fontSize: 11, color: MUTED, marginBottom: 16 }}>{activeIdea.createdBy} &middot; {new Date(activeIdea.createdAt).toLocaleDateString()}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                {activeIdea.audience && (
+                  <span style={{ fontSize: 10, color: TEAL, background: `${TEAL}12`, border: `1px solid ${TEAL}44`, borderRadius: 4, padding: "2px 8px" }}>{audienceLabel(activeIdea.audience)}</span>
+                )}
+                <span style={{ fontSize: 11, color: MUTED }}>{activeIdea.createdBy} &middot; {new Date(activeIdea.createdAt).toLocaleDateString()}</span>
+              </div>
 
               {/* Description */}
               {activeIdea.description && (
@@ -412,7 +436,7 @@ export default function IdeasBoard() {
                   border: `1px solid ${(activeIdea.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 8, cursor: "pointer",
                 }}>&#9660; {activeIdea.dislikes || 0}</button>
                 <span style={{ marginLeft: "auto" }}>
-                  <AddToPlanButton title={activeIdea.name} description={activeIdea.description} defaultChannel="social" size="md" />
+                  <AddToPlanButton title={activeIdea.name} description={activeIdea.description} defaultChannel="social" defaultAudience={activeIdea.audience} size="md" />
                 </span>
               </div>
 

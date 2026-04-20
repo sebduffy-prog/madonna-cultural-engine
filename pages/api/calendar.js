@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   if (!stored.blockPlans) stored.blockPlans = [];
 
   if (action === "add-block") {
-    const { startDate, endDate, channel, title, description, comment, createdBy } = body;
+    const { startDate, endDate, channel, title, description, comment, audience, createdBy } = body;
     if (!startDate || !title || !channel) {
       return res.status(400).json({ error: "startDate, channel, and title are required" });
     }
@@ -60,6 +60,7 @@ export default async function handler(req, res) {
       title,
       description: description || "",
       comment: comment || "",
+      audience: audience || "",
       createdBy: createdBy || "Anonymous",
       createdAt: new Date().toISOString(),
       type: "block",
