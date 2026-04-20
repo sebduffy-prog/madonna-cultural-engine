@@ -2,8 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import fs from "fs";
 import path from "path";
-import { AnimatePresence, motion } from "framer-motion";
-import PulseLoader from "../components/PulseLoader";
+import { motion } from "framer-motion";
 import PulseWordmark from "../components/PulseWordmark";
 import { pageStagger, fadeUp } from "../lib/motion";
 
@@ -575,7 +574,9 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
     return () => clearInterval(timer);
   }, [authed, loginImagesReady, loginImages.length]);
 
-  // Parallel prefetch on auth — warms every critical API cache before we reveal the dashboard
+  // Background cache warmer — fires API calls after auth so subsequent tab
+  // visits hit warm caches. Does NOT gate the UI: dashboard is interactive
+  // immediately and each tab shows its own skeleton while its data loads.
   useEffect(() => {
     if (!authed || dataReady) return;
     const endpoints = [
@@ -591,31 +592,13 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
     ];
     const total = endpoints.length;
     let done = 0;
-    const startedAt = Date.now();
-    const MIN_VISIBLE_MS = 1200; // prevent flash
-    const TIMEOUT_MS = 5000;     // don't block forever
-
-    let settled = false;
-    function markReady() {
-      if (settled) return;
-      const elapsed = Date.now() - startedAt;
-      const wait = Math.max(0, MIN_VISIBLE_MS - elapsed);
-      settled = true;
-      setTimeout(() => setDataReady(true), wait);
-    }
-
+    setDataReady(true); // reveal dashboard immediately — prefetch is non-blocking
     endpoints.forEach(url => {
       fetch(url).catch(() => null).finally(() => {
         done += 1;
         setPrefetchProgress(done / total);
-        // Reveal once 80% of the endpoints have resolved
-        if (done / total >= 0.8) markReady();
       });
     });
-
-    // Hard timeout — reveal even if some endpoints are slow/stuck
-    const to = setTimeout(markReady, TIMEOUT_MS);
-    return () => clearTimeout(to);
   }, [authed, dataReady]);
 
   // Tab background — all 17 rotation images (including FirstImage monochrome)
@@ -692,10 +675,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
   return (
     <>
-      <AnimatePresence>
-        {!dataReady && <PulseLoader key="loader" progress={prefetchProgress} />}
-      </AnimatePresence>
-    <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Inter Tight', system-ui, sans-serif", color: WHITE, position: "relative", visibility: dataReady ? "visible" : "hidden" }}>
+    <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Inter Tight', system-ui, sans-serif", color: WHITE, position: "relative" }}>
       {/* Per-tab background image with smooth crossfade on tab switch */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
         {tabBg.a && (
