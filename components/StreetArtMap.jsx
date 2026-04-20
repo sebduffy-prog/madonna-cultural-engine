@@ -260,18 +260,35 @@ export default function StreetArtMap({ murals, venues, sites = {} }) {
         group.addLayer(marker);
       });
 
-      // Heathrow layer gets the airport centroid + arterial route polylines
+      // Heathrow layer gets the airport centroid, the arterial route backbones,
+      // and a per-site driving line from every OOH site to the airport.
       if (layer.key === "heathrow") {
-        const routes = (sites.heathrowRoutes && sites.heathrowRoutes.length) ? sites.heathrowRoutes : HEATHROW_ROUTES_FALLBACK;
-        routes.forEach((route) => {
+        const corridors = (sites.heathrowRoutes && sites.heathrowRoutes.length) ? sites.heathrowRoutes : HEATHROW_ROUTES_FALLBACK;
+        corridors.forEach((route) => {
           const line = L.polyline(route.coords, {
             color: layer.color,
-            weight: 3.5,
-            opacity: 0.75,
+            weight: 4,
+            opacity: 0.45,
+            lineCap: "round",
+            lineJoin: "round",
+            dashArray: "1 0",
+          });
+          line.bindPopup(`<div><strong style="color:${layer.color}">${esc(route.name)}</strong><br/><span style="color:${COLORS.MUTED}">Arterial corridor to London Heathrow</span></div>`);
+          group.addLayer(line);
+        });
+
+        const siteRoutes = sites.heathrowSiteRoutes || [];
+        siteRoutes.forEach((route) => {
+          const line = L.polyline(route.coords, {
+            color: layer.color,
+            weight: 2.5,
+            opacity: 0.9,
             lineCap: "round",
             lineJoin: "round",
           });
-          line.bindPopup(`<div><strong style="color:${layer.color}">${esc(route.name)}</strong><br/><span style="color:${COLORS.MUTED}">Key arterial route to London Heathrow</span></div>`);
+          line.bindPopup(`<div><strong style="color:${layer.color}">${esc(route.from)} &rarr; Heathrow</strong><br/><span style="color:${COLORS.MUTED}">${route.distanceKm} km &middot; ${route.durationMin} min drive</span></div>`);
+          line.on("mouseover", () => line.setStyle({ weight: 5, opacity: 1 }));
+          line.on("mouseout", () => line.setStyle({ weight: 2.5, opacity: 0.9 }));
           group.addLayer(line);
         });
         // Airport marker — larger, ringed
