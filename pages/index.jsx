@@ -20,6 +20,7 @@ const StrategyRecommendations = dynamic(() => import("../components/StrategyReco
 const GraphRAG = dynamic(() => import("../components/GraphRAG"), { ssr: false });
 const YouTubeIntelligence = dynamic(() => import("../components/YouTubeIntelligence"), { ssr: false });
 const IdeasBoard = dynamic(() => import("../components/IdeasBoard"), { ssr: false });
+const TacticsBoard = dynamic(() => import("../components/TacticsBoard"), { ssr: false });
 const CampaignCalendar = dynamic(() => import("../components/CampaignCalendar"), { ssr: false });
 const DocUploader = dynamic(() => import("../components/DocUploader"), { ssr: false });
 const MusicIntelligence = dynamic(() => import("../components/MusicIntelligence"), { ssr: false });
@@ -736,6 +737,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "youtube", label: "YouTube" },
             { id: "gwi", label: "Audience" },
             { id: "strategy", label: "Strategy" },
+            { id: "tactics", label: "Tactics" },
             { id: "streetmap", label: "Locations" },
             { id: "ideas", label: "Ideas" },
             { id: "calendar", label: "Calendar" },
@@ -750,13 +752,11 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
           ))}
         </div>
 
-        <AnimatePresence mode="wait">
         <motion.div
           key={tab}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
         >
         {tab === "dashboard" && <>
           <DashboardSummary />
@@ -1109,6 +1109,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         {tab === "gwi" && <AudienceIntelligence gwiData={gwiData} />}
 
         {tab === "strategy" && <StrategyRecommendations />}
+        {tab === "tactics" && <TacticsBoard />}
         {tab === "streetmap" && <StreetArtMap murals={murals} venues={venues} />}
 
         {tab === "culturalfeed" && <CulturalFeed />}
@@ -1120,7 +1121,6 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         {tab === "ideas" && <IdeasBoard />}
         {tab === "calendar" && <CampaignCalendar />}
         </motion.div>
-        </AnimatePresence>
 
         <MasterRefresh />
 
