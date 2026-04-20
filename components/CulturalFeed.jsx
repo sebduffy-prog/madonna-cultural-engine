@@ -410,10 +410,10 @@ export default function CulturalFeed() {
             key={t.id}
             onClick={() => setActiveTab(t.id)}
             style={{
-              padding: "8px 16px", fontSize: 12, fontWeight: activeTab === t.id ? 700 : 600,
+              padding: "8px 16px", fontSize: 12, fontWeight: 700,
               color: activeTab === t.id ? BG : WHITE,
               background: activeTab === t.id ? t.color : "transparent",
-              border: activeTab === t.id ? "none" : `1px solid rgba(237,237,232,0.55)`,
+              border: activeTab === t.id ? "none" : `1px solid rgba(237,237,232,0.85)`,
               borderRadius: 6, cursor: "pointer",
               fontFamily: "'Inter Tight', sans-serif",
               transition: "all 0.15s ease",

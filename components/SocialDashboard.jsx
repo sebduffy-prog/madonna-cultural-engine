@@ -259,39 +259,60 @@ export default function SocialDashboard() {
       </div>
 
       {/* AI Summary banner */}
-      {hasB24 && b24.aiSummary && view === "overview" && (
-        <div style={{ background: `${PURPLE}11`, border: `1px solid ${PURPLE}33`, borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: PURPLE, textTransform: "uppercase", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif" }}>AI Summary — Last 7 Days</div>
-          <p style={{ fontSize: 13, color: DIM, margin: 0, lineHeight: 1.7 }}>{b24.aiSummary}</p>
-        </div>
-      )}
+      {hasB24 && b24.aiSummary && view === "overview" && (() => {
+        const clean = String(b24.aiSummary)
+          .replace(/<br\s*\/?>/gi, "\n\n")
+          .replace(/<\/?(p|div|span|b|i|strong|em|u)>/gi, "")
+          .replace(/<[^>]+>/g, "")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim();
+        return (
+          <div style={{
+            position: "relative", background: "rgba(12,12,12,0.88)",
+            border: `1px solid ${PURPLE}66`, borderLeft: `3px solid ${PURPLE}`,
+            borderRadius: 8, padding: "14px 18px", marginBottom: 16,
+            backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+            boxShadow: `0 0 0 1px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.35)`,
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: PURPLE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: "'Inter Tight', sans-serif" }}>AI Summary &mdash; Last 7 Days</div>
+            <p style={{ fontSize: 13.5, color: WHITE, margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{clean}</p>
+          </div>
+        );
+      })()}
 
       {/* ═══ OVERVIEW ═══ */}
       {view === "overview" && <>
         {/* Significant days alert */}
         {hasB24 && b24.significantDays?.length > 0 && (
-          <div style={{ background: `${AMBER}11`, border: `1px solid ${AMBER}44`, borderRadius: 8, padding: "12px 14px", marginBottom: 12, display: "flex", alignItems: "flex-start", gap: 12 }}>
-            <div style={{ fontSize: 18, lineHeight: 1 }}>{"\u26A0"}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: AMBER, textTransform: "uppercase", marginBottom: 6, fontFamily: "'Inter Tight', sans-serif", letterSpacing: "0.05em" }}>
+          <div style={{
+            background: "rgba(12,12,12,0.88)",
+            border: `1px solid ${AMBER}66`, borderLeft: `3px solid ${AMBER}`,
+            borderRadius: 8, padding: "14px 16px", marginBottom: 12,
+            display: "flex", alignItems: "flex-start", gap: 12,
+            backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+            boxShadow: `0 0 0 1px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.35)`,
+          }}>
+            <div style={{ fontSize: 18, lineHeight: 1, color: AMBER }}>{"\u26A0"}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: AMBER, textTransform: "uppercase", marginBottom: 10, fontFamily: "'Inter Tight', sans-serif", letterSpacing: "0.08em" }}>
                 {b24.significantDays.length === 1 ? "Significant day detected" : `${b24.significantDays.length} significant days detected`}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {b24.significantDays.slice(0, 4).map(d => {
                   const typeColours = { hashtag: PURPLE, emotional: PINK, news: TEAL, social: GREEN, media: AMBER, discussion: CORAL };
                   return (
-                    <div key={d.date} style={{ fontSize: 11, color: DIM, lineHeight: 1.55, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <b style={{ color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>{d.date}</b>
-                      <span>{d.mentions.toLocaleString()} mentions · {d.multiple}× baseline ({d.baselineMentions.toLocaleString()}) · {d.severity}</span>
+                    <div key={d.date} style={{ fontSize: 12, color: WHITE, lineHeight: 1.5, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                      <b style={{ color: WHITE, fontFamily: "'Inter Tight', sans-serif", fontVariantNumeric: "tabular-nums" }}>{d.date}</b>
+                      <span style={{ color: WHITE, opacity: 0.85, fontVariantNumeric: "tabular-nums" }}>{d.mentions.toLocaleString()} mentions &middot; {d.multiple}&times; baseline ({d.baselineMentions.toLocaleString()}) &middot; {d.severity}</span>
                       {d.anomalyTypes && d.anomalyTypes.map(t => (
-                        <span key={t} style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 3, background: `${typeColours[t] || MUTED}22`, color: typeColours[t] || MUTED, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Inter Tight', sans-serif" }}>{t}</span>
+                        <span key={t} style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 3, background: typeColours[t] || MUTED, color: BG, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter Tight', sans-serif" }}>{t}</span>
                       ))}
-                      {d.anomalyDescription && <span style={{ fontSize: 10, color: MUTED, fontStyle: "italic" }}>— {d.anomalyDescription}</span>}
+                      {d.anomalyDescription && <span style={{ fontSize: 11, color: WHITE, opacity: 0.75, fontStyle: "italic", flexBasis: "100%", lineHeight: 1.5 }}>&mdash; {d.anomalyDescription}</span>}
                     </div>
                   );
                 })}
                 {b24.significantDays.length > 4 && (
-                  <div style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
+                  <div style={{ fontSize: 11, color: WHITE, opacity: 0.6, fontFamily: "'Inter Tight', sans-serif" }}>
                     +{b24.significantDays.length - 4} more
                   </div>
                 )}

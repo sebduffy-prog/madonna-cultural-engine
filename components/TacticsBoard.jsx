@@ -1,5 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { PanelSkeleton } from "./Skeleton";
+import AddToPlanButton from "./AddToPlanButton";
+
+function tacticDescription(t) {
+  return [
+    t.roleOfChannel && `Role: ${t.roleOfChannel}`,
+    t.audience && `Audience: ${t.audience}`,
+    t.format && `Format: ${t.format}`,
+    t.notes && `Notes: ${t.notes}`,
+  ].filter(Boolean).join(" \u2014 ");
+}
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", WHITE = "#EDEDE8", MUTED = "#777", DIM = "#999", GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF";
 
@@ -116,7 +126,7 @@ export default function TacticsBoard() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h2 style={{ fontSize: 14, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase", margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Tactics Board</h2>
-          <p style={{ fontSize: 13, color: DIM, margin: 0 }}>Channel-level tactics with role, audience, format, notes, and team reactions</p>
+          <p style={{ fontSize: 13, color: WHITE, margin: 0 }}>Channel-level tactics with role, audience, format, notes, and team reactions</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} style={{
           padding: "8px 20px", fontSize: 12, fontWeight: 700, color: BG, background: Y,
@@ -190,7 +200,7 @@ export default function TacticsBoard() {
                 </div>
                 <span style={{ fontSize: 9, color: MUTED }}>{tactic.createdBy} &middot; {new Date(tactic.createdAt).toLocaleDateString()}</span>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px 12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px 12px", flexWrap: "wrap" }}>
                 <button onClick={(e) => { e.stopPropagation(); react(tactic.id, "like"); }} style={{
                   display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: 12, fontWeight: 700,
                   color: (tactic.likes || 0) > 0 ? GREEN : MUTED, background: `${GREEN}10`,
@@ -201,6 +211,7 @@ export default function TacticsBoard() {
                   color: (tactic.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
                   border: `1px solid ${(tactic.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                 }}>&#9660; {tactic.dislikes || 0}</button>
+                <AddToPlanButton title={tactic.channel} description={tacticDescription(tactic)} defaultChannel={tactic.channel} size="sm" />
                 <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                   {(tactic.comments || []).length} comment{(tactic.comments || []).length !== 1 ? "s" : ""}
                 </span>
@@ -237,7 +248,7 @@ export default function TacticsBoard() {
                 );
               })}
 
-              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "20px 0", paddingBottom: 16, borderBottom: `1px solid ${BORDER}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "20px 0", paddingBottom: 16, borderBottom: `1px solid ${BORDER}`, flexWrap: "wrap" }}>
                 <button onClick={() => react(activeTactic.id, "like")} style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", fontSize: 14, fontWeight: 700,
                   color: (activeTactic.likes || 0) > 0 ? GREEN : MUTED, background: `${GREEN}10`,
@@ -248,6 +259,9 @@ export default function TacticsBoard() {
                   color: (activeTactic.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
                   border: `1px solid ${(activeTactic.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 8, cursor: "pointer",
                 }}>&#9660; {activeTactic.dislikes || 0}</button>
+                <span style={{ marginLeft: "auto" }}>
+                  <AddToPlanButton title={activeTactic.channel} description={tacticDescription(activeTactic)} defaultChannel={activeTactic.channel} size="md" />
+                </span>
               </div>
 
               <div>

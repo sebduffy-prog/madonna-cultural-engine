@@ -51,17 +51,19 @@ export default function DashboardSummary() {
   const [ai, setAi] = useState(null);
   const [mediaIndex, setMediaIndex] = useState(null);
   const [b24, setB24] = useState(null);
+  const [kworb, setKworb] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       // Load fast sources first — don't wait for Spotify
-      let [m, s, a, mi, b] = await Promise.all([
+      let [m, s, a, mi, b, k] = await Promise.all([
         fetch("/api/news?category=madonna").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/social").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/ai-strategy").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/media-index").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/brand24").then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch("/api/kworb").then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
 
       // Auto-refresh empty results (without blocking)
@@ -69,7 +71,7 @@ export default function DashboardSummary() {
       if (!m?.items?.length) refreshes.push(fetch("/api/news?category=madonna&refresh=1").then(r => r.ok ? r.json() : null).then(d => { m = d || m; setMedia(m); }).catch(() => {}));
       if (!s?.platforms?.length || s.totalSources === 0) refreshes.push(fetch("/api/social?refresh=1").then(r => r.ok ? r.json() : null).then(d => { s = d || s; setSocial(s); }).catch(() => {}));
 
-      setMedia(m); setSocial(s); setAi(a); setMediaIndex(mi); if (b) setB24(b);
+      setMedia(m); setSocial(s); setAi(a); setMediaIndex(mi); if (b) setB24(b); if (k) setKworb(k);
       setLoading(false); // Show dashboard immediately
 
       // Finish any refreshes in background
@@ -148,23 +150,57 @@ export default function DashboardSummary() {
         </div>
       </div>
 
-      {/* Trend index chart */}
-      {social?.history && social.history.length > 1 && (
-        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", marginBottom: 16, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
-          <div style={{ fontSize: 10, color: PURPLE, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>
-            Trend Index Over Time
+      {/* Spotify streaming momentum — daily stream velocity over time */}
+      {(() => {
+        const hist = [...(kworb?.history || [])].reverse(); // oldest → newest
+        const currentPoint = kworb?.fetchedAt && kworb?.dailyStreams != null
+          ? { date: kworb.fetchedAt, value: kworb.dailyStreams }
+          : null;
+        const seriesData = hist
+          .filter(h => h?.date && h.dailyStreams != null)
+          .map(h => ({ date: h.date, value: h.dailyStreams }));
+        if (currentPoint && !seriesData.find(d => d.date === currentPoint.date)) seriesData.push(currentPoint);
+        if (seriesData.length < 2) return null;
+
+        const latest = seriesData[seriesData.length - 1].value;
+        const delta = kworb?.momentum?.dailyStreamsChange;
+        const deltaColor = delta == null ? MUTED : delta > 0 ? GREEN : delta < 0 ? RED : MUTED;
+        const deltaGlyph = delta == null ? "" : delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
+
+        return (
+          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "14px 16px", marginBottom: 16, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8, gap: 12, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 10, color: GREEN, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>
+                  Spotify daily streams
+                </div>
+                <div style={{ fontSize: 9, color: DIM, marginTop: 2, fontFamily: "'Inter Tight', sans-serif" }}>
+                  kworb.net · full catalogue · updates when Music tab refreshes
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <span style={{ fontSize: 18, fontWeight: 800, color: GREEN, fontFamily: "'Inter Tight', sans-serif" }}>
+                  {latest >= 1e6 ? `${(latest / 1e6).toFixed(2)}M` : latest >= 1e3 ? `${(latest / 1e3).toFixed(0)}K` : latest.toLocaleString()}
+                </span>
+                {delta != null && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: deltaColor, fontFamily: "'Inter Tight', sans-serif" }}>
+                    {deltaGlyph} {Math.abs(delta) >= 1e6 ? `${(Math.abs(delta) / 1e6).toFixed(2)}M` : Math.abs(delta) >= 1e3 ? `${(Math.abs(delta) / 1e3).toFixed(0)}K` : Math.abs(delta).toLocaleString()}
+                  </span>
+                )}
+              </div>
+            </div>
+            <LineChart
+              height={130}
+              showLegend={false}
+              series={[{
+                label: "Daily streams",
+                color: GREEN,
+                data: seriesData,
+              }]}
+            />
           </div>
-          <LineChart
-            height={130}
-            showLegend={false}
-            series={[{
-              label: "Index",
-              color: PURPLE,
-              data: social.history.slice().reverse().map(s => ({ date: s.date, value: s.index || 0 })),
-            }]}
-          />
-        </div>
-      )}
+        );
+      })()}
 
       {/* Two column layout */}
       <div className="panel-split-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

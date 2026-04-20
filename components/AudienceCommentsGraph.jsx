@@ -575,11 +575,11 @@ export default function AudienceCommentsGraph({ comments, fullThemeCounts = {}, 
         <h2 style={{ fontSize: 14, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase", margin: 0 }}>
           Comment Universe
         </h2>
-        <span style={{ fontSize: 12, color: MUTED, marginLeft: 8 }}>
+        <span style={{ fontSize: 12, color: WHITE, marginLeft: 8 }}>
           {(totalCommentCount || comments.length).toLocaleString()} comments across all banks
         </span>
       </div>
-      <p style={{ fontSize: 11, color: MUTED, margin: "0 0 10px", lineHeight: 1.4 }}>
+      <p style={{ fontSize: 11, color: WHITE, margin: "0 0 10px", lineHeight: 1.4 }}>
         Click theme to expand sub-themes. Click sub-theme to reveal comments. Scroll to zoom, drag to pan. Double-click to zoom in, right-click to zoom out. Hover a comment to highlight, click to read.
       </p>
 

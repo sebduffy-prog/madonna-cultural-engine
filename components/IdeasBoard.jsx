@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { PanelSkeleton } from "./Skeleton";
+import AddToPlanButton from "./AddToPlanButton";
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", WHITE = "#EDEDE8", MUTED = "#777", DIM = "#999", GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF", PURPLE = "#A78BFA", CORAL = "#FB923C", PINK = "#F472B6";
 
@@ -138,7 +139,7 @@ export default function IdeasBoard() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h2 style={{ fontSize: 14, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase", margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Ideas Board</h2>
-          <p style={{ fontSize: 13, color: DIM, margin: 0 }}>Campaign ideas with mockups, tactics, and team reactions</p>
+          <p style={{ fontSize: 13, color: WHITE, margin: 0 }}>Campaign ideas with mockups, tactics, and team reactions</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} style={{
           padding: "8px 20px", fontSize: 12, fontWeight: 700, color: BG, background: Y,
@@ -318,7 +319,7 @@ export default function IdeasBoard() {
                   </div>
                 </div>
                 {/* Votes + comment count — always visible */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px 12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px 12px", flexWrap: "wrap" }}>
                   <button onClick={(e) => { e.stopPropagation(); react(idea.id, "like"); }} style={{
                     display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: 12, fontWeight: 700,
                     color: (idea.likes || 0) > 0 ? GREEN : MUTED, background: `${GREEN}10`,
@@ -329,6 +330,7 @@ export default function IdeasBoard() {
                     color: (idea.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
                     border: `1px solid ${(idea.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                   }}>&#9660; {idea.dislikes || 0}</button>
+                  <AddToPlanButton title={idea.name} description={idea.description} defaultChannel="social" size="sm" />
                   <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                     {(idea.comments || []).length} comment{(idea.comments || []).length !== 1 ? "s" : ""}
                   </span>
@@ -397,8 +399,8 @@ export default function IdeasBoard() {
                 </div>
               )}
 
-              {/* Votes */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${BORDER}` }}>
+              {/* Votes + add to plan */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${BORDER}`, flexWrap: "wrap" }}>
                 <button onClick={() => react(activeIdea.id, "like")} style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", fontSize: 14, fontWeight: 700,
                   color: (activeIdea.likes || 0) > 0 ? GREEN : MUTED, background: `${GREEN}10`,
@@ -409,6 +411,9 @@ export default function IdeasBoard() {
                   color: (activeIdea.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
                   border: `1px solid ${(activeIdea.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 8, cursor: "pointer",
                 }}>&#9660; {activeIdea.dislikes || 0}</button>
+                <span style={{ marginLeft: "auto" }}>
+                  <AddToPlanButton title={activeIdea.name} description={activeIdea.description} defaultChannel="social" size="md" />
+                </span>
               </div>
 
               {/* Comments */}

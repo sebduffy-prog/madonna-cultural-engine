@@ -366,7 +366,7 @@ export default function MusicIntelligence() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 16 }}>
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: WHITE, margin: "0 0 4px", fontFamily: FONT, letterSpacing: "-0.01em" }}>Music intelligence</h2>
-          <p style={{ fontSize: 12, color: MUTED, margin: 0, fontFamily: FONT }}>
+          <p style={{ fontSize: 12, color: WHITE, margin: 0, fontFamily: FONT }}>
             Spotify streams (kworb) · Apple Music chart trending (15 markets) · Last.fm weekly trending
           </p>
         </div>

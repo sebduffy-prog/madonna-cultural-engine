@@ -117,7 +117,7 @@ export default function CampaignCalendar() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
           <h2 style={{ fontSize: 14, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase", margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Campaign Calendar</h2>
-          <p style={{ fontSize: 13, color: DIM, margin: 0 }}>Madonna events, cultural moments, and media block plans</p>
+          <p style={{ fontSize: 13, color: WHITE, margin: 0 }}>Madonna events, cultural moments, and media block plans</p>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <button onClick={searchEvents} disabled={searching} style={{

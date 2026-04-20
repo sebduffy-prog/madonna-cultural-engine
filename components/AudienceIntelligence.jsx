@@ -210,24 +210,31 @@ function CompareSegments({ data, metricSuffix = "" }) {
     const dataMax = Math.max(...items.map((d) => Math.max(d.valA, d.valB)), 1);
     return isIndexMetric ? Math.max(dataMax, 200) : Math.max(dataMax, 10);
   }, [items, isIndexMetric]);
-  const barH = 26;
-  const gap = 4;
-  const sideW = 200;
-  const centerW = 320;
-  const svgW = sideW + centerW + sideW;
-  const svgH = items.length * (barH + gap) + 30;
-  const centerX = sideW + centerW / 2;
+
+  // 3-column grid: [left bar track + value] [statement] [right bar track + value]
+  // Side columns flex, center column is clamped so long statements wrap instead of overflowing into bars.
+  const GRID = "minmax(140px, 1fr) minmax(220px, 340px) minmax(140px, 1fr)";
+  const ROW_H = 30;
+  const BAR_H = 18;
+  const numStyle = {
+    fontVariantNumeric: "tabular-nums",
+    fontFamily: "'Inter Tight', sans-serif",
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.01em",
+    whiteSpace: "nowrap",
+  };
 
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-        <select style={selectStyle} value={segA} onChange={(e) => setSegA(e.target.value)}>
+        <select style={{ ...selectStyle, borderColor: `${a.color}66`, color: a.color }} value={segA} onChange={(e) => setSegA(e.target.value)}>
           {SEGMENTS.map((s) => (
             <option key={s.key} value={s.key}>{s.label}</option>
           ))}
         </select>
         <span style={{ color: WHITE, opacity: 0.75, fontSize: 12, fontFamily: "'Inter Tight', sans-serif", fontWeight: 600 }}>vs</span>
-        <select style={selectStyle} value={segB} onChange={(e) => setSegB(e.target.value)}>
+        <select style={{ ...selectStyle, borderColor: `${b.color}66`, color: b.color }} value={segB} onChange={(e) => setSegB(e.target.value)}>
           {SEGMENTS.map((s) => (
             <option key={s.key} value={s.key}>{s.label}</option>
           ))}
@@ -238,91 +245,113 @@ function CompareSegments({ data, metricSuffix = "" }) {
           No statements found for either segment.
         </p>
       ) : (
-        <div className="scroll-fade" style={{
-          overflowX: "auto", maxHeight: 600, overflowY: "auto",
+        <div style={{
+          maxHeight: 600, overflowY: "auto", overflowX: "hidden",
           background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10,
-          padding: "16px 12px",
           backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
         }}>
-          <svg width={svgW} height={svgH} style={{ display: "block" }}>
-            {/* header labels */}
-            <text x={sideW / 2} y={14} textAnchor="middle" fill={a.color} fontSize={11} fontWeight={700} fontFamily="'Inter Tight', sans-serif">
-              {a.label}
-            </text>
-            <text x={sideW + centerW + sideW / 2} y={14} textAnchor="middle" fill={b.color} fontSize={11} fontWeight={700} fontFamily="'Inter Tight', sans-serif">
-              {b.label}
-            </text>
+          {/* sticky header — segment labels stay in view while the list scrolls */}
+          <div style={{
+            position: "sticky", top: 0, zIndex: 2,
+            display: "grid", gridTemplateColumns: GRID, alignItems: "center",
+            padding: "10px 16px",
+            background: "rgba(12,12,12,0.92)",
+            borderBottom: `1px solid ${BORDER}`,
+            backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+              <span style={{ ...numStyle, color: a.color, textTransform: "uppercase", letterSpacing: "0.08em" }}>{a.label}</span>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: a.color, boxShadow: `0 0 10px ${a.color}80` }} />
+            </div>
+            <div style={{ textAlign: "center", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif", fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+              Statement
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 8 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: b.color, boxShadow: `0 0 10px ${b.color}80` }} />
+              <span style={{ ...numStyle, color: b.color, textTransform: "uppercase", letterSpacing: "0.08em" }}>{b.label}</span>
+            </div>
+          </div>
+
+          <div style={{ padding: "6px 0" }}>
             {items.map((d, i) => {
-              const y = 28 + i * (barH + gap);
-              const barA = (d.valA / maxVal) * sideW;
-              const barB = (d.valB / maxVal) * sideW;
+              const pctA = (d.valA / maxVal) * 100;
+              const pctB = (d.valB / maxVal) * 100;
+              const leadA = d.valA > d.valB;
+              const leadB = d.valB > d.valA;
               return (
-                <g key={d.name + d.question}>
-                  {/* left bar (grows leftward from center) */}
-                  <rect
-                    x={sideW - barA}
-                    y={y + 2}
-                    width={barA}
-                    height={barH - 4}
-                    rx={3}
-                    fill={a.color}
-                    opacity={0.8}
-                    style={{ transition: "width 0.5s ease, x 0.5s ease, fill 0.3s ease" }}
-                  />
-                  <text
-                    x={sideW - barA - 6}
-                    y={y + barH / 2}
-                    textAnchor="end"
-                    dominantBaseline="central"
-                    fill={WHITE}
-                    fontSize={10}
-                    fontWeight={700}
-                    fontFamily="'Inter Tight', sans-serif"
-                  >
-                    {d.valA}{metricSuffix}
-                  </text>
-                  {/* center label — white with dark halo for legibility over any background */}
-                  <text
-                    x={centerX}
-                    y={y + barH / 2}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    stroke="rgba(12,12,12,0.85)"
-                    strokeWidth={3}
-                    paintOrder="stroke"
-                    fill={WHITE}
-                    fontSize={10}
-                    fontWeight={500}
-                    fontFamily="'Inter Tight', sans-serif"
+                <div
+                  key={d.name + d.question}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: GRID,
+                    alignItems: "center",
+                    columnGap: 12,
+                    padding: "6px 16px",
+                    minHeight: ROW_H,
+                    borderBottom: i === items.length - 1 ? "none" : `1px solid ${BORDER}55`,
+                    transition: "background 0.15s ease",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,213,0,0.03)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  {/* LEFT: value + bar anchored to the RIGHT edge (toward center) */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    <span style={{ ...numStyle, color: leadA ? a.color : DIM, marginLeft: "auto", flexShrink: 0 }}>
+                      {d.valA}{metricSuffix}
+                    </span>
+                    <div style={{ flex: "0 0 60%", height: BAR_H, position: "relative", background: `${a.color}0C`, borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{
+                        position: "absolute", top: 0, bottom: 0, right: 0,
+                        width: `${pctA}%`,
+                        background: `linear-gradient(270deg, ${a.color}, ${a.color}B3)`,
+                        opacity: leadA ? 1 : 0.65,
+                        borderRadius: 3,
+                        transition: "width 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease",
+                      }} />
+                    </div>
+                  </div>
+
+                  {/* CENTER: statement name, wraps and 2-line-clamps so it never overlaps the bars */}
+                  <div
+                    title={d.name}
+                    style={{
+                      fontSize: 11.5,
+                      lineHeight: 1.35,
+                      color: WHITE,
+                      textAlign: "center",
+                      fontFamily: "'Inter Tight', sans-serif",
+                      fontWeight: 500,
+                      padding: "0 8px",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                      wordBreak: "break-word",
+                    }}
                   >
                     {d.name}
-                  </text>
-                  {/* right bar (grows rightward from center) */}
-                  <rect
-                    x={sideW + centerW}
-                    y={y + 2}
-                    width={barB}
-                    height={barH - 4}
-                    rx={3}
-                    fill={b.color}
-                    opacity={0.8}
-                    style={{ transition: "width 0.5s ease, fill 0.3s ease" }}
-                  />
-                  <text
-                    x={sideW + centerW + barB + 6}
-                    y={y + barH / 2}
-                    dominantBaseline="central"
-                    fill={WHITE}
-                    fontSize={10}
-                    fontWeight={700}
-                    fontFamily="'Inter Tight', sans-serif"
-                  >
-                    {d.valB}{metricSuffix}
-                  </text>
-                </g>
+                  </div>
+
+                  {/* RIGHT: bar anchored to the LEFT edge (toward center) + value */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    <div style={{ flex: "0 0 60%", height: BAR_H, position: "relative", background: `${b.color}0C`, borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{
+                        position: "absolute", top: 0, bottom: 0, left: 0,
+                        width: `${pctB}%`,
+                        background: `linear-gradient(90deg, ${b.color}, ${b.color}B3)`,
+                        opacity: leadB ? 1 : 0.65,
+                        borderRadius: 3,
+                        transition: "width 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease",
+                      }} />
+                    </div>
+                    <span style={{ ...numStyle, color: leadB ? b.color : DIM, marginRight: "auto", flexShrink: 0 }}>
+                      {d.valB}{metricSuffix}
+                    </span>
+                  </div>
+                </div>
               );
             })}
-          </svg>
+          </div>
         </div>
       )}
     </div>
