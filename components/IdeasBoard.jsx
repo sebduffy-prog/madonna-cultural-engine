@@ -3,6 +3,13 @@ import { PanelSkeleton } from "./Skeleton";
 import AddToPlanButton from "./AddToPlanButton";
 import { AUDIENCE_OPTIONS, audienceLabel } from "../lib/audiences";
 
+// Accepts legacy single-string audience or new array — returns array of keys.
+function asAudienceArray(a) {
+  if (!a) return [];
+  if (Array.isArray(a)) return a.filter(Boolean);
+  return [a];
+}
+
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", WHITE = "#EDEDE8", MUTED = "#777", DIM = "#999", GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF", PURPLE = "#A78BFA", CORAL = "#FB923C", PINK = "#F472B6";
 
 const CHANNEL_COLORS = {
@@ -33,7 +40,14 @@ export default function IdeasBoard() {
   const [formDesc, setFormDesc] = useState("");
   const [formMockup, setFormMockup] = useState("");
   const [formTactics, setFormTactics] = useState([""]);
-  const [formAudience, setFormAudience] = useState("");
+  const [formAudience, setFormAudience] = useState([]);
+
+  function toggleFormAudience(key) {
+    setFormAudience((arr) => {
+      const list = asAudienceArray(arr);
+      return list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
+    });
+  }
 
   const load = useCallback(async () => {
     try {
@@ -80,7 +94,7 @@ export default function IdeasBoard() {
       if (data.ok) {
         setShowForm(false);
         setFormName(""); setFormDesc(""); setFormMockup("");
-        setFormTactics([""]); setFormAudience("");
+        setFormTactics([""]); setFormAudience([]);
         load();
       } else {
         alert("Failed to create idea: " + (data.error || r.status));
@@ -131,7 +145,7 @@ export default function IdeasBoard() {
       description: idea.description || "",
       mockupUrl: idea.mockupUrl || "",
       tactics: idea.tactics?.length ? [...idea.tactics] : [""],
-      audience: idea.audience || "",
+      audience: asAudienceArray(idea.audience),
     });
     setEditMode(true);
   }
@@ -353,18 +367,31 @@ export default function IdeasBoard() {
             >Click here, then Ctrl+V to paste image</div>
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>AUDIENCE</label>
-            <select value={formAudience} onChange={e => setFormAudience(e.target.value)} style={{
-              width: "100%", padding: "10px 14px", fontSize: 14, color: WHITE, background: BG,
-              border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none",
-              fontFamily: "'Inter Tight', system-ui, sans-serif", boxSizing: "border-box",
-              cursor: "pointer", colorScheme: "dark",
-            }}>
-              <option value="">Select audience&hellip;</option>
-              {AUDIENCE_OPTIONS.map(a => (
-                <option key={a.key} value={a.key}>{a.label}</option>
-              ))}
-            </select>
+            <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+              AUDIENCE
+              <span style={{ marginLeft: 8, fontSize: 10, color: DIM, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>Pick one or more — click to toggle</span>
+            </label>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {AUDIENCE_OPTIONS.map((a) => {
+                const on = asAudienceArray(formAudience).includes(a.key);
+                return (
+                  <button key={a.key} type="button" onClick={() => toggleFormAudience(a.key)} style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "6px 12px", fontSize: 12, fontWeight: 700,
+                    color: on ? WHITE : MUTED,
+                    background: on ? `${a.color}22` : "transparent",
+                    border: `1px solid ${on ? a.color : BORDER}`,
+                    borderRadius: 999, cursor: "pointer",
+                    fontFamily: "'Inter Tight', system-ui, sans-serif",
+                    transition: "all 0.15s ease",
+                    opacity: on ? 1 : 0.7,
+                  }}>
+                    <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: a.color, opacity: on ? 1 : 0.5 }} />
+                    {a.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>TACTICS</label>
@@ -417,8 +444,18 @@ export default function IdeasBoard() {
                   )}
                   <div style={{ padding: "12px 16px 8px" }}>
                     <h3 style={{ fontSize: 15, fontWeight: 700, color: WHITE, margin: 0, fontFamily: "'Inter Tight', system-ui, sans-serif", lineHeight: 1.3 }}>{idea.name}</h3>
-                    {idea.audience && (
-                      <span style={{ display: "inline-block", marginTop: 6, fontSize: 10, color: TEAL, background: `${TEAL}12`, border: `1px solid ${TEAL}44`, borderRadius: 4, padding: "2px 8px" }}>{audienceLabel(idea.audience)}</span>
+                    {asAudienceArray(idea.audience).length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                        {asAudienceArray(idea.audience).map((k) => {
+                          const a = AUDIENCE_OPTIONS.find((o) => o.key === k);
+                          const color = a?.color || TEAL;
+                          return (
+                            <span key={k} style={{ fontSize: 10, color, background: `${color}18`, border: `1px solid ${color}66`, borderRadius: 4, padding: "2px 8px", fontWeight: 600 }}>
+                              {a?.label || audienceLabel(k)}
+                            </span>
+                          );
+                        })}
+                      </div>
                     )}
                     <div style={{ fontSize: 9, color: MUTED, marginTop: 4 }}>{idea.createdBy} &middot; {new Date(idea.createdAt).toLocaleDateString()}</div>
                   </div>
@@ -435,7 +472,7 @@ export default function IdeasBoard() {
                     color: (idea.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
                     border: `1px solid ${(idea.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                   }}>&#9660; {idea.dislikes || 0}</button>
-                  <AddToPlanButton title={idea.name} description={idea.description} defaultChannel="social" defaultAudience={idea.audience} sourceType="idea" sourceId={idea.id} size="sm" />
+                  <AddToPlanButton title={idea.name} description={idea.description} defaultChannel="social" defaultAudience={asAudienceArray(idea.audience)[0]} sourceType="idea" sourceId={idea.id} size="sm" />
                   <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                     {(idea.comments || []).length} comment{(idea.comments || []).length !== 1 ? "s" : ""}
                   </span>
@@ -500,9 +537,15 @@ export default function IdeasBoard() {
                 <h2 style={{ fontSize: 22, fontWeight: 800, color: WHITE, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{activeIdea.name}</h2>
               )}
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-                {!editMode && activeIdea.audience && (
-                  <span style={{ fontSize: 10, color: TEAL, background: `${TEAL}12`, border: `1px solid ${TEAL}44`, borderRadius: 4, padding: "2px 8px" }}>{audienceLabel(activeIdea.audience)}</span>
-                )}
+                {!editMode && asAudienceArray(activeIdea.audience).map((k) => {
+                  const a = AUDIENCE_OPTIONS.find((o) => o.key === k);
+                  const color = a?.color || TEAL;
+                  return (
+                    <span key={k} style={{ fontSize: 11, color, background: `${color}18`, border: `1px solid ${color}66`, borderRadius: 999, padding: "3px 10px", fontWeight: 600 }}>
+                      {a?.label || audienceLabel(k)}
+                    </span>
+                  );
+                })}
                 <span style={{ fontSize: 11, color: MUTED }}>{activeIdea.createdBy} &middot; {new Date(activeIdea.createdAt).toLocaleDateString()}{activeIdea.updatedAt ? ` · edited ${new Date(activeIdea.updatedAt).toLocaleDateString()}` : ""}</span>
               </div>
 
@@ -524,19 +567,35 @@ export default function IdeasBoard() {
                 </div>
               ) : null}
 
-              {/* Audience (edit mode only — readonly shown in meta row above) */}
+              {/* Audience (edit mode — multi-select pills; read mode shows chips in meta row above) */}
               {editMode && (
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Audience</div>
-                  <select value={editForm.audience} onChange={e => setEditForm(f => ({ ...f, audience: e.target.value }))}
-                    style={{
-                      width: "100%", padding: "10px 14px", fontSize: 13, color: WHITE, background: BG,
-                      border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", cursor: "pointer", colorScheme: "dark",
-                      boxSizing: "border-box", fontFamily: "'Inter Tight', system-ui, sans-serif",
-                    }}>
-                    <option value="">Select audience&hellip;</option>
-                    {AUDIENCE_OPTIONS.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
-                  </select>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Audience</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {AUDIENCE_OPTIONS.map((a) => {
+                      const on = asAudienceArray(editForm.audience).includes(a.key);
+                      return (
+                        <button key={a.key} type="button" onClick={() => {
+                          setEditForm((f) => {
+                            const list = asAudienceArray(f.audience);
+                            return { ...f, audience: list.includes(a.key) ? list.filter((k) => k !== a.key) : [...list, a.key] };
+                          });
+                        }} style={{
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          padding: "6px 12px", fontSize: 12, fontWeight: 700,
+                          color: on ? WHITE : MUTED,
+                          background: on ? `${a.color}22` : "transparent",
+                          border: `1px solid ${on ? a.color : BORDER}`,
+                          borderRadius: 999, cursor: "pointer",
+                          fontFamily: "'Inter Tight', system-ui, sans-serif",
+                          opacity: on ? 1 : 0.7,
+                        }}>
+                          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: a.color, opacity: on ? 1 : 0.5 }} />
+                          {a.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -605,7 +664,7 @@ export default function IdeasBoard() {
                   border: `1px solid ${(activeIdea.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 8, cursor: "pointer",
                 }}>&#9660; {activeIdea.dislikes || 0}</button>
                 <span style={{ marginLeft: "auto" }}>
-                  <AddToPlanButton title={activeIdea.name} description={activeIdea.description} defaultChannel="social" defaultAudience={activeIdea.audience} sourceType="idea" sourceId={activeIdea.id} size="md" />
+                  <AddToPlanButton title={activeIdea.name} description={activeIdea.description} defaultChannel="social" defaultAudience={asAudienceArray(activeIdea.audience)[0]} sourceType="idea" sourceId={activeIdea.id} size="md" />
                 </span>
               </div>
 

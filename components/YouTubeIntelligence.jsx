@@ -97,9 +97,9 @@ export default function YouTubeIntelligence({ comments, fullThemeCounts, totalCo
   useEffect(() => { loadLiveData(); }, [loadLiveData]);
 
   const tabs = [
-    { id: "universe", label: "Universe", color: PURPLE },
-    { id: "newviral", label: "New & Viral", color: RED },
     { id: "newlive", label: "New & Live Graph", color: GREEN },
+    { id: "newviral", label: "New & Viral", color: RED },
+    { id: "universe", label: "Universe", color: PURPLE },
   ];
 
   return (
