@@ -53,6 +53,20 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, idea });
   }
 
+  if (action === "update") {
+    const { ideaId, name, description, mockupUrl, tactics, audience } = body;
+    const idea = ideas.find(i => i.id === ideaId);
+    if (!idea) return res.status(404).json({ error: "Idea not found" });
+    if (name !== undefined) idea.name = name;
+    if (description !== undefined) idea.description = description;
+    if (mockupUrl !== undefined) idea.mockupUrl = mockupUrl;
+    if (tactics !== undefined) idea.tactics = tactics;
+    if (audience !== undefined) idea.audience = audience;
+    idea.updatedAt = new Date().toISOString();
+    await kvSet(CACHE_KEY, ideas);
+    return res.status(200).json({ ok: true, idea });
+  }
+
   if (action === "like" || action === "dislike") {
     const { ideaId, userId } = body;
     const idea = ideas.find(i => i.id === ideaId);

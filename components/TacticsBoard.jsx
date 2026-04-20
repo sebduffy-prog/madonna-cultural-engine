@@ -114,6 +114,58 @@ export default function TacticsBoard() {
 
   const [selectedTactic, setSelectedTactic] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
+
+  function openEdit(t) {
+    setEditForm({
+      channel: t.channel || "",
+      roleOfChannel: t.roleOfChannel || "",
+      audience: asAudienceArray(t.audience),
+      audienceDetail: t.audienceDetail || "",
+      format: t.format || "",
+      notes: t.notes || "",
+    });
+    setEditMode(true);
+  }
+
+  function toggleEditAudience(key) {
+    setEditForm((f) => {
+      const arr = asAudienceArray(f.audience);
+      const has = arr.includes(key);
+      return { ...f, audience: has ? arr.filter((k) => k !== key) : [...arr, key] };
+    });
+  }
+
+  async function saveEdit(tacticId) {
+    setEditSaving(true);
+    try {
+      const r = await fetch("/api/tactics", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", tacticId, ...editForm }),
+      });
+      const d = await r.json();
+      if (!d.ok) { alert("Failed to save: " + (d.error || r.status)); return; }
+      const primaryAudience = asAudienceArray(editForm.audience)[0] || "";
+      await fetch("/api/calendar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update-from-source",
+          sourceType: "tactic",
+          sourceId: tacticId,
+          title: editForm.channel,
+          description: tacticDescription({ ...editForm }),
+          audience: primaryAudience,
+        }),
+      }).catch(() => {});
+      setEditMode(false);
+      setEditForm(null);
+      load();
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   async function handleDelete(tacticId) {
     await fetch("/api/tactics", {
@@ -277,7 +329,7 @@ export default function TacticsBoard() {
                   color: (tactic.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
                   border: `1px solid ${(tactic.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                 }}>&#9660; {tactic.dislikes || 0}</button>
-                <AddToPlanButton title={tactic.channel} description={tacticDescription(tactic)} defaultChannel={tactic.channel} defaultAudience={asAudienceArray(tactic.audience)[0]} size="sm" />
+                <AddToPlanButton title={tactic.channel} description={tacticDescription(tactic)} defaultChannel={tactic.channel} defaultAudience={asAudienceArray(tactic.audience)[0]} sourceType="tactic" sourceId={tactic.id} size="sm" />
                 <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                   {(tactic.comments || []).length} comment{(tactic.comments || []).length !== 1 ? "s" : ""}
                 </span>
@@ -289,10 +341,10 @@ export default function TacticsBoard() {
 
       {activeTactic && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
-          onClick={() => { setSelectedTactic(null); setConfirmDelete(false); }}>
+          onClick={() => { setSelectedTactic(null); setConfirmDelete(false); setEditMode(false); setEditForm(null); }}>
           <div style={{ background: CARD, borderRadius: 12, border: `1px solid ${BORDER}`, width: "100%", maxWidth: 680, maxHeight: "90vh", overflowY: "auto", position: "relative" }}
             onClick={e => e.stopPropagation()}>
-            <button onClick={() => { setSelectedTactic(null); setConfirmDelete(false); }} style={{
+            <button onClick={() => { setSelectedTactic(null); setConfirmDelete(false); setEditMode(false); setEditForm(null); }} style={{
               position: "absolute", top: 12, right: 12, width: 32, height: 32, borderRadius: 16,
               background: `${BG}cc`, color: WHITE, border: `1px solid ${BORDER}`, cursor: "pointer",
               fontSize: 16, lineHeight: "30px", zIndex: 2, textAlign: "center",
@@ -300,10 +352,63 @@ export default function TacticsBoard() {
 
             <div style={{ padding: "24px 24px 20px" }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: Y, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Channel</div>
-              <h2 style={{ fontSize: 24, fontWeight: 800, color: WHITE, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{activeTactic.channel}</h2>
-              <div style={{ fontSize: 11, color: MUTED, marginBottom: 20 }}>{activeTactic.createdBy} &middot; {new Date(activeTactic.createdAt).toLocaleDateString()}</div>
+              {editMode ? (
+                <input value={editForm.channel} onChange={e => setEditForm(f => ({ ...f, channel: e.target.value }))}
+                  style={{
+                    width: "100%", padding: "10px 14px", fontSize: 22, fontWeight: 800, color: WHITE, background: BG,
+                    border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", marginBottom: 8, boxSizing: "border-box",
+                    fontFamily: "'Inter Tight', system-ui, sans-serif",
+                  }} />
+              ) : (
+                <h2 style={{ fontSize: 24, fontWeight: 800, color: WHITE, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{activeTactic.channel}</h2>
+              )}
+              <div style={{ fontSize: 11, color: MUTED, marginBottom: 20 }}>{activeTactic.createdBy} &middot; {new Date(activeTactic.createdAt).toLocaleDateString()}{activeTactic.updatedAt ? ` · edited ${new Date(activeTactic.updatedAt).toLocaleDateString()}` : ""}</div>
 
-              {FIELDS.filter(f => f.key !== "channel").map(f => {
+              {editMode && FIELDS.filter(f => f.key !== "channel").map(f => (
+                <div key={f.key} style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>{f.label}</div>
+                  {f.type === "multi-audience" ? (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {AUDIENCE_OPTIONS.map((a) => {
+                        const on = asAudienceArray(editForm.audience).includes(a.key);
+                        return (
+                          <button key={a.key} type="button" onClick={() => toggleEditAudience(a.key)} style={{
+                            display: "inline-flex", alignItems: "center", gap: 6,
+                            padding: "6px 12px", fontSize: 12, fontWeight: 700,
+                            color: on ? WHITE : MUTED,
+                            background: on ? `${a.color}22` : "transparent",
+                            border: `1px solid ${on ? a.color : BORDER}`,
+                            borderRadius: 999, cursor: "pointer",
+                            fontFamily: "'Inter Tight', system-ui, sans-serif",
+                            opacity: on ? 1 : 0.7,
+                          }}>
+                            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: a.color, opacity: on ? 1 : 0.5 }} />
+                            {a.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : f.key === "notes" ? (
+                    <textarea value={editForm[f.key]} onChange={e => setEditForm(fr => ({ ...fr, [f.key]: e.target.value }))} rows={4}
+                      placeholder={f.placeholder}
+                      style={{
+                        width: "100%", padding: "10px 14px", fontSize: 13, color: WHITE, background: BG,
+                        border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", resize: "vertical", lineHeight: 1.7,
+                        boxSizing: "border-box", fontFamily: "'Inter Tight', system-ui, sans-serif",
+                      }} />
+                  ) : (
+                    <input value={editForm[f.key]} onChange={e => setEditForm(fr => ({ ...fr, [f.key]: e.target.value }))}
+                      placeholder={f.placeholder}
+                      style={{
+                        width: "100%", padding: "10px 14px", fontSize: 14, color: WHITE, background: BG,
+                        border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none",
+                        boxSizing: "border-box", fontFamily: "'Inter Tight', system-ui, sans-serif",
+                      }} />
+                  )}
+                </div>
+              ))}
+
+              {!editMode && FIELDS.filter(f => f.key !== "channel").map(f => {
                 const raw = activeTactic[f.key];
                 const auds = f.key === "audience" ? asAudienceArray(raw) : null;
                 if (f.key === "audience") {
@@ -346,7 +451,7 @@ export default function TacticsBoard() {
                   border: `1px solid ${(activeTactic.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 8, cursor: "pointer",
                 }}>&#9660; {activeTactic.dislikes || 0}</button>
                 <span style={{ marginLeft: "auto" }}>
-                  <AddToPlanButton title={activeTactic.channel} description={tacticDescription(activeTactic)} defaultChannel={activeTactic.channel} defaultAudience={asAudienceArray(activeTactic.audience)[0]} size="md" />
+                  <AddToPlanButton title={activeTactic.channel} description={tacticDescription(activeTactic)} defaultChannel={activeTactic.channel} defaultAudience={asAudienceArray(activeTactic.audience)[0]} sourceType="tactic" sourceId={activeTactic.id} size="md" />
                 </span>
               </div>
 
@@ -386,12 +491,32 @@ export default function TacticsBoard() {
                 </div>
               </div>
 
-              <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${BORDER}` }}>
+              <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                {editMode ? (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => saveEdit(activeTactic.id)} disabled={editSaving || !editForm?.channel?.trim()} style={{
+                      padding: "9px 20px", fontSize: 12, fontWeight: 700, color: BG, background: Y,
+                      border: "none", borderRadius: 6, cursor: editSaving ? "wait" : "pointer",
+                      fontFamily: "'Inter Tight', system-ui, sans-serif", opacity: editSaving ? 0.6 : 1,
+                    }}>{editSaving ? "Saving…" : "Save changes"}</button>
+                    <button onClick={() => { setEditMode(false); setEditForm(null); }} disabled={editSaving} style={{
+                      padding: "9px 18px", fontSize: 12, fontWeight: 700, color: MUTED, background: "transparent",
+                      border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+                      fontFamily: "'Inter Tight', system-ui, sans-serif",
+                    }}>Cancel</button>
+                  </div>
+                ) : (
+                  <button onClick={() => openEdit(activeTactic)} style={{
+                    padding: "8px 16px", fontSize: 11, fontWeight: 700, color: Y, background: `${Y}12`,
+                    border: `1px solid ${Y}66`, borderRadius: 6, cursor: "pointer",
+                    fontFamily: "'Inter Tight', system-ui, sans-serif", letterSpacing: "0.02em",
+                  }}>&#9998; Edit</button>
+                )}
                 {!confirmDelete ? (
-                  <button onClick={() => setConfirmDelete(true)} style={{
+                  <button onClick={() => setConfirmDelete(true)} disabled={editMode} style={{
                     padding: "8px 16px", fontSize: 11, color: RED, background: "transparent",
-                    border: `1px solid ${RED}44`, borderRadius: 6, cursor: "pointer",
-                    fontFamily: "'Inter Tight', system-ui, sans-serif",
+                    border: `1px solid ${RED}44`, borderRadius: 6, cursor: editMode ? "not-allowed" : "pointer",
+                    fontFamily: "'Inter Tight', system-ui, sans-serif", opacity: editMode ? 0.4 : 1,
                   }}>Delete this tactic</button>
                 ) : (
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

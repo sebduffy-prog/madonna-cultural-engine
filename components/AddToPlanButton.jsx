@@ -33,7 +33,7 @@ function guessChannel(raw) {
  *  - size: "sm" (card row) | "md" (detail modal)
  *  - onAdded: optional callback
  */
-export default function AddToPlanButton({ title, description = "", defaultChannel, defaultAudience, size = "sm", onAdded }) {
+export default function AddToPlanButton({ title, description = "", defaultChannel, defaultAudience, sourceType, sourceId, size = "sm", onAdded }) {
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -73,6 +73,8 @@ export default function AddToPlanButton({ title, description = "", defaultChanne
           description,
           comment: "",
           audience,
+          sourceType: sourceType || null,
+          sourceId: sourceId || null,
           createdBy: userName,
         }),
       });

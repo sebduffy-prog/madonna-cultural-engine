@@ -49,14 +49,16 @@ export default async function handler(req, res) {
   }
 
   if (action === "update") {
-    const { tacticId, channel, roleOfChannel, audience, format, notes } = body;
+    const { tacticId, channel, roleOfChannel, audience, audienceDetail, format, notes } = body;
     const tactic = tactics.find(t => t.id === tacticId);
     if (!tactic) return res.status(404).json({ error: "Tactic not found" });
     if (channel !== undefined) tactic.channel = channel;
     if (roleOfChannel !== undefined) tactic.roleOfChannel = roleOfChannel;
     if (audience !== undefined) tactic.audience = audience;
+    if (audienceDetail !== undefined) tactic.audienceDetail = audienceDetail;
     if (format !== undefined) tactic.format = format;
     if (notes !== undefined) tactic.notes = notes;
+    tactic.updatedAt = new Date().toISOString();
     await kvSet(CACHE_KEY, tactics);
     return res.status(200).json({ ok: true, tactic });
   }

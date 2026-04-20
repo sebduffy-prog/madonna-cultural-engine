@@ -222,7 +222,26 @@ export default function StreetArtMap({ murals, venues, sites = {} }) {
       }
     ).addTo(map);
 
+    // Observe the container for size changes — fixes the classic Leaflet bug
+    // where tiles don't load on parts of the map that weren't visible at init
+    // (e.g. when the Locations tab was hidden or the window was resized). We
+    // call invalidateSize() so Leaflet recomputes its viewport and fetches
+    // any missing tiles.
+    const invalidate = () => {
+      try { map.invalidateSize(false); } catch {}
+    };
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(invalidate) : null;
+    if (ro) ro.observe(mapRef.current);
+    window.addEventListener("resize", invalidate);
+    // Nudge a few times after mount to catch late layout shifts (tab reveal,
+    // backdrop-filter compositing, etc.)
+    const timers = [requestAnimationFrame(invalidate), setTimeout(invalidate, 120), setTimeout(invalidate, 400), setTimeout(invalidate, 1000)];
+
     return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener("resize", invalidate);
+      cancelAnimationFrame(timers[0]);
+      timers.slice(1).forEach(clearTimeout);
       styleEl.remove();
       map.remove();
       mapInstanceRef.current = null;

@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   if (!stored.blockPlans) stored.blockPlans = [];
 
   if (action === "add-block") {
-    const { startDate, endDate, channel, title, description, comment, audience, createdBy } = body;
+    const { startDate, endDate, channel, title, description, comment, audience, sourceType, sourceId, createdBy } = body;
     if (!startDate || !title || !channel) {
       return res.status(400).json({ error: "startDate, channel, and title are required" });
     }
@@ -61,6 +61,8 @@ export default async function handler(req, res) {
       description: description || "",
       comment: comment || "",
       audience: audience || "",
+      sourceType: sourceType || null,   // "idea" | "tactic" | null
+      sourceId: sourceId || null,
       createdBy: createdBy || "Anonymous",
       createdAt: new Date().toISOString(),
       type: "block",
@@ -68,6 +70,40 @@ export default async function handler(req, res) {
     stored.blockPlans.push(block);
     await kvSet(CACHE_KEY, stored);
     return res.status(200).json({ ok: true, block });
+  }
+
+  if (action === "update-block") {
+    const { blockId, startDate, endDate, channel, title, description, comment, audience } = body;
+    const block = stored.blockPlans.find(b => b.id === blockId);
+    if (!block) return res.status(404).json({ error: "Block not found" });
+    if (startDate !== undefined) block.startDate = startDate;
+    if (endDate !== undefined) block.endDate = endDate;
+    if (channel !== undefined) block.channel = channel;
+    if (title !== undefined) block.title = title;
+    if (description !== undefined) block.description = description;
+    if (comment !== undefined) block.comment = comment;
+    if (audience !== undefined) block.audience = audience;
+    block.updatedAt = new Date().toISOString();
+    await kvSet(CACHE_KEY, stored);
+    return res.status(200).json({ ok: true, block });
+  }
+
+  if (action === "update-from-source") {
+    // Propagate edits from an idea/tactic to any block plans it spawned.
+    const { sourceType, sourceId, title, description, audience } = body;
+    if (!sourceType || !sourceId) return res.status(400).json({ error: "sourceType and sourceId required" });
+    let touched = 0;
+    stored.blockPlans.forEach(b => {
+      if (b.sourceType === sourceType && b.sourceId === sourceId) {
+        if (title !== undefined) b.title = title;
+        if (description !== undefined) b.description = description;
+        if (audience !== undefined) b.audience = audience;
+        b.updatedAt = new Date().toISOString();
+        touched += 1;
+      }
+    });
+    await kvSet(CACHE_KEY, stored);
+    return res.status(200).json({ ok: true, touched });
   }
 
   if (action === "delete-block") {

@@ -121,6 +121,92 @@ export default function IdeasBoard() {
 
   const [selectedIdea, setSelectedIdea] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
+
+  function openEdit(idea) {
+    setEditForm({
+      name: idea.name || "",
+      description: idea.description || "",
+      mockupUrl: idea.mockupUrl || "",
+      tactics: idea.tactics?.length ? [...idea.tactics] : [""],
+      audience: idea.audience || "",
+    });
+    setEditMode(true);
+  }
+
+  function pickEditImage() {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = (ev) => {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (re) => {
+        let mockup = re.target.result;
+        // compress large images
+        if (mockup && mockup.startsWith("data:") && mockup.length > 500000) {
+          try {
+            const img = new Image();
+            await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = mockup; });
+            const canvas = document.createElement("canvas");
+            const maxDim = 1200;
+            let w = img.width, h = img.height;
+            if (w > maxDim || h > maxDim) {
+              const scale = maxDim / Math.max(w, h);
+              w = Math.round(w * scale); h = Math.round(h * scale);
+            }
+            canvas.width = w; canvas.height = h;
+            canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+            mockup = canvas.toDataURL("image/jpeg", 0.8);
+          } catch {}
+        }
+        setEditForm(f => ({ ...f, mockupUrl: mockup }));
+      };
+      reader.readAsDataURL(file);
+    };
+    inp.click();
+  }
+
+  async function saveEdit(ideaId) {
+    setEditSaving(true);
+    try {
+      const tactics = (editForm.tactics || []).filter(t => t && t.trim());
+      const payload = {
+        action: "update",
+        ideaId,
+        name: editForm.name,
+        description: editForm.description,
+        mockupUrl: editForm.mockupUrl,
+        tactics,
+        audience: editForm.audience,
+      };
+      const r = await fetch("/api/ideas", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const d = await r.json();
+      if (!d.ok) { alert("Failed to save: " + (d.error || r.status)); return; }
+      // Propagate to any calendar blocks that were created from this idea
+      await fetch("/api/calendar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update-from-source",
+          sourceType: "idea",
+          sourceId: ideaId,
+          title: editForm.name,
+          description: editForm.description,
+          audience: editForm.audience,
+        }),
+      }).catch(() => {});
+      setEditMode(false);
+      setEditForm(null);
+      load();
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   async function handleDelete(ideaId) {
     await fetch("/api/ideas", {
@@ -349,7 +435,7 @@ export default function IdeasBoard() {
                     color: (idea.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
                     border: `1px solid ${(idea.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                   }}>&#9660; {idea.dislikes || 0}</button>
-                  <AddToPlanButton title={idea.name} description={idea.description} defaultChannel="social" defaultAudience={idea.audience} size="sm" />
+                  <AddToPlanButton title={idea.name} description={idea.description} defaultChannel="social" defaultAudience={idea.audience} sourceType="idea" sourceId={idea.id} size="sm" />
                   <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                     {(idea.comments || []).length} comment{(idea.comments || []).length !== 1 ? "s" : ""}
                   </span>
@@ -364,43 +450,126 @@ export default function IdeasBoard() {
       {/* ═══ IDEA DETAIL POPUP ═══ */}
       {activeIdea && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
-          onClick={() => { setSelectedIdea(null); setConfirmDelete(false); }}>
+          onClick={() => { setSelectedIdea(null); setConfirmDelete(false); setEditMode(false); setEditForm(null); }}>
           <div style={{ background: CARD, borderRadius: 12, border: `1px solid ${BORDER}`, width: "100%", maxWidth: 680, maxHeight: "90vh", overflowY: "auto", position: "relative" }}
             onClick={e => e.stopPropagation()}>
             {/* Close button */}
-            <button onClick={() => { setSelectedIdea(null); setConfirmDelete(false); }} style={{
+            <button onClick={() => { setSelectedIdea(null); setConfirmDelete(false); setEditMode(false); setEditForm(null); }} style={{
               position: "absolute", top: 12, right: 12, width: 32, height: 32, borderRadius: 16,
               background: `${BG}cc`, color: WHITE, border: `1px solid ${BORDER}`, cursor: "pointer",
               fontSize: 16, lineHeight: "30px", zIndex: 2, textAlign: "center",
             }}>&times;</button>
 
-            {/* Image */}
-            {activeIdea.mockupUrl && (
-              <div style={{ width: "100%", maxHeight: 360, overflow: "hidden", borderRadius: "12px 12px 0 0" }}>
-                <img src={activeIdea.mockupUrl} alt={activeIdea.name} style={{ width: "100%", objectFit: "cover" }} />
+            {/* Image (readonly or edit) */}
+            {(editMode ? editForm?.mockupUrl : activeIdea.mockupUrl) && (
+              <div style={{ width: "100%", maxHeight: 360, overflow: "hidden", borderRadius: "12px 12px 0 0", position: "relative" }}>
+                <img src={editMode ? editForm.mockupUrl : activeIdea.mockupUrl} alt={activeIdea.name} style={{ width: "100%", objectFit: "cover" }} />
+                {editMode && (
+                  <div style={{ position: "absolute", bottom: 10, right: 10, display: "flex", gap: 6 }}>
+                    <button type="button" onClick={pickEditImage} style={{
+                      padding: "6px 14px", fontSize: 11, fontWeight: 700, color: BG, background: Y,
+                      border: "none", borderRadius: 6, cursor: "pointer",
+                    }}>Change image</button>
+                    <button type="button" onClick={() => setEditForm(f => ({ ...f, mockupUrl: "" }))} style={{
+                      padding: "6px 10px", fontSize: 11, fontWeight: 700, color: WHITE,
+                      background: `${BG}cc`, border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+                    }}>Remove</button>
+                  </div>
+                )}
+              </div>
+            )}
+            {editMode && !editForm?.mockupUrl && (
+              <div style={{ padding: "16px 24px 0" }}>
+                <button type="button" onClick={pickEditImage} style={{
+                  width: "100%", padding: "20px", fontSize: 12, fontWeight: 700, color: MUTED,
+                  background: "transparent", border: `2px dashed ${BORDER}`, borderRadius: 8, cursor: "pointer",
+                }}>Click to add image</button>
               </div>
             )}
 
             <div style={{ padding: "20px 24px" }}>
               {/* Title + meta */}
-              <h2 style={{ fontSize: 22, fontWeight: 800, color: WHITE, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{activeIdea.name}</h2>
+              {editMode ? (
+                <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Idea name *" style={{
+                    width: "100%", padding: "10px 14px", fontSize: 20, fontWeight: 800, color: WHITE, background: BG,
+                    border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", marginBottom: 10, boxSizing: "border-box",
+                    fontFamily: "'Inter Tight', system-ui, sans-serif",
+                  }} />
+              ) : (
+                <h2 style={{ fontSize: 22, fontWeight: 800, color: WHITE, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{activeIdea.name}</h2>
+              )}
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-                {activeIdea.audience && (
+                {!editMode && activeIdea.audience && (
                   <span style={{ fontSize: 10, color: TEAL, background: `${TEAL}12`, border: `1px solid ${TEAL}44`, borderRadius: 4, padding: "2px 8px" }}>{audienceLabel(activeIdea.audience)}</span>
                 )}
-                <span style={{ fontSize: 11, color: MUTED }}>{activeIdea.createdBy} &middot; {new Date(activeIdea.createdAt).toLocaleDateString()}</span>
+                <span style={{ fontSize: 11, color: MUTED }}>{activeIdea.createdBy} &middot; {new Date(activeIdea.createdAt).toLocaleDateString()}{activeIdea.updatedAt ? ` · edited ${new Date(activeIdea.updatedAt).toLocaleDateString()}` : ""}</span>
               </div>
 
               {/* Description */}
-              {activeIdea.description && (
+              {editMode ? (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Description</div>
+                  <textarea value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                    rows={4} style={{
+                      width: "100%", padding: "10px 14px", fontSize: 13, color: WHITE, background: BG,
+                      border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", resize: "vertical", lineHeight: 1.7,
+                      boxSizing: "border-box", fontFamily: "'Inter Tight', system-ui, sans-serif",
+                    }} />
+                </div>
+              ) : activeIdea.description ? (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Description</div>
                   <p style={{ fontSize: 14, color: DIM, lineHeight: 1.8, margin: 0 }}>{activeIdea.description}</p>
                 </div>
+              ) : null}
+
+              {/* Audience (edit mode only — readonly shown in meta row above) */}
+              {editMode && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Audience</div>
+                  <select value={editForm.audience} onChange={e => setEditForm(f => ({ ...f, audience: e.target.value }))}
+                    style={{
+                      width: "100%", padding: "10px 14px", fontSize: 13, color: WHITE, background: BG,
+                      border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", cursor: "pointer", colorScheme: "dark",
+                      boxSizing: "border-box", fontFamily: "'Inter Tight', system-ui, sans-serif",
+                    }}>
+                    <option value="">Select audience&hellip;</option>
+                    {AUDIENCE_OPTIONS.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
+                  </select>
+                </div>
               )}
 
               {/* Tactics */}
-              {activeIdea.tactics?.length > 0 && (
+              {editMode ? (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Tactics</div>
+                  {editForm.tactics.map((t, i) => (
+                    <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                      <input value={t} onChange={e => {
+                        const arr = [...editForm.tactics]; arr[i] = e.target.value;
+                        setEditForm(f => ({ ...f, tactics: arr }));
+                      }} style={{
+                        flex: 1, padding: "8px 10px", fontSize: 12, color: WHITE, background: BG,
+                        border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", boxSizing: "border-box",
+                      }} />
+                      {editForm.tactics.length > 1 && (
+                        <button type="button" onClick={() => {
+                          const arr = editForm.tactics.filter((_, idx) => idx !== i);
+                          setEditForm(f => ({ ...f, tactics: arr.length ? arr : [""] }));
+                        }} style={{
+                          padding: "4px 10px", fontSize: 11, color: MUTED, background: "transparent",
+                          border: `1px solid ${BORDER}`, borderRadius: 4, cursor: "pointer",
+                        }}>&times;</button>
+                      )}
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setEditForm(f => ({ ...f, tactics: [...f.tactics, ""] }))} style={{
+                    padding: "4px 12px", fontSize: 11, color: TEAL, background: "transparent",
+                    border: `1px solid ${TEAL}44`, borderRadius: 4, cursor: "pointer", marginTop: 4,
+                  }}>+ Add tactic</button>
+                </div>
+              ) : activeIdea.tactics?.length > 0 ? (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Tactics</div>
                   {activeIdea.tactics.map((tactic, i) => (
@@ -410,7 +579,7 @@ export default function IdeasBoard() {
                     </div>
                   ))}
                 </div>
-              )}
+              ) : null}
               {/* Legacy: show extensions if idea was created before tactics rename */}
               {!activeIdea.tactics?.length && activeIdea.extensions?.length > 0 && (
                 <div style={{ marginBottom: 20 }}>
@@ -436,7 +605,7 @@ export default function IdeasBoard() {
                   border: `1px solid ${(activeIdea.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 8, cursor: "pointer",
                 }}>&#9660; {activeIdea.dislikes || 0}</button>
                 <span style={{ marginLeft: "auto" }}>
-                  <AddToPlanButton title={activeIdea.name} description={activeIdea.description} defaultChannel="social" defaultAudience={activeIdea.audience} size="md" />
+                  <AddToPlanButton title={activeIdea.name} description={activeIdea.description} defaultChannel="social" defaultAudience={activeIdea.audience} sourceType="idea" sourceId={activeIdea.id} size="md" />
                 </span>
               </div>
 
@@ -478,13 +647,33 @@ export default function IdeasBoard() {
                 </div>
               </div>
 
-              {/* Delete idea */}
-              <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${BORDER}` }}>
+              {/* Edit (left) + Delete (right) action bar */}
+              <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                {editMode ? (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => saveEdit(activeIdea.id)} disabled={editSaving || !editForm?.name?.trim()} style={{
+                      padding: "9px 20px", fontSize: 12, fontWeight: 700, color: BG, background: Y,
+                      border: "none", borderRadius: 6, cursor: editSaving ? "wait" : "pointer",
+                      fontFamily: "'Inter Tight', system-ui, sans-serif", opacity: editSaving ? 0.6 : 1,
+                    }}>{editSaving ? "Saving…" : "Save changes"}</button>
+                    <button onClick={() => { setEditMode(false); setEditForm(null); }} disabled={editSaving} style={{
+                      padding: "9px 18px", fontSize: 12, fontWeight: 700, color: MUTED, background: "transparent",
+                      border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+                      fontFamily: "'Inter Tight', system-ui, sans-serif",
+                    }}>Cancel</button>
+                  </div>
+                ) : (
+                  <button onClick={() => openEdit(activeIdea)} style={{
+                    padding: "8px 16px", fontSize: 11, fontWeight: 700, color: Y, background: `${Y}12`,
+                    border: `1px solid ${Y}66`, borderRadius: 6, cursor: "pointer",
+                    fontFamily: "'Inter Tight', system-ui, sans-serif", letterSpacing: "0.02em",
+                  }}>&#9998; Edit</button>
+                )}
                 {!confirmDelete ? (
-                  <button onClick={() => setConfirmDelete(true)} style={{
+                  <button onClick={() => setConfirmDelete(true)} disabled={editMode} style={{
                     padding: "8px 16px", fontSize: 11, color: RED, background: "transparent",
-                    border: `1px solid ${RED}44`, borderRadius: 6, cursor: "pointer",
-                    fontFamily: "'Inter Tight', system-ui, sans-serif",
+                    border: `1px solid ${RED}44`, borderRadius: 6, cursor: editMode ? "not-allowed" : "pointer",
+                    fontFamily: "'Inter Tight', system-ui, sans-serif", opacity: editMode ? 0.4 : 1,
                   }}>Delete this idea</button>
                 ) : (
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
