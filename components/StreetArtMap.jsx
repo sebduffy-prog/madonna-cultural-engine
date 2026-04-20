@@ -77,72 +77,13 @@ const CITIES = [
 // Heathrow airport centroid + approximate arterial route polylines connecting
 // central London to the airport (M4 and A4 corridors plus M25 junction).
 const HEATHROW_AIRPORT = { lat: 51.4700, lng: -0.4543, name: "London Heathrow Airport" };
-// Detailed polylines that approximate the real road paths of each arterial
-// route — enough waypoints that the lines read as "road shaped" without a
-// routing API call.
-const HEATHROW_ROUTES = [
-  {
-    name: "M4 corridor (motorway)",
-    coords: [
-      [51.5150, -0.1750],  // Paddington
-      [51.5185, -0.1855],  // Westway start
-      [51.5200, -0.2000],  // Westway / A40
-      [51.5215, -0.2120],
-      [51.5200, -0.2240],  // White City
-      [51.5095, -0.2275],  // Shepherd's Bush
-      [51.4970, -0.2282],  // Hammersmith approach
-      [51.4920, -0.2282],  // Hammersmith
-      [51.4920, -0.2360],
-      [51.4921, -0.2488],  // Great West Rd
-      [51.4927, -0.2586],  // Hogarth r'bout
-      [51.4938, -0.2800],  // Chiswick flyover / joins M4
-      [51.4936, -0.2989],  // M4 J1
-      [51.4940, -0.3230],
-      [51.4930, -0.3720],  // M4 J2
-      [51.4915, -0.4040],
-      [51.4905, -0.4296],  // M4 J3 (Hayes)
-      [51.4860, -0.4470],  // M4 spur
-      [51.4843, -0.4520],  // M4 J4 (Heathrow)
-      [51.4780, -0.4542],
-      [51.4730, -0.4543],
-      [51.4700, -0.4543],  // Heathrow centre
-    ],
-  },
-  {
-    name: "A4 corridor (surface)",
-    coords: [
-      [51.5017, -0.1597],  // Hyde Park Corner
-      [51.4985, -0.1720],  // Knightsbridge
-      [51.4970, -0.1830],
-      [51.4935, -0.1870],  // Cromwell Rd begin
-      [51.4921, -0.2000],  // West Cromwell Rd
-      [51.4920, -0.2120],  // Talgarth Rd
-      [51.4920, -0.2260],  // Hammersmith flyover
-      [51.4920, -0.2488],  // Great West Rd
-      [51.4921, -0.2586],  // Hogarth r'bout (M4 joins)
-      [51.4895, -0.2690],
-      [51.4878, -0.2895],  // A4 Chiswick
-      [51.4870, -0.3100],  // A4 Brentford
-      [51.4860, -0.3380],
-      [51.4850, -0.3530],
-      [51.4820, -0.3720],  // Hounslow
-      [51.4780, -0.3960],
-      [51.4745, -0.4150],  // Cranford
-      [51.4720, -0.4370],
-      [51.4705, -0.4500],
-      [51.4700, -0.4543],  // Heathrow
-    ],
-  },
-  {
-    name: "M25 / airport spur",
-    coords: [
-      [51.4230, -0.5120],  // M25 J13
-      [51.4360, -0.5000],  // M25 J14 approach
-      [51.4500, -0.4820],
-      [51.4610, -0.4700],  // Airport tunnel
-      [51.4700, -0.4543],  // Heathrow
-    ],
-  },
+// Heathrow arterial routes are now loaded from warner-sites.json (fetched from
+// OSRM at build prep time — actual road-following polylines, ~1000+ points each).
+// Fallback waypoints used only if the JSON is missing the routes field.
+const HEATHROW_ROUTES_FALLBACK = [
+  { name: "M4 corridor", coords: [[51.5150, -0.1750], [51.4920, -0.2282], [51.4935, -0.2785], [51.4940, -0.3720], [51.4905, -0.4296], [51.4843, -0.4520], [51.4700, -0.4543]] },
+  { name: "A4 corridor", coords: [[51.5019, -0.1870], [51.4920, -0.2282], [51.4870, -0.3100], [51.4820, -0.3700], [51.4760, -0.4200], [51.4700, -0.4543]] },
+  { name: "M25 / airport spur", coords: [[51.4230, -0.5120], [51.4500, -0.4820], [51.4700, -0.4543]] },
 ];
 
 function esc(s) {
@@ -321,7 +262,8 @@ export default function StreetArtMap({ murals, venues, sites = {} }) {
 
       // Heathrow layer gets the airport centroid + arterial route polylines
       if (layer.key === "heathrow") {
-        HEATHROW_ROUTES.forEach((route) => {
+        const routes = (sites.heathrowRoutes && sites.heathrowRoutes.length) ? sites.heathrowRoutes : HEATHROW_ROUTES_FALLBACK;
+        routes.forEach((route) => {
           const line = L.polyline(route.coords, {
             color: layer.color,
             weight: 3.5,
