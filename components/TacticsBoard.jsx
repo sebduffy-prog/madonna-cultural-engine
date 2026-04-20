@@ -3,10 +3,19 @@ import { PanelSkeleton } from "./Skeleton";
 import AddToPlanButton from "./AddToPlanButton";
 import { AUDIENCE_OPTIONS, audienceLabel } from "../lib/audiences";
 
+// Accepts legacy single-string audience or new array — returns array of keys.
+function asAudienceArray(a) {
+  if (!a) return [];
+  if (Array.isArray(a)) return a.filter(Boolean);
+  return [a];
+}
+
 function tacticDescription(t) {
+  const auds = asAudienceArray(t.audience).map(audienceLabel).filter(Boolean);
   return [
     t.roleOfChannel && `Role: ${t.roleOfChannel}`,
-    t.audience && `Audience: ${audienceLabel(t.audience)}`,
+    auds.length ? `Audience: ${auds.join(", ")}` : null,
+    t.audienceDetail && `Detail: ${t.audienceDetail}`,
     t.format && `Format: ${t.format}`,
     t.notes && `Notes: ${t.notes}`,
   ].filter(Boolean).join(" \u2014 ");
@@ -17,7 +26,8 @@ const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#22
 const FIELDS = [
   { key: "channel", label: "Channel", placeholder: "e.g. TikTok, OOH, Spotify, Radio, Experiential" },
   { key: "roleOfChannel", label: "Role of Channel", placeholder: "What this channel is doing in the mix (reach, reappraisal, proof, depth...)" },
-  { key: "audience", label: "Audience", type: "select" },
+  { key: "audience", label: "Audience", type: "multi-audience", hint: "Pick one or more — click to toggle" },
+  { key: "audienceDetail", label: "Audience Detail", placeholder: "Specific mindset, behaviour, sub-cohort — freeform" },
   { key: "format", label: "Format", placeholder: "Specific executional format (15s vertical, 6-sheet, native article...)" },
   { key: "notes", label: "Notes", placeholder: "Anything else — rationale, dependencies, references" },
 ];
@@ -38,7 +48,15 @@ export default function TacticsBoard() {
   const [commentTexts, setCommentTexts] = useState({});
   const [commentNames, setCommentNames] = useState({});
 
-  const [form, setForm] = useState({ channel: "", roleOfChannel: "", audience: "", format: "", notes: "" });
+  const [form, setForm] = useState({ channel: "", roleOfChannel: "", audience: [], audienceDetail: "", format: "", notes: "" });
+
+  function toggleAudience(key) {
+    setForm((f) => {
+      const arr = Array.isArray(f.audience) ? f.audience : asAudienceArray(f.audience);
+      const has = arr.includes(key);
+      return { ...f, audience: has ? arr.filter((k) => k !== key) : [...arr, key] };
+    });
+  }
 
   const load = useCallback(async () => {
     try {
@@ -60,7 +78,7 @@ export default function TacticsBoard() {
     const data = await r.json();
     if (data.ok) {
       setShowForm(false);
-      setForm({ channel: "", roleOfChannel: "", audience: "", format: "", notes: "" });
+      setForm({ channel: "", roleOfChannel: "", audience: [], audienceDetail: "", format: "", notes: "" });
       load();
     } else {
       alert("Failed to create tactic: " + (data.error || r.status));
@@ -140,21 +158,45 @@ export default function TacticsBoard() {
           {FIELDS.map((f, i) => {
             const required = f.key === "channel";
             const isNotes = f.key === "notes";
-            const isSelect = f.type === "select";
+            const isMultiAudience = f.type === "multi-audience";
+            const selected = isMultiAudience ? asAudienceArray(form.audience) : null;
             return (
               <div key={f.key} style={{ marginBottom: i === FIELDS.length - 1 ? 20 : 16 }}>
-                <label style={labelStyle}>{f.label}{required ? " *" : ""}</label>
-                {isSelect ? (
-                  <select
-                    value={form[f.key]}
-                    onChange={e => setForm({ ...form, [f.key]: e.target.value })}
-                    style={{ ...inputStyle, cursor: "pointer", colorScheme: "dark" }}
-                  >
-                    <option value="">Select audience&hellip;</option>
-                    {AUDIENCE_OPTIONS.map(a => (
-                      <option key={a.key} value={a.key}>{a.label}</option>
-                    ))}
-                  </select>
+                <label style={labelStyle}>
+                  {f.label}{required ? " *" : ""}
+                  {f.hint && <span style={{ marginLeft: 8, fontSize: 10, color: DIM, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>{f.hint}</span>}
+                </label>
+                {isMultiAudience ? (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {AUDIENCE_OPTIONS.map((a) => {
+                      const on = selected.includes(a.key);
+                      return (
+                        <button
+                          key={a.key}
+                          type="button"
+                          onClick={() => toggleAudience(a.key)}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 6,
+                            padding: "6px 12px", fontSize: 12, fontWeight: 700,
+                            color: on ? WHITE : MUTED,
+                            background: on ? `${a.color}22` : "transparent",
+                            border: `1px solid ${on ? a.color : BORDER}`,
+                            borderRadius: 999, cursor: "pointer",
+                            fontFamily: "'Inter Tight', system-ui, sans-serif",
+                            transition: "all 0.15s ease",
+                            opacity: on ? 1 : 0.7,
+                          }}
+                        >
+                          <span style={{
+                            display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+                            background: a.color,
+                            opacity: on ? 1 : 0.5,
+                          }} />
+                          {a.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 ) : isNotes ? (
                   <textarea
                     value={form[f.key]}
@@ -204,13 +246,24 @@ export default function TacticsBoard() {
                   </div>
                 )}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
-                  {tactic.audience && (
-                    <span style={{ fontSize: 10, color: TEAL, background: `${TEAL}12`, border: `1px solid ${TEAL}44`, borderRadius: 4, padding: "2px 8px" }}>{audienceLabel(tactic.audience)}</span>
-                  )}
+                  {asAudienceArray(tactic.audience).map((key) => {
+                    const a = AUDIENCE_OPTIONS.find((o) => o.key === key);
+                    const color = a?.color || TEAL;
+                    return (
+                      <span key={key} style={{ fontSize: 10, color, background: `${color}18`, border: `1px solid ${color}66`, borderRadius: 4, padding: "2px 8px", fontWeight: 600 }}>
+                        {a?.label || audienceLabel(key)}
+                      </span>
+                    );
+                  })}
                   {tactic.format && (
                     <span style={{ fontSize: 10, color: WHITE, background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "2px 8px" }}>{tactic.format}</span>
                   )}
                 </div>
+                {tactic.audienceDetail && (
+                  <div style={{ fontSize: 11, color: DIM, lineHeight: 1.4, marginBottom: 6, fontStyle: "italic" }}>
+                    {tactic.audienceDetail}
+                  </div>
+                )}
                 <span style={{ fontSize: 9, color: MUTED }}>{tactic.createdBy} &middot; {new Date(tactic.createdAt).toLocaleDateString()}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px 12px", flexWrap: "wrap" }}>
@@ -224,7 +277,7 @@ export default function TacticsBoard() {
                   color: (tactic.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
                   border: `1px solid ${(tactic.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                 }}>&#9660; {tactic.dislikes || 0}</button>
-                <AddToPlanButton title={tactic.channel} description={tacticDescription(tactic)} defaultChannel={tactic.channel} defaultAudience={tactic.audience} size="sm" />
+                <AddToPlanButton title={tactic.channel} description={tacticDescription(tactic)} defaultChannel={tactic.channel} defaultAudience={asAudienceArray(tactic.audience)[0]} size="sm" />
                 <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                   {(tactic.comments || []).length} comment{(tactic.comments || []).length !== 1 ? "s" : ""}
                 </span>
@@ -252,12 +305,31 @@ export default function TacticsBoard() {
 
               {FIELDS.filter(f => f.key !== "channel").map(f => {
                 const raw = activeTactic[f.key];
+                const auds = f.key === "audience" ? asAudienceArray(raw) : null;
+                if (f.key === "audience") {
+                  if (!auds.length) return null;
+                  return (
+                    <div key={f.key} style={{ marginBottom: 18 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{f.label}</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {auds.map((k) => {
+                          const a = AUDIENCE_OPTIONS.find((o) => o.key === k);
+                          const color = a?.color || TEAL;
+                          return (
+                            <span key={k} style={{ fontSize: 12, color, background: `${color}18`, border: `1px solid ${color}66`, borderRadius: 999, padding: "4px 12px", fontWeight: 600 }}>
+                              {a?.label || audienceLabel(k)}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
                 if (!raw) return null;
-                const display = f.key === "audience" ? audienceLabel(raw) : raw;
                 return (
                   <div key={f.key} style={{ marginBottom: 18 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{f.label}</div>
-                    <p style={{ fontSize: 14, color: DIM, lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" }}>{display}</p>
+                    <p style={{ fontSize: 14, color: DIM, lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" }}>{raw}</p>
                   </div>
                 );
               })}
@@ -274,7 +346,7 @@ export default function TacticsBoard() {
                   border: `1px solid ${(activeTactic.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 8, cursor: "pointer",
                 }}>&#9660; {activeTactic.dislikes || 0}</button>
                 <span style={{ marginLeft: "auto" }}>
-                  <AddToPlanButton title={activeTactic.channel} description={tacticDescription(activeTactic)} defaultChannel={activeTactic.channel} defaultAudience={activeTactic.audience} size="md" />
+                  <AddToPlanButton title={activeTactic.channel} description={tacticDescription(activeTactic)} defaultChannel={activeTactic.channel} defaultAudience={asAudienceArray(activeTactic.audience)[0]} size="md" />
                 </span>
               </div>
 
