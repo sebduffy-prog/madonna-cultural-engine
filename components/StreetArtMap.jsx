@@ -35,7 +35,14 @@ const COLORS = {
   Y: "#FFD500",
   WHITE: "#EDEDE8",
   MUTED: "#777",
+  DIM: "#999",
   PINK: "#F472B6",
+  TEAL: "#2DD4BF",
+  PURPLE: "#A78BFA",
+  CORAL: "#FB923C",
+  GREEN: "#34D399",
+  RED: "#EF4444",
+  BLUE: "#60A5FA",
 };
 
 const PIN_COLORS = [
@@ -48,6 +55,66 @@ const PIN_COLORS = [
   { name: "Red", hex: "#EF4444" },
   { name: "Blue", hex: "#60A5FA" },
 ];
+
+// Cities for the "Focus on" selector. Each entry is [lat, lng, zoom].
+const CITIES = [
+  { key: "uk", label: "All UK", center: [54.5, -3.0], zoom: 6 },
+  { key: "london", label: "London", center: [51.5074, -0.1278], zoom: 11 },
+  { key: "heathrow", label: "Heathrow & M4/A4 corridor", center: [51.4800, -0.3500], zoom: 11 },
+  { key: "manchester", label: "Manchester", center: [53.4808, -2.2426], zoom: 12 },
+  { key: "birmingham", label: "Birmingham", center: [52.4862, -1.8904], zoom: 12 },
+  { key: "bristol", label: "Bristol", center: [51.4545, -2.5879], zoom: 12 },
+  { key: "cardiff", label: "Cardiff", center: [51.4816, -3.1791], zoom: 12 },
+  { key: "glasgow", label: "Glasgow", center: [55.8642, -4.2518], zoom: 12 },
+  { key: "edinburgh", label: "Edinburgh", center: [55.9533, -3.1883], zoom: 12 },
+  { key: "liverpool", label: "Liverpool", center: [53.4084, -2.9916], zoom: 12 },
+  { key: "leeds", label: "Leeds", center: [53.8008, -1.5491], zoom: 12 },
+  { key: "sheffield", label: "Sheffield", center: [53.3811, -1.4701], zoom: 12 },
+  { key: "brighton", label: "Brighton", center: [50.8225, -0.1372], zoom: 13 },
+  { key: "newcastle", label: "Newcastle", center: [54.9783, -1.6178], zoom: 12 },
+];
+
+// Heathrow airport centroid + approximate arterial route polylines connecting
+// central London to the airport (M4 and A4 corridors plus M25 junction).
+const HEATHROW_AIRPORT = { lat: 51.4700, lng: -0.4543, name: "London Heathrow Airport" };
+const HEATHROW_ROUTES = [
+  {
+    name: "M4 corridor",
+    coords: [
+      [51.5163, -0.1755],  // Paddington / start of A40 link
+      [51.4920, -0.2282],  // Hammersmith flyover
+      [51.4935, -0.2785],  // Chiswick flyover
+      [51.4940, -0.3720],  // M4 J2 / Chiswick roundabout
+      [51.4930, -0.4400],  // M4 J3
+      [51.4765, -0.4540],  // Spur road into Heathrow
+      [51.4700, -0.4543],  // Heathrow
+    ],
+  },
+  {
+    name: "A4 corridor",
+    coords: [
+      [51.5019, -0.1870],  // Knightsbridge
+      [51.4930, -0.1990],  // Cromwell Road
+      [51.4920, -0.2282],  // Hammersmith
+      [51.4910, -0.3100],  // A4 Brentford
+      [51.4840, -0.3700],  // A4 Hounslow
+      [51.4760, -0.4200],  // A4 Cranford
+      [51.4700, -0.4543],  // Heathrow
+    ],
+  },
+  {
+    name: "M25 / airport spur",
+    coords: [
+      [51.4230, -0.5120],  // M25 J13/14 area
+      [51.4500, -0.4990],  // M25 approach
+      [51.4700, -0.4543],  // Heathrow
+    ],
+  },
+];
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 
 const LOCALSTORAGE_KEY = "madonna-cultural-engine-custom-pins";
 
@@ -76,10 +143,12 @@ const popupStyle = `
   }
 `;
 
-export default function StreetArtMap({ murals, venues }) {
+export default function StreetArtMap({ murals, venues, sites = {} }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const customMarkersRef = useRef([]);
+  const layerGroupsRef = useRef({});   // { murals: LayerGroup, venues: LayerGroup, flyposting: ..., ... }
+  const connectionsGroupRef = useRef(null);
 
   // Custom pin state — loaded from server API (shared across all users)
   const [customPins, setCustomPins] = useState([]);
@@ -95,6 +164,34 @@ export default function StreetArtMap({ murals, venues }) {
   const [addressSuggestions, setAddressSuggestions] = useState([]);
   const [addressSearching, setAddressSearching] = useState(false);
   const addressTimeout = useRef(null);
+  const [activeCity, setActiveCity] = useState("london");
+
+  // Pin layer definitions — each layer renders as its own toggleable LayerGroup
+  const LAYERS = useMemo(() => [
+    { key: "murals", label: "London Murals", color: COLORS.Y, radius: 7, data: murals || [],
+      popup: (m) => `<div><strong style="color:${COLORS.Y}">${esc(m.name)}</strong><br/><span style="color:${COLORS.MUTED}">${esc(m.address)}</span><br/><span style="color:${COLORS.MUTED}">${esc(m.city)}, ${esc(m.postcode)}</span></div>` },
+    { key: "venues", label: "LGBTQ+ Venues", color: COLORS.PINK, radius: 7, data: venues || [],
+      popup: (v) => `<div><strong style="color:${COLORS.PINK}">${esc(v.name)}</strong><br/><span style="color:${COLORS.MUTED}">${esc(v.address)}</span></div>` },
+    { key: "mancMurals", label: "Manchester Murals", color: COLORS.CORAL, radius: 7, data: sites.manchesterMurals || [],
+      popup: (m) => `<div><strong style="color:${COLORS.CORAL}">${esc(m.name)}</strong>${m.description ? `<br/><span style="color:${COLORS.MUTED}">${esc(m.description)}</span>` : ""}</div>` },
+    { key: "flyposting", label: "Flyposting Sites", color: COLORS.TEAL, radius: 4, data: sites.flyposting || [],
+      popup: (f) => `<div><strong style="color:${COLORS.TEAL}">${esc(f.site)}</strong><br/><span style="color:${COLORS.MUTED}">${esc(f.address || f.region)}</span>${f.postcode ? `<br/><span style="color:${COLORS.MUTED}">${esc(f.postcode)}</span>` : ""}${f.structure ? `<br/><span style="color:${COLORS.MUTED};font-size:10px">${esc(f.structure)}${f.posterSize ? ` · ${esc(f.posterSize)}` : ""}</span>` : ""}</div>` },
+    { key: "tube", label: "Tube Station Sites", color: COLORS.BLUE, radius: 8, data: sites.londonUnderground || [],
+      popup: (t) => `<div><strong style="color:${COLORS.BLUE}">${esc(t.station)}</strong><br/><span style="color:${COLORS.MUTED}">London Underground</span></div>` },
+    { key: "heathrow", label: "Heathrow Corridor", color: COLORS.PURPLE, radius: 8, data: sites.heathrowSites || [],
+      popup: (h) => `<div><strong style="color:${COLORS.PURPLE}">${esc(h.name)}</strong>${h.description ? `<br/><span style="color:${COLORS.MUTED}">${esc(h.description)}</span>` : ""}</div>` },
+  ], [murals, venues, sites]);
+
+  const [visibleLayers, setVisibleLayers] = useState(
+    () => new Set(["murals", "venues", "mancMurals", "flyposting", "tube", "heathrow", "connections", "custom"])
+  );
+  function toggleLayer(key) {
+    setVisibleLayers(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
 
   // Load custom pins from server on mount
   useEffect(() => {
@@ -117,18 +214,18 @@ export default function StreetArtMap({ murals, venues }) {
     return total / venueLinks.length;
   }, [venueLinks]);
 
+  // Map init — runs once. Tile layer only; all marker layers are added below.
   useEffect(() => {
     const L = window.L;
     if (!L || !mapRef.current || mapInstanceRef.current) return;
 
-    // Inject popup styles
     const styleEl = document.createElement("style");
     styleEl.textContent = popupStyle;
     document.head.appendChild(styleEl);
 
     const map = L.map(mapRef.current, {
-      center: [51.515, -0.09],
-      zoom: 12,
+      center: [51.5074, -0.1278],
+      zoom: 11,
       zoomControl: true,
     });
     mapInstanceRef.current = map;
@@ -136,116 +233,122 @@ export default function StreetArtMap({ murals, venues }) {
     L.tileLayer(
       "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
       {
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
         subdomains: "abcd",
         maxZoom: 19,
       }
     ).addTo(map);
 
-    // Mural markers
-    if (murals) {
-      murals.forEach((m) => {
-        L.circleMarker([m.lat, m.lng], {
-          radius: 8,
-          fillColor: COLORS.Y,
-          color: COLORS.BG,
-          weight: 2,
-          fillOpacity: 0.9,
-        })
-          .addTo(map)
-          .bindPopup(
-            `<div>
-              <strong>${m.name}</strong><br/>
-              <span style="color:${COLORS.MUTED}">${m.address}</span><br/>
-              <span style="color:${COLORS.MUTED}">${m.city}, ${m.postcode}</span>
-            </div>`
-          );
-      });
-    }
-
-    // Venue markers
-    if (venues) {
-      venues.forEach((v) => {
-        L.circleMarker([v.lat, v.lng], {
-          radius: 8,
-          fillColor: COLORS.PINK,
-          color: COLORS.BG,
-          weight: 2,
-          fillOpacity: 0.9,
-        })
-          .addTo(map)
-          .bindPopup(
-            `<div>
-              <strong>${v.name}</strong><br/>
-              <span style="color:${COLORS.MUTED}">${v.address}</span>
-            </div>`
-          );
-      });
-    }
-
-    // Connection lines between each venue and its nearest mural
-    venueLinks.forEach(({ venue, mural, distance }) => {
-      if (!mural) return;
-      const line = L.polyline(
-        [
-          [venue.lat, venue.lng],
-          [mural.lat, mural.lng],
-        ],
-        {
-          color: "#FFD50066",
-          weight: 1.5,
-          dashArray: "6 6",
-        }
-      ).addTo(map);
-      line.bindPopup(
-        `<div>
-          <strong style="color:${COLORS.PINK}">${venue.name}</strong>
-          <span style="color:${COLORS.MUTED}"> → </span>
-          <strong style="color:${COLORS.Y}">${mural.name}</strong><br/>
-          <span style="color:${COLORS.MUTED}">${distance.toFixed(2)} km</span>
-        </div>`
-      );
-    });
-
-    // Legend
-    const legend = L.control({ position: "bottomright" });
-    legend.onAdd = function () {
-      const div = L.DomUtil.create("div");
-      div.style.cssText = `
-        background: ${COLORS.CARD};
-        border: 1px solid ${COLORS.BORDER};
-        border-radius: 8px;
-        padding: 10px 14px;
-        font-size: 12px;
-        color: ${COLORS.WHITE};
-        line-height: 1.8;
-      `;
-      div.innerHTML = `
-        <div style="font-weight:700; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.04em; font-size:11px; color:${COLORS.MUTED}">Legend</div>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:${COLORS.Y}; border:2px solid ${COLORS.BG};"></span>
-          Murals
-        </div>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:${COLORS.PINK}; border:2px solid ${COLORS.BG};"></span>
-          Gay Venues
-        </div>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="display:inline-block; width:20px; height:0; border-top:1.5px dashed #FFD50066;"></span>
-          <span style="font-size:11px;">Nearest Mural Link</span>
-        </div>
-      `;
-      return div;
-    };
-    legend.addTo(map);
-
     return () => {
       styleEl.remove();
       map.remove();
       mapInstanceRef.current = null;
+      layerGroupsRef.current = {};
+      connectionsGroupRef.current = null;
     };
-  }, [murals, venues, venueLinks]);
+  }, []);
+
+  // Build / rebuild data layers whenever the source data changes.
+  useEffect(() => {
+    const L = window.L;
+    const map = mapInstanceRef.current;
+    if (!L || !map) return;
+
+    LAYERS.forEach((layer) => {
+      // Tear down any previous group for this key
+      const existing = layerGroupsRef.current[layer.key];
+      if (existing) {
+        if (map.hasLayer(existing)) map.removeLayer(existing);
+        existing.clearLayers();
+      }
+      const group = L.layerGroup();
+      layerGroupsRef.current[layer.key] = group;
+
+      layer.data.forEach((item) => {
+        if (item.lat == null || item.lng == null) return;
+        const marker = L.circleMarker([item.lat, item.lng], {
+          radius: layer.radius,
+          fillColor: layer.color,
+          color: COLORS.BG,
+          weight: 1.5,
+          fillOpacity: 0.9,
+        });
+        marker.bindPopup(layer.popup(item));
+        group.addLayer(marker);
+      });
+
+      // Heathrow layer gets the airport centroid + arterial route polylines
+      if (layer.key === "heathrow") {
+        HEATHROW_ROUTES.forEach((route) => {
+          const line = L.polyline(route.coords, {
+            color: layer.color,
+            weight: 3.5,
+            opacity: 0.75,
+            lineCap: "round",
+            lineJoin: "round",
+          });
+          line.bindPopup(`<div><strong style="color:${layer.color}">${esc(route.name)}</strong><br/><span style="color:${COLORS.MUTED}">Key arterial route to London Heathrow</span></div>`);
+          group.addLayer(line);
+        });
+        // Airport marker — larger, ringed
+        const airportOuter = L.circleMarker([HEATHROW_AIRPORT.lat, HEATHROW_AIRPORT.lng], {
+          radius: 14, fillColor: layer.color, color: layer.color, weight: 2, fillOpacity: 0.25,
+        });
+        const airportInner = L.circleMarker([HEATHROW_AIRPORT.lat, HEATHROW_AIRPORT.lng], {
+          radius: 7, fillColor: layer.color, color: COLORS.BG, weight: 2, fillOpacity: 1,
+        });
+        airportInner.bindPopup(`<div><strong style="color:${layer.color}">&#9992; ${esc(HEATHROW_AIRPORT.name)}</strong><br/><span style="color:${COLORS.MUTED}">Five terminals · ~80m passengers/year</span></div>`);
+        group.addLayer(airportOuter);
+        group.addLayer(airportInner);
+      }
+
+      if (visibleLayers.has(layer.key)) group.addTo(map);
+    });
+
+    // Connection lines (venue ↔ nearest mural) — own layer
+    if (connectionsGroupRef.current) {
+      if (map.hasLayer(connectionsGroupRef.current)) map.removeLayer(connectionsGroupRef.current);
+      connectionsGroupRef.current.clearLayers();
+    }
+    const connGroup = L.layerGroup();
+    connectionsGroupRef.current = connGroup;
+    venueLinks.forEach(({ venue, mural, distance }) => {
+      if (!mural) return;
+      const line = L.polyline([[venue.lat, venue.lng], [mural.lat, mural.lng]], {
+        color: "#FFD50066", weight: 1.5, dashArray: "6 6",
+      });
+      line.bindPopup(`<div><strong style="color:${COLORS.PINK}">${esc(venue.name)}</strong><span style="color:${COLORS.MUTED}"> &rarr; </span><strong style="color:${COLORS.Y}">${esc(mural.name)}</strong><br/><span style="color:${COLORS.MUTED}">${distance.toFixed(2)} km</span></div>`);
+      connGroup.addLayer(line);
+    });
+    if (visibleLayers.has("connections")) connGroup.addTo(map);
+  }, [LAYERS, venueLinks]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Respond to layer-toggle changes without rebuilding markers
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    Object.entries(layerGroupsRef.current).forEach(([key, group]) => {
+      if (!group) return;
+      const shouldShow = visibleLayers.has(key);
+      if (shouldShow && !map.hasLayer(group)) group.addTo(map);
+      else if (!shouldShow && map.hasLayer(group)) map.removeLayer(group);
+    });
+    const cg = connectionsGroupRef.current;
+    if (cg) {
+      const shouldShow = visibleLayers.has("connections");
+      if (shouldShow && !map.hasLayer(cg)) cg.addTo(map);
+      else if (!shouldShow && map.hasLayer(cg)) map.removeLayer(cg);
+    }
+  }, [visibleLayers]);
+
+  // City selector — pan+zoom to chosen city
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const city = CITIES.find((c) => c.key === activeCity);
+    if (!city) return;
+    map.flyTo(city.center, city.zoom, { duration: 0.6 });
+  }, [activeCity]);
 
   // Handle map click when placing a pin
   useEffect(() => {
@@ -279,14 +382,20 @@ export default function StreetArtMap({ murals, venues }) {
     map.getContainer().style.cursor = isPlacingPin ? "crosshair" : "";
   }, [isPlacingPin]);
 
-  // Render custom pin markers
+  // Render custom pin markers — inside a dedicated layer group so the "Custom Pins" toggle works
   useEffect(() => {
     const L = window.L;
     const map = mapInstanceRef.current;
     if (!L || !map) return;
 
-    // Clear old custom markers
-    customMarkersRef.current.forEach((m) => map.removeLayer(m));
+    // Tear down existing group
+    let group = layerGroupsRef.current.custom;
+    if (group) {
+      if (map.hasLayer(group)) map.removeLayer(group);
+      group.clearLayers();
+    }
+    group = L.layerGroup();
+    layerGroupsRef.current.custom = group;
     customMarkersRef.current = [];
 
     customPins.forEach((pin) => {
@@ -296,7 +405,8 @@ export default function StreetArtMap({ murals, venues }) {
         color: COLORS.BG,
         weight: 2,
         fillOpacity: 0.9,
-      }).addTo(map);
+      });
+      group.addLayer(marker);
 
       const popupContent = `
         <div>
@@ -323,7 +433,9 @@ export default function StreetArtMap({ murals, venues }) {
       marker.bindPopup(popupContent);
       customMarkersRef.current.push(marker);
     });
-  }, [customPins]);
+
+    if (visibleLayers.has("custom")) group.addTo(map);
+  }, [customPins]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Render the pending pin (temporary marker while form is open)
   useEffect(() => {
@@ -433,9 +545,6 @@ export default function StreetArtMap({ murals, venues }) {
     setAddressSuggestions([]);
   }, [pendingPin, formData]);
 
-  const muralCount = murals ? murals.length : 0;
-  const venueCount = venues ? venues.length : 0;
-
   return (
     <div>
       {/* Section header */}
@@ -466,7 +575,7 @@ export default function StreetArtMap({ murals, venues }) {
               margin: 0,
             }}
           >
-            London Cultural Map
+            Locations Map
           </h2>
         </div>
         <p
@@ -478,8 +587,7 @@ export default function StreetArtMap({ murals, venues }) {
             opacity: 0.85,
           }}
         >
-          Murals and LGBTQ+ venues across London. Dotted lines connect each
-          venue to its nearest mural location.
+          Murals, LGBTQ+ venues, Warner flyposting sites, London Underground activations, and the Heathrow corridor. Use the city selector to jump between locations and toggle pin types with the controls below.
         </p>
 
         {/* Add Location buttons */}
@@ -540,6 +648,86 @@ export default function StreetArtMap({ murals, venues }) {
             Cancel
           </button>
         )}
+      </div>
+
+      {/* Map controls — city focus + layer toggles */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "minmax(220px, 260px) 1fr", gap: 12,
+        marginBottom: 12, alignItems: "stretch",
+      }}>
+        <div style={{
+          background: COLORS.CARD, border: `1px solid ${COLORS.BORDER}`, borderRadius: 10,
+          padding: "12px 14px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.MUTED, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+            Focus on
+          </div>
+          <select
+            value={activeCity}
+            onChange={(e) => setActiveCity(e.target.value)}
+            style={{
+              width: "100%", padding: "8px 10px", fontSize: 13,
+              color: COLORS.WHITE, background: COLORS.BG,
+              border: `1px solid ${COLORS.BORDER}`, borderRadius: 6, outline: "none",
+              fontFamily: "'Inter Tight', system-ui, sans-serif",
+              cursor: "pointer", colorScheme: "dark", boxSizing: "border-box",
+            }}
+          >
+            {CITIES.map((c) => (
+              <option key={c.key} value={c.key}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{
+          background: COLORS.CARD, border: `1px solid ${COLORS.BORDER}`, borderRadius: 10,
+          padding: "12px 14px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.MUTED, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+            Pin layers
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {[
+              ...LAYERS.map((l) => ({ key: l.key, label: l.label, color: l.color, count: l.data.length })),
+              { key: "connections", label: "Mural ↔ Venue links", color: COLORS.Y, count: venueLinks.filter(v => v.mural).length, dashed: true },
+              { key: "custom", label: "Custom Pins", color: COLORS.WHITE, count: customPins.length },
+            ].map((l) => {
+              const on = visibleLayers.has(l.key);
+              return (
+                <button
+                  key={l.key}
+                  type="button"
+                  onClick={() => toggleLayer(l.key)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 7,
+                    padding: "5px 10px", fontSize: 11, fontWeight: 700,
+                    color: on ? COLORS.WHITE : COLORS.MUTED,
+                    background: on ? `${l.color}22` : "transparent",
+                    border: `1px solid ${on ? l.color : COLORS.BORDER}`,
+                    borderRadius: 999, cursor: "pointer",
+                    fontFamily: "'Inter Tight', system-ui, sans-serif",
+                    transition: "all 0.15s ease",
+                    opacity: on ? 1 : 0.6,
+                  }}
+                >
+                  <span style={{
+                    display: "inline-block",
+                    width: l.dashed ? 14 : 9, height: l.dashed ? 0 : 9,
+                    borderRadius: l.dashed ? 0 : "50%",
+                    background: l.dashed ? "transparent" : l.color,
+                    borderTop: l.dashed ? `2px dashed ${l.color}` : "none",
+                  }} />
+                  {l.label}
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, color: on ? l.color : COLORS.MUTED,
+                    padding: "1px 6px", borderRadius: 999,
+                    background: on ? `${l.color}22` : "transparent",
+                    fontVariantNumeric: "tabular-nums",
+                  }}>{l.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Banner: click to place pin */}
@@ -745,93 +933,38 @@ export default function StreetArtMap({ murals, venues }) {
         </div>
       )}
 
-      {/* Stats row */}
-      <div
-        style={{
-          display: "flex",
-          gap: 24,
-          marginTop: 20,
-          flexWrap: "wrap",
-        }}
-      >
-        <div
-          style={{
-            background: COLORS.CARD,
-            border: `1px solid ${COLORS.BORDER}`,
-            borderRadius: 8,
-            padding: "14px 20px",
-            flex: 1,
-            minWidth: 140,
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              color: COLORS.MUTED,
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              marginBottom: 4,
-            }}
-          >
-            Murals
+      {/* Stats row — one tile per layer + avg distance */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+        gap: 12,
+        marginTop: 20,
+      }}>
+        {LAYERS.map((l) => (
+          <div key={l.key} style={{
+            background: COLORS.CARD, border: `1px solid ${COLORS.BORDER}`,
+            borderLeft: `3px solid ${l.color}`,
+            borderRadius: 8, padding: "12px 16px",
+            backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+          }}>
+            <div style={{ fontSize: 10, color: COLORS.MUTED, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+              {l.label}
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: l.color, fontVariantNumeric: "tabular-nums", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+              {l.data.length.toLocaleString()}
+            </div>
           </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.Y }}>
-            {muralCount}
+        ))}
+        <div style={{
+          background: COLORS.CARD, border: `1px solid ${COLORS.BORDER}`,
+          borderLeft: `3px solid ${COLORS.DIM}`,
+          borderRadius: 8, padding: "12px 16px",
+          backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+        }}>
+          <div style={{ fontSize: 10, color: COLORS.MUTED, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+            Avg venue&rarr;mural
           </div>
-        </div>
-        <div
-          style={{
-            background: COLORS.CARD,
-            border: `1px solid ${COLORS.BORDER}`,
-            borderRadius: 8,
-            padding: "14px 20px",
-            flex: 1,
-            minWidth: 140,
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              color: COLORS.MUTED,
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              marginBottom: 4,
-            }}
-          >
-            Venues
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.PINK }}>
-            {venueCount}
-          </div>
-        </div>
-        <div
-          style={{
-            background: COLORS.CARD,
-            border: `1px solid ${COLORS.BORDER}`,
-            borderRadius: 8,
-            padding: "14px 20px",
-            flex: 1,
-            minWidth: 140,
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              color: COLORS.MUTED,
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              marginBottom: 4,
-            }}
-          >
-            Avg Distance
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.WHITE }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.WHITE, fontVariantNumeric: "tabular-nums", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
             {avgDistance.toFixed(2)} km
           </div>
         </div>

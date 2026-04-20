@@ -529,10 +529,17 @@ export async function getStaticProps() {
     }
   } catch(e) {}
 
-  return { props: { comments: allComments, gwiData, murals, venues, fullThemeCounts, totalCommentCount } };
+  // Warner Sites (flyposting, Manchester murals, London Underground, Heathrow corridor)
+  let sites = { flyposting: [], manchesterMurals: [], londonUnderground: [], heathrowSites: [] };
+  try {
+    const raw = fs.readFileSync(path.join(dir, "warner-sites.json"), "utf-8");
+    sites = JSON.parse(raw);
+  } catch (e) {}
+
+  return { props: { comments: allComments, gwiData, murals, venues, sites, fullThemeCounts, totalCommentCount } };
 }
 
-export default function Dashboard({ comments = [], gwiData = [], murals = [], venues = [], fullThemeCounts = {}, totalCommentCount = 0 }) {
+export default function Dashboard({ comments = [], gwiData = [], murals = [], venues = [], sites = {}, fullThemeCounts = {}, totalCommentCount = 0 }) {
   const [tab, setTab] = useState("dashboard");
   const [authed, setAuthed] = useState(false);
   const [pw, setPw] = useState("");
@@ -1090,7 +1097,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
         {tab === "strategy" && <StrategyRecommendations />}
         {tab === "tactics" && <TacticsBoard />}
-        {tab === "streetmap" && <StreetArtMap murals={murals} venues={venues} />}
+        {tab === "streetmap" && <StreetArtMap murals={murals} venues={venues} sites={sites} />}
 
         {tab === "culturalfeed" && <CulturalFeed />}
 
