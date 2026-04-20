@@ -25,15 +25,20 @@ export default async function handler(req, res) {
   let tactics = await kvGet(CACHE_KEY) || [];
 
   if (action === "create") {
-    const { channel, roleOfChannel, audience, format, notes, createdBy } = body;
+    const { channel, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes, createdBy } = body;
     if (!channel) return res.status(400).json({ error: "Channel is required" });
 
     const tactic = {
       id: uuid(),
       channel,
       roleOfChannel: roleOfChannel || "",
-      audience: audience || "",
+      audience: audience || [],
+      audienceDetail: audienceDetail || "",
       format: format || "",
+      phase: phase || "",
+      budget: budget || "",
+      startDate: startDate || "",
+      endDate: endDate || "",
       notes: notes || "",
       likes: 0,
       dislikes: 0,
@@ -49,7 +54,7 @@ export default async function handler(req, res) {
   }
 
   if (action === "update") {
-    const { tacticId, channel, roleOfChannel, audience, audienceDetail, format, notes } = body;
+    const { tacticId, channel, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes } = body;
     const tactic = tactics.find(t => t.id === tacticId);
     if (!tactic) return res.status(404).json({ error: "Tactic not found" });
     if (channel !== undefined) tactic.channel = channel;
@@ -57,6 +62,10 @@ export default async function handler(req, res) {
     if (audience !== undefined) tactic.audience = audience;
     if (audienceDetail !== undefined) tactic.audienceDetail = audienceDetail;
     if (format !== undefined) tactic.format = format;
+    if (phase !== undefined) tactic.phase = phase;
+    if (budget !== undefined) tactic.budget = budget;
+    if (startDate !== undefined) tactic.startDate = startDate;
+    if (endDate !== undefined) tactic.endDate = endDate;
     if (notes !== undefined) tactic.notes = notes;
     tactic.updatedAt = new Date().toISOString();
     await kvSet(CACHE_KEY, tactics);

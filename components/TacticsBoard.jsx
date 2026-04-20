@@ -12,13 +12,32 @@ function asAudienceArray(a) {
 
 function tacticDescription(t) {
   const auds = asAudienceArray(t.audience).map(audienceLabel).filter(Boolean);
+  const dates = formatTacticDates(t);
   return [
     t.roleOfChannel && `Role: ${t.roleOfChannel}`,
     auds.length ? `Audience: ${auds.join(", ")}` : null,
     t.audienceDetail && `Detail: ${t.audienceDetail}`,
     t.format && `Format: ${t.format}`,
+    t.phase && `Phase: ${t.phase}`,
+    t.budget && `Budget: ${t.budget}`,
+    dates && `Dates: ${dates}`,
     t.notes && `Notes: ${t.notes}`,
   ].filter(Boolean).join(" \u2014 ");
+}
+
+function formatDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function formatTacticDates(t) {
+  if (!t.startDate && !t.endDate) return "";
+  if (t.startDate && t.endDate && t.startDate !== t.endDate) {
+    return `${formatDate(t.startDate)} → ${formatDate(t.endDate)}`;
+  }
+  return formatDate(t.startDate || t.endDate);
 }
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", WHITE = "#EDEDE8", MUTED = "#777", DIM = "#999", GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF";
@@ -29,8 +48,13 @@ const FIELDS = [
   { key: "audience", label: "Audience", type: "multi-audience", hint: "Pick one or more — click to toggle" },
   { key: "audienceDetail", label: "Audience Detail", placeholder: "Specific mindset, behaviour, sub-cohort — freeform" },
   { key: "format", label: "Format", placeholder: "Specific executional format (15s vertical, 6-sheet, native article...)" },
+  { key: "phase", label: "Phase", placeholder: "e.g. Tease, Announce, Launch, Amplify, Sustain — freeform" },
+  { key: "budget", label: "Budget", placeholder: "e.g. £25k, £100–150k, TBC — freeform" },
+  { key: "campaignDates", label: "Campaign Dates", type: "date-range", hint: "Start and end dates for this tactic" },
   { key: "notes", label: "Notes", placeholder: "Anything else — rationale, dependencies, references" },
 ];
+
+const EMPTY_FORM = { channel: "", roleOfChannel: "", audience: [], audienceDetail: "", format: "", phase: "", budget: "", startDate: "", endDate: "", notes: "" };
 
 function getUserId() {
   let id = localStorage.getItem("sweettooth_user");
@@ -48,7 +72,7 @@ export default function TacticsBoard() {
   const [commentTexts, setCommentTexts] = useState({});
   const [commentNames, setCommentNames] = useState({});
 
-  const [form, setForm] = useState({ channel: "", roleOfChannel: "", audience: [], audienceDetail: "", format: "", notes: "" });
+  const [form, setForm] = useState({ ...EMPTY_FORM });
 
   function toggleAudience(key) {
     setForm((f) => {
@@ -78,7 +102,7 @@ export default function TacticsBoard() {
     const data = await r.json();
     if (data.ok) {
       setShowForm(false);
-      setForm({ channel: "", roleOfChannel: "", audience: [], audienceDetail: "", format: "", notes: "" });
+      setForm({ ...EMPTY_FORM });
       load();
     } else {
       alert("Failed to create tactic: " + (data.error || r.status));
@@ -125,6 +149,10 @@ export default function TacticsBoard() {
       audience: asAudienceArray(t.audience),
       audienceDetail: t.audienceDetail || "",
       format: t.format || "",
+      phase: t.phase || "",
+      budget: t.budget || "",
+      startDate: t.startDate || "",
+      endDate: t.endDate || "",
       notes: t.notes || "",
     });
     setEditMode(true);
@@ -249,6 +277,20 @@ export default function TacticsBoard() {
                       );
                     })}
                   </div>
+                ) : f.type === "date-range" ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 9, color: DIM, marginBottom: 3, fontFamily: "'Inter Tight', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.04em" }}>Start</div>
+                      <input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })}
+                        style={{ ...inputStyle, colorScheme: "dark" }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: DIM, marginBottom: 3, fontFamily: "'Inter Tight', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.04em" }}>End</div>
+                      <input type="date" value={form.endDate} onChange={e => setForm({ ...form, endDate: e.target.value })}
+                        min={form.startDate || undefined}
+                        style={{ ...inputStyle, colorScheme: "dark" }} />
+                    </div>
+                  </div>
                 ) : isNotes ? (
                   <textarea
                     value={form[f.key]}
@@ -316,6 +358,25 @@ export default function TacticsBoard() {
                     {tactic.audienceDetail}
                   </div>
                 )}
+                {(tactic.phase || tactic.budget) && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
+                    {tactic.phase && (
+                      <span style={{ fontSize: 10, color: Y, background: `${Y}14`, border: `1px solid ${Y}66`, borderRadius: 4, padding: "2px 8px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                        {tactic.phase}
+                      </span>
+                    )}
+                    {tactic.budget && (
+                      <span style={{ fontSize: 10, color: GREEN, background: `${GREEN}14`, border: `1px solid ${GREEN}66`, borderRadius: 4, padding: "2px 8px", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                        {tactic.budget}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {(tactic.startDate || tactic.endDate) && (
+                  <div style={{ fontSize: 10, color: DIM, marginBottom: 6, fontVariantNumeric: "tabular-nums" }}>
+                    {formatTacticDates(tactic)}
+                  </div>
+                )}
                 <span style={{ fontSize: 9, color: MUTED }}>{tactic.createdBy} &middot; {new Date(tactic.createdAt).toLocaleDateString()}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px 12px", flexWrap: "wrap" }}>
@@ -329,7 +390,7 @@ export default function TacticsBoard() {
                   color: (tactic.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
                   border: `1px solid ${(tactic.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                 }}>&#9660; {tactic.dislikes || 0}</button>
-                <AddToPlanButton title={tactic.channel} description={tacticDescription(tactic)} defaultChannel={tactic.channel} defaultAudience={asAudienceArray(tactic.audience)[0]} sourceType="tactic" sourceId={tactic.id} size="sm" />
+                <AddToPlanButton title={tactic.channel} description={tacticDescription(tactic)} defaultChannel={tactic.channel} defaultAudience={asAudienceArray(tactic.audience)[0]} defaultStart={tactic.startDate} defaultEnd={tactic.endDate} sourceType="tactic" sourceId={tactic.id} size="sm" />
                 <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                   {(tactic.comments || []).length} comment{(tactic.comments || []).length !== 1 ? "s" : ""}
                 </span>
@@ -388,6 +449,28 @@ export default function TacticsBoard() {
                         );
                       })}
                     </div>
+                  ) : f.type === "date-range" ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 9, color: DIM, marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>Start</div>
+                        <input type="date" value={editForm.startDate || ""} onChange={e => setEditForm(fr => ({ ...fr, startDate: e.target.value }))}
+                          style={{
+                            width: "100%", padding: "10px 14px", fontSize: 13, color: WHITE, background: BG,
+                            border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", colorScheme: "dark",
+                            boxSizing: "border-box", fontFamily: "'Inter Tight', system-ui, sans-serif",
+                          }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 9, color: DIM, marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>End</div>
+                        <input type="date" value={editForm.endDate || ""} onChange={e => setEditForm(fr => ({ ...fr, endDate: e.target.value }))}
+                          min={editForm.startDate || undefined}
+                          style={{
+                            width: "100%", padding: "10px 14px", fontSize: 13, color: WHITE, background: BG,
+                            border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", colorScheme: "dark",
+                            boxSizing: "border-box", fontFamily: "'Inter Tight', system-ui, sans-serif",
+                          }} />
+                      </div>
+                    </div>
                   ) : f.key === "notes" ? (
                     <textarea value={editForm[f.key]} onChange={e => setEditForm(fr => ({ ...fr, [f.key]: e.target.value }))} rows={4}
                       placeholder={f.placeholder}
@@ -409,9 +492,8 @@ export default function TacticsBoard() {
               ))}
 
               {!editMode && FIELDS.filter(f => f.key !== "channel").map(f => {
-                const raw = activeTactic[f.key];
-                const auds = f.key === "audience" ? asAudienceArray(raw) : null;
                 if (f.key === "audience") {
+                  const auds = asAudienceArray(activeTactic.audience);
                   if (!auds.length) return null;
                   return (
                     <div key={f.key} style={{ marginBottom: 18 }}>
@@ -430,6 +512,17 @@ export default function TacticsBoard() {
                     </div>
                   );
                 }
+                if (f.type === "date-range") {
+                  const dates = formatTacticDates(activeTactic);
+                  if (!dates) return null;
+                  return (
+                    <div key={f.key} style={{ marginBottom: 18 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{f.label}</div>
+                      <p style={{ fontSize: 14, color: WHITE, lineHeight: 1.5, margin: 0, fontVariantNumeric: "tabular-nums", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{dates}</p>
+                    </div>
+                  );
+                }
+                const raw = activeTactic[f.key];
                 if (!raw) return null;
                 return (
                   <div key={f.key} style={{ marginBottom: 18 }}>
@@ -451,7 +544,7 @@ export default function TacticsBoard() {
                   border: `1px solid ${(activeTactic.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 8, cursor: "pointer",
                 }}>&#9660; {activeTactic.dislikes || 0}</button>
                 <span style={{ marginLeft: "auto" }}>
-                  <AddToPlanButton title={activeTactic.channel} description={tacticDescription(activeTactic)} defaultChannel={activeTactic.channel} defaultAudience={asAudienceArray(activeTactic.audience)[0]} sourceType="tactic" sourceId={activeTactic.id} size="md" />
+                  <AddToPlanButton title={activeTactic.channel} description={tacticDescription(activeTactic)} defaultChannel={activeTactic.channel} defaultAudience={asAudienceArray(activeTactic.audience)[0]} defaultStart={activeTactic.startDate} defaultEnd={activeTactic.endDate} sourceType="tactic" sourceId={activeTactic.id} size="md" />
                 </span>
               </div>
 

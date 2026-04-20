@@ -33,7 +33,7 @@ function guessChannel(raw) {
  *  - size: "sm" (card row) | "md" (detail modal)
  *  - onAdded: optional callback
  */
-export default function AddToPlanButton({ title, description = "", defaultChannel, defaultAudience, sourceType, sourceId, size = "sm", onAdded }) {
+export default function AddToPlanButton({ title, description = "", defaultChannel, defaultAudience, defaultStart, defaultEnd, sourceType, sourceId, size = "sm", onAdded }) {
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -48,8 +48,11 @@ export default function AddToPlanButton({ title, description = "", defaultChanne
     setStatus("idle"); setErrMsg("");
     setChannel(guessChannel(defaultChannel));
     setAudience(resolveAudience(defaultAudience)?.key || "");
-    // default start date to today (YYYY-MM-DD in local tz)
-    if (!start) {
+    if (defaultStart) {
+      setStart(defaultStart);
+      setEnd(defaultEnd || "");
+    } else if (!start) {
+      // default start date to today (YYYY-MM-DD in local tz)
       const d = new Date();
       const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       setStart(iso);
