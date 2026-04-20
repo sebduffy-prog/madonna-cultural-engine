@@ -77,36 +77,69 @@ const CITIES = [
 // Heathrow airport centroid + approximate arterial route polylines connecting
 // central London to the airport (M4 and A4 corridors plus M25 junction).
 const HEATHROW_AIRPORT = { lat: 51.4700, lng: -0.4543, name: "London Heathrow Airport" };
+// Detailed polylines that approximate the real road paths of each arterial
+// route — enough waypoints that the lines read as "road shaped" without a
+// routing API call.
 const HEATHROW_ROUTES = [
   {
-    name: "M4 corridor",
+    name: "M4 corridor (motorway)",
     coords: [
-      [51.5163, -0.1755],  // Paddington / start of A40 link
-      [51.4920, -0.2282],  // Hammersmith flyover
-      [51.4935, -0.2785],  // Chiswick flyover
-      [51.4940, -0.3720],  // M4 J2 / Chiswick roundabout
-      [51.4930, -0.4400],  // M4 J3
-      [51.4765, -0.4540],  // Spur road into Heathrow
-      [51.4700, -0.4543],  // Heathrow
+      [51.5150, -0.1750],  // Paddington
+      [51.5185, -0.1855],  // Westway start
+      [51.5200, -0.2000],  // Westway / A40
+      [51.5215, -0.2120],
+      [51.5200, -0.2240],  // White City
+      [51.5095, -0.2275],  // Shepherd's Bush
+      [51.4970, -0.2282],  // Hammersmith approach
+      [51.4920, -0.2282],  // Hammersmith
+      [51.4920, -0.2360],
+      [51.4921, -0.2488],  // Great West Rd
+      [51.4927, -0.2586],  // Hogarth r'bout
+      [51.4938, -0.2800],  // Chiswick flyover / joins M4
+      [51.4936, -0.2989],  // M4 J1
+      [51.4940, -0.3230],
+      [51.4930, -0.3720],  // M4 J2
+      [51.4915, -0.4040],
+      [51.4905, -0.4296],  // M4 J3 (Hayes)
+      [51.4860, -0.4470],  // M4 spur
+      [51.4843, -0.4520],  // M4 J4 (Heathrow)
+      [51.4780, -0.4542],
+      [51.4730, -0.4543],
+      [51.4700, -0.4543],  // Heathrow centre
     ],
   },
   {
-    name: "A4 corridor",
+    name: "A4 corridor (surface)",
     coords: [
-      [51.5019, -0.1870],  // Knightsbridge
-      [51.4930, -0.1990],  // Cromwell Road
-      [51.4920, -0.2282],  // Hammersmith
-      [51.4910, -0.3100],  // A4 Brentford
-      [51.4840, -0.3700],  // A4 Hounslow
-      [51.4760, -0.4200],  // A4 Cranford
+      [51.5017, -0.1597],  // Hyde Park Corner
+      [51.4985, -0.1720],  // Knightsbridge
+      [51.4970, -0.1830],
+      [51.4935, -0.1870],  // Cromwell Rd begin
+      [51.4921, -0.2000],  // West Cromwell Rd
+      [51.4920, -0.2120],  // Talgarth Rd
+      [51.4920, -0.2260],  // Hammersmith flyover
+      [51.4920, -0.2488],  // Great West Rd
+      [51.4921, -0.2586],  // Hogarth r'bout (M4 joins)
+      [51.4895, -0.2690],
+      [51.4878, -0.2895],  // A4 Chiswick
+      [51.4870, -0.3100],  // A4 Brentford
+      [51.4860, -0.3380],
+      [51.4850, -0.3530],
+      [51.4820, -0.3720],  // Hounslow
+      [51.4780, -0.3960],
+      [51.4745, -0.4150],  // Cranford
+      [51.4720, -0.4370],
+      [51.4705, -0.4500],
       [51.4700, -0.4543],  // Heathrow
     ],
   },
   {
     name: "M25 / airport spur",
     coords: [
-      [51.4230, -0.5120],  // M25 J13/14 area
-      [51.4500, -0.4990],  // M25 approach
+      [51.4230, -0.5120],  // M25 J13
+      [51.4360, -0.5000],  // M25 J14 approach
+      [51.4500, -0.4820],
+      [51.4610, -0.4700],  // Airport tunnel
       [51.4700, -0.4543],  // Heathrow
     ],
   },
@@ -166,24 +199,33 @@ export default function StreetArtMap({ murals, venues, sites = {} }) {
   const addressTimeout = useRef(null);
   const [activeCity, setActiveCity] = useState("london");
 
-  // Pin layer definitions — each layer renders as its own toggleable LayerGroup
+  // Pin layer definitions — each layer renders as its own toggleable LayerGroup.
+  // Murals and venues are merged across cities: colour stays consistent per
+  // TYPE of location, not per city, and each popup shows the city inline.
+  const allMurals = useMemo(() => [
+    ...(murals || []).map(m => ({ ...m, _city: m.city || "London" })),
+    ...((sites.manchesterMurals || []).map(m => ({ ...m, _city: m._city || m.region || "Manchester" }))),
+  ], [murals, sites.manchesterMurals]);
+  const allVenues = useMemo(() => [
+    ...(venues || []).map(v => ({ ...v, _city: v._city || "London" })),
+    ...((sites.manchesterVenues || []).map(v => ({ ...v, _city: v._city || "Manchester" }))),
+  ], [venues, sites.manchesterVenues]);
+
   const LAYERS = useMemo(() => [
-    { key: "murals", label: "London Murals", color: COLORS.Y, radius: 7, data: murals || [],
-      popup: (m) => `<div><strong style="color:${COLORS.Y}">${esc(m.name)}</strong><br/><span style="color:${COLORS.MUTED}">${esc(m.address)}</span><br/><span style="color:${COLORS.MUTED}">${esc(m.city)}, ${esc(m.postcode)}</span></div>` },
-    { key: "venues", label: "LGBTQ+ Venues", color: COLORS.PINK, radius: 7, data: venues || [],
-      popup: (v) => `<div><strong style="color:${COLORS.PINK}">${esc(v.name)}</strong><br/><span style="color:${COLORS.MUTED}">${esc(v.address)}</span></div>` },
-    { key: "mancMurals", label: "Manchester Murals", color: COLORS.CORAL, radius: 7, data: sites.manchesterMurals || [],
-      popup: (m) => `<div><strong style="color:${COLORS.CORAL}">${esc(m.name)}</strong>${m.description ? `<br/><span style="color:${COLORS.MUTED}">${esc(m.description)}</span>` : ""}</div>` },
+    { key: "murals", label: "Murals", color: COLORS.Y, radius: 7, data: allMurals,
+      popup: (m) => `<div><strong style="color:${COLORS.Y}">${esc(m.name)}</strong>${m.address ? `<br/><span style="color:${COLORS.MUTED}">${esc(m.address)}</span>` : ""}${m._city || m.postcode ? `<br/><span style="color:${COLORS.MUTED}">${esc(m._city || "")}${m._city && m.postcode ? ", " : ""}${esc(m.postcode || "")}</span>` : ""}${m.description ? `<br/><span style="color:${COLORS.MUTED}">${esc(m.description)}</span>` : ""}</div>` },
+    { key: "venues", label: "LGBTQ+ Venues", color: COLORS.PINK, radius: 7, data: allVenues,
+      popup: (v) => `<div><strong style="color:${COLORS.PINK}">${esc(v.name)}</strong>${v.address ? `<br/><span style="color:${COLORS.MUTED}">${esc(v.address)}</span>` : ""}${v._city ? `<br/><span style="color:${COLORS.MUTED}">${esc(v._city)}</span>` : ""}</div>` },
     { key: "flyposting", label: "Flyposting Sites", color: COLORS.TEAL, radius: 4, data: sites.flyposting || [],
       popup: (f) => `<div><strong style="color:${COLORS.TEAL}">${esc(f.site)}</strong><br/><span style="color:${COLORS.MUTED}">${esc(f.address || f.region)}</span>${f.postcode ? `<br/><span style="color:${COLORS.MUTED}">${esc(f.postcode)}</span>` : ""}${f.structure ? `<br/><span style="color:${COLORS.MUTED};font-size:10px">${esc(f.structure)}${f.posterSize ? ` · ${esc(f.posterSize)}` : ""}</span>` : ""}</div>` },
     { key: "tube", label: "Tube Station Sites", color: COLORS.BLUE, radius: 8, data: sites.londonUnderground || [],
       popup: (t) => `<div><strong style="color:${COLORS.BLUE}">${esc(t.station)}</strong><br/><span style="color:${COLORS.MUTED}">London Underground</span></div>` },
     { key: "heathrow", label: "Heathrow Corridor", color: COLORS.PURPLE, radius: 8, data: sites.heathrowSites || [],
       popup: (h) => `<div><strong style="color:${COLORS.PURPLE}">${esc(h.name)}</strong>${h.description ? `<br/><span style="color:${COLORS.MUTED}">${esc(h.description)}</span>` : ""}</div>` },
-  ], [murals, venues, sites]);
+  ], [allMurals, allVenues, sites]);
 
   const [visibleLayers, setVisibleLayers] = useState(
-    () => new Set(["murals", "venues", "mancMurals", "flyposting", "tube", "heathrow", "connections", "custom"])
+    () => new Set(["murals", "venues", "flyposting", "tube", "heathrow", "connections", "custom"])
   );
   function toggleLayer(key) {
     setVisibleLayers(prev => {
@@ -201,12 +243,12 @@ export default function StreetArtMap({ murals, venues, sites = {} }) {
   }, []);
 
   const venueLinks = useMemo(() => {
-    if (!venues || !murals || murals.length === 0) return [];
-    return venues.map((v) => {
-      const { mural, distance } = findNearestMural(v, murals);
+    if (!allVenues.length || !allMurals.length) return [];
+    return allVenues.map((v) => {
+      const { mural, distance } = findNearestMural(v, allMurals);
       return { venue: v, mural, distance };
     });
-  }, [venues, murals]);
+  }, [allVenues, allMurals]);
 
   const avgDistance = useMemo(() => {
     if (venueLinks.length === 0) return 0;
