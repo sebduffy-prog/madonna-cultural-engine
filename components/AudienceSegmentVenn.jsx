@@ -57,7 +57,7 @@ const SEGMENT_BY_KEY = Object.fromEntries(SEGMENT_DEFS.map((s) => [s.key, s]));
 const UK_ADULT_POP = 54;
 const MADONNA_ROOT = {
   id: "madonnaFans",
-  label: "Madonna Fans",
+  label: "Pop Music",
   color: "#E879F9",
   pop: UK_ADULT_POP,
 };
