@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { PanelSkeleton } from "./Skeleton";
 import AddToPlanButton from "./AddToPlanButton";
+import RevisionLog from "./RevisionLog";
 import { AUDIENCE_OPTIONS, audienceLabel } from "../lib/audiences";
 
 // Accepts legacy single-string audience or new array — returns array of keys.
@@ -15,6 +16,20 @@ const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#22
 const CHANNEL_COLORS = {
   Social: TEAL, OOH: CORAL, Digital: PURPLE, Experiential: PINK, Print: Y, Audio: GREEN, Video: RED, Partnerships: "#60A5FA",
 };
+
+const PILLAR_OPTIONS = [
+  { key: "tease",   label: "Tease",   color: PINK },
+  { key: "launch",  label: "Launch",  color: TEAL },
+  { key: "sustain", label: "Sustain", color: CORAL },
+];
+const PILLAR_BY_KEY = Object.fromEntries(PILLAR_OPTIONS.map(p => [p.key, p]));
+
+const STATUS_OPTIONS = [
+  { key: "Proposed", color: MUTED },
+  { key: "Approved", color: GREEN },
+  { key: "Booked",   color: Y },
+];
+const STATUS_BY_KEY = Object.fromEntries(STATUS_OPTIONS.map(s => [s.key, s]));
 
 function getUserId() {
   let id = localStorage.getItem("sweettooth_user");
@@ -41,6 +56,13 @@ export default function IdeasBoard() {
   const [formMockup, setFormMockup] = useState("");
   const [formTactics, setFormTactics] = useState([""]);
   const [formAudience, setFormAudience] = useState([]);
+  const [formPillar, setFormPillar] = useState("");
+  const [formStatus, setFormStatus] = useState("Proposed");
+
+  // Filter + sort
+  const [filterPillar, setFilterPillar] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
 
   function toggleFormAudience(key) {
     setFormAudience((arr) => {
@@ -87,7 +109,8 @@ export default function IdeasBoard() {
         body: JSON.stringify({
           action: "create", name: formName, description: formDesc,
           mockupUrl: mockup, tactics: formTactics.filter(t => t.trim()),
-          audience: formAudience, createdBy: userId,
+          audience: formAudience, pillar: formPillar, status: formStatus,
+          createdBy: userId,
         }),
       });
       const data = await r.json();
@@ -95,6 +118,7 @@ export default function IdeasBoard() {
         setShowForm(false);
         setFormName(""); setFormDesc(""); setFormMockup("");
         setFormTactics([""]); setFormAudience([]);
+        setFormPillar(""); setFormStatus("Proposed");
         load();
       } else {
         alert("Failed to create idea: " + (data.error || r.status));
@@ -138,6 +162,7 @@ export default function IdeasBoard() {
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   function openEdit(idea) {
     setEditForm({
@@ -146,6 +171,8 @@ export default function IdeasBoard() {
       mockupUrl: idea.mockupUrl || "",
       tactics: idea.tactics?.length ? [...idea.tactics] : [""],
       audience: asAudienceArray(idea.audience),
+      pillar: idea.pillar || "",
+      status: idea.status || "Proposed",
     });
     setEditMode(true);
   }
@@ -190,11 +217,14 @@ export default function IdeasBoard() {
       const payload = {
         action: "update",
         ideaId,
+        editedBy: getUserId(),
         name: editForm.name,
         description: editForm.description,
         mockupUrl: editForm.mockupUrl,
         tactics,
         audience: editForm.audience,
+        pillar: editForm.pillar,
+        status: editForm.status,
       };
       const r = await fetch("/api/ideas", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -367,6 +397,48 @@ export default function IdeasBoard() {
             >Click here, then Ctrl+V to paste image</div>
           </div>
           <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>PILLAR</label>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {PILLAR_OPTIONS.map((p) => {
+                const on = formPillar === p.key;
+                return (
+                  <button key={p.key} type="button" onClick={() => setFormPillar(on ? "" : p.key)} style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "6px 12px", fontSize: 12, fontWeight: 700,
+                    color: on ? WHITE : MUTED,
+                    background: on ? `${p.color}22` : "transparent",
+                    border: `1px solid ${on ? p.color : BORDER}`,
+                    borderRadius: 999, cursor: "pointer",
+                    fontFamily: "'Inter Tight', system-ui, sans-serif",
+                    opacity: on ? 1 : 0.8,
+                  }}>
+                    <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: p.color, opacity: on ? 1 : 0.5 }} />
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>STATUS</label>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {STATUS_OPTIONS.map((s) => {
+                const on = formStatus === s.key;
+                return (
+                  <button key={s.key} type="button" onClick={() => setFormStatus(s.key)} style={{
+                    padding: "6px 12px", fontSize: 12, fontWeight: 700,
+                    color: on ? WHITE : MUTED,
+                    background: on ? `${s.color}22` : "transparent",
+                    border: `1px solid ${on ? s.color : BORDER}`,
+                    borderRadius: 999, cursor: "pointer",
+                    fontFamily: "'Inter Tight', system-ui, sans-serif",
+                    opacity: on ? 1 : 0.8,
+                  }}>{s.key}</button>
+                );
+              })}
+            </div>
+          </div>
+          <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: MUTED, display: "block", marginBottom: 8, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
               AUDIENCE
               <span style={{ marginLeft: 8, fontSize: 10, color: DIM, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>Pick one or more — click to toggle</span>
@@ -423,9 +495,71 @@ export default function IdeasBoard() {
           <p style={{ fontSize: 16, color: MUTED, margin: "0 0 8px" }}>No ideas yet</p>
           <p style={{ fontSize: 13, color: DIM }}>Click "+ New Idea" to add the first one</p>
         </div>
-      ) : (
+      ) : (() => {
+        const pillarFilterOptions = [
+          { key: "", label: "All", count: ideas.length, color: Y },
+          ...PILLAR_OPTIONS.map(p => ({ key: p.key, label: p.label, color: p.color, count: ideas.filter(i => i.pillar === p.key).length })),
+        ];
+        const statusFilterOptions = [
+          { key: "", label: "All", count: ideas.length, color: Y },
+          ...STATUS_OPTIONS.map(s => ({ key: s.key, label: s.key, color: s.color, count: ideas.filter(i => (i.status || "Proposed") === s.key).length })),
+        ];
+        const sortComparators = {
+          newest: (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+          oldest: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+          "most-liked": (a, b) => ((b.likes || 0) - (b.dislikes || 0)) - ((a.likes || 0) - (a.dislikes || 0)) || (new Date(b.createdAt) - new Date(a.createdAt)),
+          manual: (a, b) => (a.order || 0) - (b.order || 0),
+        };
+        const matches = (idea) => {
+          if (filterPillar && idea.pillar !== filterPillar) return false;
+          if (filterStatus && (idea.status || "Proposed") !== filterStatus) return false;
+          return true;
+        };
+        const displayedIdeas = [...ideas.filter(matches)].sort(sortComparators[sortBy] || sortComparators.newest);
+        const moveIdea = async (ideaId, direction) => {
+          const idx = displayedIdeas.findIndex(i => i.id === ideaId);
+          if (idx < 0) return;
+          const swapIdx = idx + direction;
+          if (swapIdx < 0 || swapIdx >= displayedIdeas.length) return;
+          const a = displayedIdeas[idx], b = displayedIdeas[swapIdx];
+          const aOrder = a.order ?? Date.parse(a.createdAt) ?? 0;
+          const bOrder = b.order ?? Date.parse(b.createdAt) ?? 0;
+          await fetch("/api/ideas", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "reorder", items: [{ id: a.id, order: bOrder }, { id: b.id, order: aOrder }] }),
+          });
+          setSortBy("manual");
+          load();
+        };
+
+        return <>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16, padding: "14px 16px", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8 }}>
+          <IdeaFilterRow label="Pillar" options={pillarFilterOptions} value={filterPillar} onChange={setFilterPillar} />
+          <IdeaFilterRow label="Status" options={statusFilterOptions} value={filterStatus} onChange={setFilterStatus} />
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: "auto" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Sort</span>
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{
+              padding: "6px 28px 6px 10px", fontSize: 12, fontWeight: 600, color: WHITE, background: BG,
+              border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none",
+              fontFamily: "'Inter Tight', system-ui, sans-serif", cursor: "pointer",
+              appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
+              backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path fill='${encodeURIComponent(MUTED)}' d='M1 3l4 4 4-4z'/></svg>")`,
+              backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center",
+            }}>
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="most-liked">Most liked</option>
+              <option value="manual">Manual order</option>
+            </select>
+          </div>
+        </div>
+        {displayedIdeas.length === 0 ? (
+          <div style={{ background: CARD, borderRadius: 10, padding: "40px 24px", border: `1px solid ${BORDER}`, textAlign: "center" }}>
+            <p style={{ fontSize: 13, color: MUTED, margin: 0 }}>No ideas match this filter.</p>
+          </div>
+        ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-          {ideas.map(idea => {
+          {displayedIdeas.map(idea => {
             return (
               <div key={idea.id} style={{ background: CARD, borderRadius: 10, border: `1px solid ${BORDER}`, overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s" }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = Y}
@@ -443,6 +577,20 @@ export default function IdeasBoard() {
                     </div>
                   )}
                   <div style={{ padding: "12px 16px 8px" }}>
+                    {(idea.pillar || idea.status) && (
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
+                        {idea.pillar && PILLAR_BY_KEY[idea.pillar] && (
+                          <span style={{ fontSize: 9, fontWeight: 700, color: PILLAR_BY_KEY[idea.pillar].color, background: `${PILLAR_BY_KEY[idea.pillar].color}18`, border: `1px solid ${PILLAR_BY_KEY[idea.pillar].color}66`, borderRadius: 4, padding: "2px 8px", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                            {PILLAR_BY_KEY[idea.pillar].label}
+                          </span>
+                        )}
+                        {STATUS_BY_KEY[idea.status || "Proposed"] && (
+                          <span style={{ fontSize: 9, fontWeight: 700, color: STATUS_BY_KEY[idea.status || "Proposed"].color, background: `${STATUS_BY_KEY[idea.status || "Proposed"].color}18`, border: `1px solid ${STATUS_BY_KEY[idea.status || "Proposed"].color}66`, borderRadius: 4, padding: "2px 8px", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                            {STATUS_BY_KEY[idea.status || "Proposed"].key}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <h3 style={{ fontSize: 15, fontWeight: 700, color: WHITE, margin: 0, fontFamily: "'Inter Tight', system-ui, sans-serif", lineHeight: 1.3 }}>{idea.name}</h3>
                     {asAudienceArray(idea.audience).length > 0 && (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
@@ -473,6 +621,18 @@ export default function IdeasBoard() {
                     border: `1px solid ${(idea.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                   }}>&#9660; {idea.dislikes || 0}</button>
                   <AddToPlanButton title={idea.name} description={idea.description} defaultChannel="social" defaultAudience={asAudienceArray(idea.audience)[0]} sourceType="idea" sourceId={idea.id} size="sm" />
+                  {sortBy === "manual" && (
+                    <span style={{ display: "inline-flex", gap: 2 }}>
+                      <button onClick={(e) => { e.stopPropagation(); moveIdea(idea.id, -1); }} title="Move up"
+                        style={{ padding: "2px 6px", fontSize: 11, color: WHITE, background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 4, cursor: "pointer" }}>
+                        ↑
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); moveIdea(idea.id, 1); }} title="Move down"
+                        style={{ padding: "2px 6px", fontSize: 11, color: WHITE, background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 4, cursor: "pointer" }}>
+                        ↓
+                      </button>
+                    </span>
+                  )}
                   <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                     {(idea.comments || []).length} comment{(idea.comments || []).length !== 1 ? "s" : ""}
                   </span>
@@ -482,20 +642,26 @@ export default function IdeasBoard() {
           }
           )}
         </div>
-      )}
+        )}
+        </>;
+      })()}
 
       {/* ═══ IDEA DETAIL POPUP ═══ */}
       {activeIdea && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
-          onClick={() => { setSelectedIdea(null); setConfirmDelete(false); setEditMode(false); setEditForm(null); }}>
+          onClick={() => { setSelectedIdea(null); setConfirmDelete(false); setEditMode(false); setEditForm(null); setShowHistory(false); }}>
           <div style={{ background: CARD, borderRadius: 12, border: `1px solid ${BORDER}`, width: "100%", maxWidth: 680, maxHeight: "90vh", overflowY: "auto", position: "relative" }}
             onClick={e => e.stopPropagation()}>
             {/* Close button */}
-            <button onClick={() => { setSelectedIdea(null); setConfirmDelete(false); setEditMode(false); setEditForm(null); }} style={{
+            <button onClick={() => { setSelectedIdea(null); setConfirmDelete(false); setEditMode(false); setEditForm(null); setShowHistory(false); }} style={{
               position: "absolute", top: 12, right: 12, width: 32, height: 32, borderRadius: 16,
               background: `${BG}cc`, color: WHITE, border: `1px solid ${BORDER}`, cursor: "pointer",
               fontSize: 16, lineHeight: "30px", zIndex: 2, textAlign: "center",
             }}>&times;</button>
+
+            {showHistory && (
+              <RevisionLog revisions={activeIdea.revisions || []} onClose={() => setShowHistory(false)} />
+            )}
 
             {/* Image (readonly or edit) */}
             {(editMode ? editForm?.mockupUrl : activeIdea.mockupUrl) && (
@@ -569,6 +735,49 @@ export default function IdeasBoard() {
 
               {/* Audience (edit mode — multi-select pills; read mode shows chips in meta row above) */}
               {editMode && (
+                <>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Pillar</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {PILLAR_OPTIONS.map((p) => {
+                      const on = editForm.pillar === p.key;
+                      return (
+                        <button key={p.key} type="button" onClick={() => setEditForm(f => ({ ...f, pillar: on ? "" : p.key }))} style={{
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          padding: "6px 12px", fontSize: 12, fontWeight: 700,
+                          color: on ? WHITE : MUTED,
+                          background: on ? `${p.color}22` : "transparent",
+                          border: `1px solid ${on ? p.color : BORDER}`,
+                          borderRadius: 999, cursor: "pointer",
+                          fontFamily: "'Inter Tight', system-ui, sans-serif",
+                          opacity: on ? 1 : 0.8,
+                        }}>
+                          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: p.color, opacity: on ? 1 : 0.5 }} />
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Status</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {STATUS_OPTIONS.map((s) => {
+                      const on = editForm.status === s.key;
+                      return (
+                        <button key={s.key} type="button" onClick={() => setEditForm(f => ({ ...f, status: s.key }))} style={{
+                          padding: "6px 12px", fontSize: 12, fontWeight: 700,
+                          color: on ? WHITE : MUTED,
+                          background: on ? `${s.color}22` : "transparent",
+                          border: `1px solid ${on ? s.color : BORDER}`,
+                          borderRadius: 999, cursor: "pointer",
+                          fontFamily: "'Inter Tight', system-ui, sans-serif",
+                          opacity: on ? 1 : 0.8,
+                        }}>{s.key}</button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Audience</div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -597,6 +806,7 @@ export default function IdeasBoard() {
                     })}
                   </div>
                 </div>
+                </>
               )}
 
               {/* Tactics */}
@@ -722,11 +932,18 @@ export default function IdeasBoard() {
                     }}>Cancel</button>
                   </div>
                 ) : (
-                  <button onClick={() => openEdit(activeIdea)} style={{
-                    padding: "8px 16px", fontSize: 11, fontWeight: 700, color: Y, background: `${Y}12`,
-                    border: `1px solid ${Y}66`, borderRadius: 6, cursor: "pointer",
-                    fontFamily: "'Inter Tight', system-ui, sans-serif", letterSpacing: "0.02em",
-                  }}>&#9998; Edit</button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => openEdit(activeIdea)} style={{
+                      padding: "8px 16px", fontSize: 11, fontWeight: 700, color: Y, background: `${Y}12`,
+                      border: `1px solid ${Y}66`, borderRadius: 6, cursor: "pointer",
+                      fontFamily: "'Inter Tight', system-ui, sans-serif", letterSpacing: "0.02em",
+                    }}>&#9998; Edit</button>
+                    <button onClick={() => setShowHistory(true)} style={{
+                      padding: "8px 16px", fontSize: 11, fontWeight: 700, color: TEAL, background: `${TEAL}12`,
+                      border: `1px solid ${TEAL}66`, borderRadius: 6, cursor: "pointer",
+                      fontFamily: "'Inter Tight', system-ui, sans-serif", letterSpacing: "0.02em",
+                    }}>History ({(activeIdea.revisions || []).length})</button>
+                  </div>
                 )}
                 {!confirmDelete ? (
                   <button onClick={() => setConfirmDelete(true)} disabled={editMode} style={{
@@ -756,3 +973,43 @@ export default function IdeasBoard() {
     </div>
   );
 }
+
+function IdeaFilterRow({ label, options, value, onChange }) {
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+      <span style={{ fontSize: 10, fontWeight: 700, color: "#777", letterSpacing: "0.08em", textTransform: "uppercase", marginRight: 4, fontFamily: "'Inter Tight', system-ui, sans-serif", minWidth: 54 }}>
+        {label}
+      </span>
+      {options.map((o) => {
+        const on = (value || "") === o.key;
+        const disabled = o.count === 0 && o.key !== "";
+        return (
+          <button
+            key={o.key || "__all__"}
+            type="button"
+            onClick={() => onChange(o.key)}
+            disabled={disabled}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "4px 10px", fontSize: 11, fontWeight: 700,
+              color: "#EDEDE8",
+              background: on ? `${o.color}22` : "transparent",
+              border: `1px solid ${on ? o.color : "#222"}`,
+              borderRadius: 999,
+              cursor: disabled ? "not-allowed" : "pointer",
+              opacity: disabled ? 0.4 : 1,
+              fontFamily: "'Inter Tight', system-ui, sans-serif",
+              letterSpacing: "0.02em",
+            }}
+          >
+            {o.key !== "" && (
+              <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: o.color, opacity: on ? 1 : 0.65 }} />
+            )}
+            {o.label} <span style={{ opacity: 0.65, fontWeight: 500 }}>({o.count})</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+

@@ -36,6 +36,7 @@ export default function CampaignCalendar() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeMonth, setActiveMonth] = useState("April");
+  const [viewMode, setViewMode] = useState("grid"); // "grid" | "timeline"
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showBlockForm, setShowBlockForm] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -183,18 +184,46 @@ export default function CampaignCalendar() {
         </form>
       )}
 
-      {/* Month tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
-        {MONTHS.map(m => (
-          <button key={m} onClick={() => setActiveMonth(m)} style={{
-            padding: "6px 16px", fontSize: 12, fontWeight: activeMonth === m ? 700 : 600,
-            color: activeMonth === m ? BG : WHITE, background: activeMonth === m ? Y : "transparent",
-            border: activeMonth === m ? "none" : `1px solid rgba(237,237,232,0.55)`, borderRadius: 6, cursor: "pointer",
-            fontFamily: "'Inter Tight', system-ui, sans-serif",
-          }}>{m} 2026</button>
-        ))}
+      {/* View toggle + month tabs */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 4 }}>
+          <button onClick={() => setViewMode("grid")} style={{
+            padding: "6px 14px", fontSize: 11, fontWeight: viewMode === "grid" ? 700 : 600,
+            color: viewMode === "grid" ? BG : WHITE, background: viewMode === "grid" ? TEAL : "transparent",
+            border: viewMode === "grid" ? "none" : `1px solid rgba(237,237,232,0.55)`,
+            borderRadius: 6, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif",
+            letterSpacing: "0.02em", textTransform: "uppercase",
+          }}>Month grid</button>
+          <button onClick={() => setViewMode("timeline")} style={{
+            padding: "6px 14px", fontSize: 11, fontWeight: viewMode === "timeline" ? 700 : 600,
+            color: viewMode === "timeline" ? BG : WHITE, background: viewMode === "timeline" ? TEAL : "transparent",
+            border: viewMode === "timeline" ? "none" : `1px solid rgba(237,237,232,0.55)`,
+            borderRadius: 6, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif",
+            letterSpacing: "0.02em", textTransform: "uppercase",
+          }}>Timeline</button>
+        </div>
+        {viewMode === "grid" && (
+          <div style={{ display: "flex", gap: 4 }}>
+            {MONTHS.map(m => (
+              <button key={m} onClick={() => setActiveMonth(m)} style={{
+                padding: "6px 16px", fontSize: 12, fontWeight: activeMonth === m ? 700 : 600,
+                color: activeMonth === m ? BG : WHITE, background: activeMonth === m ? Y : "transparent",
+                border: activeMonth === m ? "none" : `1px solid rgba(237,237,232,0.55)`, borderRadius: 6, cursor: "pointer",
+                fontFamily: "'Inter Tight', system-ui, sans-serif",
+              }}>{m} 2026</button>
+            ))}
+          </div>
+        )}
       </div>
 
+      {viewMode === "timeline" && (
+        <MediaPlanTimeline
+          blockPlans={blockPlans}
+          events={allEvents}
+          onSelectEvent={(e) => setSelectedEvent(e)}
+        />
+      )}
+      {viewMode === "grid" && (<>
       {/* Calendar grid */}
       <div style={{ background: CARD, borderRadius: 10, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: `1px solid ${BORDER}` }}>
@@ -317,6 +346,174 @@ export default function CampaignCalendar() {
           ))}
         </div>
       )}
+      </>)}
+    </div>
+  );
+}
+
+// Horizontal Gantt view: rows grouped by channel, bars span startDate→endDate
+// across the April–July window. Events render as vertical pins on the same
+// timeline so cultural / Madonna dates show alongside media blocks.
+function MediaPlanTimeline({ blockPlans = [], events = [], onSelectEvent }) {
+  const START = new Date(2026, 3, 1);
+  const END = new Date(2026, 6, 31);
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const totalDays = Math.round((END - START) / DAY_MS) + 1;
+
+  // px per day — wide enough that monthly tick labels breathe
+  const dayW = 14;
+  const labelW = 130;
+  const rowH = 34;
+
+  const channelRows = [];
+  const byChannel = {};
+  for (const b of blockPlans) {
+    const ch = b.channel || "other";
+    if (!byChannel[ch]) { byChannel[ch] = []; channelRows.push(ch); }
+    byChannel[ch].push(b);
+  }
+  if (channelRows.length === 0) channelRows.push("social");
+
+  function dayIndex(iso) {
+    if (!iso) return 0;
+    const d = new Date(iso);
+    return Math.max(0, Math.min(totalDays - 1, Math.round((d - START) / DAY_MS)));
+  }
+
+  const months = [
+    { label: "April 2026", start: new Date(2026, 3, 1), end: new Date(2026, 3, 30) },
+    { label: "May 2026",   start: new Date(2026, 4, 1), end: new Date(2026, 4, 31) },
+    { label: "June 2026",  start: new Date(2026, 5, 1), end: new Date(2026, 5, 30) },
+    { label: "July 2026",  start: new Date(2026, 6, 1), end: new Date(2026, 6, 31) },
+  ];
+
+  return (
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ minWidth: labelW + totalDays * dayW }}>
+          {/* Month header */}
+          <div style={{ display: "flex", borderBottom: `1px solid ${BORDER}`, background: "rgba(255,255,255,0.02)" }}>
+            <div style={{ width: labelW, flexShrink: 0, padding: "10px 12px", fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "'Inter Tight', system-ui, sans-serif", borderRight: `1px solid ${BORDER}` }}>
+              Channel
+            </div>
+            {months.map((m) => {
+              const days = Math.round((m.end - m.start) / DAY_MS) + 1;
+              return (
+                <div key={m.label} style={{
+                  width: days * dayW, flexShrink: 0, padding: "10px 10px",
+                  fontSize: 11, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase",
+                  borderRight: `1px solid ${BORDER}`, fontFamily: "'Inter Tight', system-ui, sans-serif",
+                }}>
+                  {m.label}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Day ticks */}
+          <div style={{ display: "flex", borderBottom: `1px solid ${BORDER}`, height: 22 }}>
+            <div style={{ width: labelW, flexShrink: 0, borderRight: `1px solid ${BORDER}` }} />
+            <div style={{ position: "relative", width: totalDays * dayW, height: 22 }}>
+              {Array.from({ length: totalDays }, (_, i) => {
+                const date = new Date(START.getTime() + i * DAY_MS);
+                const dom = date.getDate();
+                const isMonday = date.getDay() === 1;
+                return (
+                  <div key={i} style={{
+                    position: "absolute", left: i * dayW, top: 0, width: dayW, height: 22,
+                    borderRight: dom === 1 ? `1px solid ${BORDER}` : "none",
+                    textAlign: "center",
+                  }}>
+                    {(isMonday || dom === 1) && (
+                      <span style={{ fontSize: 9, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif", lineHeight: "22px" }}>{dom}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Channel rows with blocks */}
+          {channelRows.map((channel) => (
+            <div key={channel} style={{ display: "flex", borderBottom: `1px solid ${BORDER}`, minHeight: rowH * 1.4 }}>
+              <div style={{
+                width: labelW, flexShrink: 0, padding: "10px 12px",
+                fontSize: 11, fontWeight: 700, color: CHANNEL_COLORS[channel] || WHITE,
+                textTransform: "uppercase", letterSpacing: "0.06em",
+                borderRight: `1px solid ${BORDER}`, fontFamily: "'Inter Tight', system-ui, sans-serif",
+              }}>
+                {channel}
+              </div>
+              <div style={{ position: "relative", width: totalDays * dayW, minHeight: rowH * 1.4 }}>
+                {/* Weekly grid lines */}
+                {Array.from({ length: Math.ceil(totalDays / 7) }, (_, i) => (
+                  <div key={i} style={{ position: "absolute", left: i * 7 * dayW, top: 0, bottom: 0, width: 1, background: "rgba(255,255,255,0.04)" }} />
+                ))}
+                {(byChannel[channel] || []).map((b, i) => {
+                  const s = dayIndex(b.startDate);
+                  const e = dayIndex(b.endDate);
+                  const w = Math.max(dayW, (e - s + 1) * dayW - 2);
+                  const col = CHANNEL_COLORS[channel] || "#60A5FA";
+                  return (
+                    <div
+                      key={b.id}
+                      onClick={() => onSelectEvent(b)}
+                      title={`${b.title} · ${b.startDate} → ${b.endDate}`}
+                      style={{
+                        position: "absolute",
+                        left: s * dayW + 1, top: 6 + (i % 2) * 18,
+                        width: w, height: 22,
+                        background: `${col}33`, border: `1px solid ${col}`,
+                        borderRadius: 4, color: WHITE, fontSize: 10, fontWeight: 700,
+                        padding: "2px 8px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                        cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif",
+                      }}
+                    >
+                      {b.title || channel}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          {/* Events row — pins */}
+          {events.length > 0 && (
+            <div style={{ display: "flex", minHeight: rowH }}>
+              <div style={{
+                width: labelW, flexShrink: 0, padding: "10px 12px",
+                fontSize: 11, fontWeight: 700, color: Y, textTransform: "uppercase", letterSpacing: "0.06em",
+                borderRight: `1px solid ${BORDER}`, fontFamily: "'Inter Tight', system-ui, sans-serif",
+              }}>
+                Events
+              </div>
+              <div style={{ position: "relative", width: totalDays * dayW, minHeight: rowH }}>
+                {events.map((ev, idx) => {
+                  const s = dayIndex(ev.date);
+                  const col = CATEGORY_COLORS[ev.category] || Y;
+                  return (
+                    <div
+                      key={`${ev.date}-${idx}`}
+                      onClick={() => onSelectEvent(ev)}
+                      title={`${ev.title} · ${ev.date}`}
+                      style={{
+                        position: "absolute",
+                        left: s * dayW + 1, top: 4,
+                        width: Math.max(dayW - 2, 10), height: rowH - 8,
+                        background: `${col}66`, border: `1px solid ${col}`,
+                        borderRadius: 3, cursor: "pointer",
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      <div style={{ padding: "8px 12px", fontSize: 10, color: WHITE, fontFamily: "'Inter Tight', system-ui, sans-serif", opacity: 0.7 }}>
+        Scroll horizontally · click any bar or event pin for detail
+      </div>
     </div>
   );
 }

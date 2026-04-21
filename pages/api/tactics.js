@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   let tactics = await kvGet(CACHE_KEY) || [];
 
   if (action === "create") {
-    const { title, channel, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes, createdBy } = body;
+    const { title, channel, pillar, status, objective, kpi, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes, createdBy } = body;
     if (!title || !title.trim()) return res.status(400).json({ error: "Title is required" });
     if (!channel) return res.status(400).json({ error: "Channel is required" });
 
@@ -33,6 +33,10 @@ export default async function handler(req, res) {
       id: uuid(),
       title: title.trim(),
       channel,
+      pillar: pillar || "",
+      status: status || "Proposed",
+      objective: objective || "",
+      kpi: kpi || "",
       roleOfChannel: roleOfChannel || "",
       audience: audience || [],
       audienceDetail: audienceDetail || "",
@@ -42,6 +46,7 @@ export default async function handler(req, res) {
       startDate: startDate || "",
       endDate: endDate || "",
       notes: notes || "",
+      order: Date.now(),
       likes: 0,
       dislikes: 0,
       likedBy: [],
@@ -56,11 +61,34 @@ export default async function handler(req, res) {
   }
 
   if (action === "update") {
-    const { tacticId, title, channel, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes } = body;
+    const { tacticId, title, channel, pillar, status, objective, kpi, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes, order, editedBy } = body;
     const tactic = tactics.find(t => t.id === tacticId);
     if (!tactic) return res.status(404).json({ error: "Tactic not found" });
+
+    // Push a revision snapshot of the fields that are changing
+    const tracked = ["title", "channel", "pillar", "status", "objective", "kpi", "roleOfChannel", "audience", "audienceDetail", "format", "phase", "budget", "startDate", "endDate", "notes"];
+    const incoming = { title, channel, pillar, status, objective, kpi, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes };
+    const changes = [];
+    for (const k of tracked) {
+      const next = incoming[k];
+      if (next === undefined) continue;
+      const prev = tactic[k];
+      const same = JSON.stringify(prev ?? "") === JSON.stringify(next ?? "");
+      if (!same) changes.push({ field: k, from: prev ?? "", to: next });
+    }
+    if (changes.length > 0) {
+      tactic.revisions = [
+        { date: new Date().toISOString(), editedBy: editedBy || "Anonymous", changes },
+        ...(tactic.revisions || []),
+      ].slice(0, 50);
+    }
+
     if (title !== undefined) tactic.title = title;
     if (channel !== undefined) tactic.channel = channel;
+    if (pillar !== undefined) tactic.pillar = pillar;
+    if (status !== undefined) tactic.status = status;
+    if (objective !== undefined) tactic.objective = objective;
+    if (kpi !== undefined) tactic.kpi = kpi;
     if (roleOfChannel !== undefined) tactic.roleOfChannel = roleOfChannel;
     if (audience !== undefined) tactic.audience = audience;
     if (audienceDetail !== undefined) tactic.audienceDetail = audienceDetail;
@@ -70,9 +98,20 @@ export default async function handler(req, res) {
     if (startDate !== undefined) tactic.startDate = startDate;
     if (endDate !== undefined) tactic.endDate = endDate;
     if (notes !== undefined) tactic.notes = notes;
+    if (order !== undefined) tactic.order = order;
     tactic.updatedAt = new Date().toISOString();
     await kvSet(CACHE_KEY, tactics);
     return res.status(200).json({ ok: true, tactic });
+  }
+
+  if (action === "reorder") {
+    // Bulk order update: [{id, order}]
+    const { items } = body;
+    if (!Array.isArray(items)) return res.status(400).json({ error: "items required" });
+    const byId = new Map(items.map((i) => [i.id, i.order]));
+    for (const t of tactics) if (byId.has(t.id)) t.order = byId.get(t.id);
+    await kvSet(CACHE_KEY, tactics);
+    return res.status(200).json({ ok: true });
   }
 
   if (action === "like" || action === "dislike") {

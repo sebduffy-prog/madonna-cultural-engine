@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { PanelSkeleton } from "./Skeleton";
 import AddToPlanButton from "./AddToPlanButton";
+import RevisionLog from "./RevisionLog";
 import { AUDIENCE_OPTIONS, audienceLabel } from "../lib/audiences";
 
 // Accepts legacy single-string audience or new array — returns array of keys.
@@ -53,6 +54,20 @@ const CHANNEL_OPTIONS = [
 const CHANNEL_KEYS = CHANNEL_OPTIONS.map(c => c.key);
 const CHANNEL_BY_KEY = Object.fromEntries(CHANNEL_OPTIONS.map(c => [c.key, c]));
 
+const PILLAR_OPTIONS = [
+  { key: "tease",   label: "Tease",   color: "#F472B6" },
+  { key: "launch",  label: "Launch",  color: TEAL },
+  { key: "sustain", label: "Sustain", color: "#FB923C" },
+];
+const PILLAR_BY_KEY = Object.fromEntries(PILLAR_OPTIONS.map(p => [p.key, p]));
+
+const STATUS_OPTIONS = [
+  { key: "Proposed", color: MUTED },
+  { key: "Approved", color: GREEN },
+  { key: "Booked",   color: Y },
+];
+const STATUS_BY_KEY = Object.fromEntries(STATUS_OPTIONS.map(s => [s.key, s]));
+
 // Legacy tactics stored freeform channel text and no title.
 // For display/edit, treat that freeform value as the title and leave channel unset.
 function displayTitle(t) {
@@ -68,6 +83,10 @@ function displayChannel(t) {
 const FIELDS = [
   { key: "title", label: "Title", placeholder: "e.g. TikTok launch film, OOH takeover, Spotify sponsorship" },
   { key: "channel", label: "Channel", type: "channel-select", hint: "Pick one" },
+  { key: "pillar", label: "Pillar", type: "pillar-select", hint: "Where does this sit in the campaign story?" },
+  { key: "status", label: "Status", type: "status-select", hint: "Proposed · Approved · Booked" },
+  { key: "objective", label: "Objective", placeholder: "What this tactic is here to achieve" },
+  { key: "kpi", label: "Optimised KPI", placeholder: "e.g. view-through rate, completion, ticket sales" },
   { key: "roleOfChannel", label: "Role of Channel", placeholder: "What this channel is doing in the mix (reach, reappraisal, proof, depth...)" },
   { key: "audience", label: "Audience", type: "multi-audience", hint: "Pick one or more — click to toggle" },
   { key: "audienceDetail", label: "Audience Detail", placeholder: "Specific mindset, behaviour, sub-cohort — freeform" },
@@ -78,7 +97,7 @@ const FIELDS = [
   { key: "notes", label: "Notes", placeholder: "Anything else — rationale, dependencies, references" },
 ];
 
-const EMPTY_FORM = { title: "", channel: "", roleOfChannel: "", audience: [], audienceDetail: "", format: "", phase: "", budget: "", startDate: "", endDate: "", notes: "" };
+const EMPTY_FORM = { title: "", channel: "", pillar: "", status: "Proposed", objective: "", kpi: "", roleOfChannel: "", audience: [], audienceDetail: "", format: "", phase: "", budget: "", startDate: "", endDate: "", notes: "" };
 
 function getUserId() {
   let id = localStorage.getItem("sweettooth_user");
@@ -161,12 +180,15 @@ export default function TacticsBoard() {
   }
 
   const [selectedTactic, setSelectedTactic] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
 
   const [filterChannel, setFilterChannel] = useState("");
+  const [filterPillar, setFilterPillar] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
   const [sortBy, setSortBy] = useState("newest");
 
   const channelCounts = CHANNEL_OPTIONS.map(c => ({
@@ -182,29 +204,67 @@ export default function TacticsBoard() {
     ...(uncategorizedCount > 0 ? [{ key: "__uncategorized__", label: "Uncategorized", count: uncategorizedCount, color: MUTED }] : []),
   ];
 
+  const pillarFilterOptions = [
+    { key: "", label: "All", count: tactics.length, color: Y },
+    ...PILLAR_OPTIONS.map(p => ({ key: p.key, label: p.label, color: p.color, count: tactics.filter(t => t.pillar === p.key).length })),
+  ];
+  const statusFilterOptions = [
+    { key: "", label: "All", count: tactics.length, color: Y },
+    ...STATUS_OPTIONS.map(s => ({ key: s.key, label: s.key, color: s.color, count: tactics.filter(t => (t.status || "Proposed") === s.key).length })),
+  ];
+
   const effectiveFilter = filterOptions.some(o => o.key === filterChannel) ? filterChannel : "";
+  const effectivePillar = filterPillar || "";
+  const effectiveStatus = filterStatus || "";
 
   const sortComparators = {
     newest: (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
     oldest: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+    "most-liked": (a, b) => ((b.likes || 0) - (b.dislikes || 0)) - ((a.likes || 0) - (a.dislikes || 0)) || (new Date(b.createdAt) - new Date(a.createdAt)),
+    manual: (a, b) => (a.order || 0) - (b.order || 0),
     "channel-asc": (a, b) => (displayChannel(a) || "\uffff").localeCompare(displayChannel(b) || "\uffff") || (new Date(b.createdAt) - new Date(a.createdAt)),
     "channel-desc": (a, b) => (displayChannel(b) || "\uffff").localeCompare(displayChannel(a) || "\uffff") || (new Date(b.createdAt) - new Date(a.createdAt)),
   };
 
   const matchesFilter = (t) => {
-    if (!effectiveFilter) return true;
-    if (effectiveFilter === "__uncategorized__") return !displayChannel(t);
-    return displayChannel(t) === effectiveFilter;
+    if (effectiveFilter) {
+      if (effectiveFilter === "__uncategorized__") { if (displayChannel(t)) return false; }
+      else if (displayChannel(t) !== effectiveFilter) return false;
+    }
+    if (effectivePillar && t.pillar !== effectivePillar) return false;
+    if (effectiveStatus && (t.status || "Proposed") !== effectiveStatus) return false;
+    return true;
   };
 
   const displayedTactics = [...tactics.filter(matchesFilter)].sort(
     sortComparators[sortBy] || sortComparators.newest
   );
 
+  async function moveTactic(tacticId, direction) {
+    const idx = displayedTactics.findIndex((t) => t.id === tacticId);
+    if (idx < 0) return;
+    const swapIdx = idx + direction;
+    if (swapIdx < 0 || swapIdx >= displayedTactics.length) return;
+    const a = displayedTactics[idx];
+    const b = displayedTactics[swapIdx];
+    const aOrder = a.order ?? Date.parse(a.createdAt) ?? 0;
+    const bOrder = b.order ?? Date.parse(b.createdAt) ?? 0;
+    await fetch("/api/tactics", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reorder", items: [{ id: a.id, order: bOrder }, { id: b.id, order: aOrder }] }),
+    });
+    setSortBy("manual");
+    load();
+  }
+
   function openEdit(t) {
     setEditForm({
       title: displayTitle(t),
       channel: displayChannel(t),
+      pillar: t.pillar || "",
+      status: t.status || "Proposed",
+      objective: t.objective || "",
+      kpi: t.kpi || "",
       roleOfChannel: t.roleOfChannel || "",
       audience: asAudienceArray(t.audience),
       audienceDetail: t.audienceDetail || "",
@@ -231,7 +291,7 @@ export default function TacticsBoard() {
     try {
       const r = await fetch("/api/tactics", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "update", tacticId, ...editForm }),
+        body: JSON.stringify({ action: "update", tacticId, editedBy: getUserId(), ...editForm }),
       });
       const d = await r.json();
       if (!d.ok) { alert("Failed to save: " + (d.error || r.status)); return; }
@@ -300,6 +360,8 @@ export default function TacticsBoard() {
             const isNotes = f.key === "notes";
             const isMultiAudience = f.type === "multi-audience";
             const isChannelSelect = f.type === "channel-select";
+            const isPillarSelect = f.type === "pillar-select";
+            const isStatusSelect = f.type === "status-select";
             const selected = isMultiAudience ? asAudienceArray(form.audience) : null;
             return (
               <div key={f.key} style={{ marginBottom: i === FIELDS.length - 1 ? 20 : 16 }}>
@@ -307,7 +369,49 @@ export default function TacticsBoard() {
                   {f.label}{required ? " *" : ""}
                   {f.hint && <span style={{ marginLeft: 8, fontSize: 10, color: DIM, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>{f.hint}</span>}
                 </label>
-                {isChannelSelect ? (
+                {isPillarSelect ? (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {PILLAR_OPTIONS.map((p) => {
+                      const on = form.pillar === p.key;
+                      return (
+                        <button key={p.key} type="button"
+                          onClick={() => setForm((fr) => ({ ...fr, pillar: on ? "" : p.key }))}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 6,
+                            padding: "6px 14px", fontSize: 12, fontWeight: 700,
+                            color: on ? WHITE : MUTED,
+                            background: on ? `${p.color}22` : "transparent",
+                            border: `1px solid ${on ? p.color : BORDER}`,
+                            borderRadius: 999, cursor: "pointer",
+                            fontFamily: "'Inter Tight', system-ui, sans-serif",
+                            opacity: on ? 1 : 0.8,
+                          }}>
+                          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: p.color, opacity: on ? 1 : 0.5 }} />
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : isStatusSelect ? (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {STATUS_OPTIONS.map((s) => {
+                      const on = form.status === s.key;
+                      return (
+                        <button key={s.key} type="button"
+                          onClick={() => setForm((fr) => ({ ...fr, status: s.key }))}
+                          style={{
+                            padding: "6px 14px", fontSize: 12, fontWeight: 700,
+                            color: on ? WHITE : MUTED,
+                            background: on ? `${s.color}22` : "transparent",
+                            border: `1px solid ${on ? s.color : BORDER}`,
+                            borderRadius: 999, cursor: "pointer",
+                            fontFamily: "'Inter Tight', system-ui, sans-serif",
+                            opacity: on ? 1 : 0.8,
+                          }}>{s.key}</button>
+                      );
+                    })}
+                  </div>
+                ) : isChannelSelect ? (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {CHANNEL_OPTIONS.map((c) => {
                       const on = form.channel === c.key;
@@ -418,7 +522,10 @@ export default function TacticsBoard() {
         </div>
       ) : (
         <>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center", marginBottom: 16, padding: "12px 14px", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16, padding: "14px 16px", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8 }}>
+            <FilterRow label="Pillar" options={pillarFilterOptions} value={effectivePillar} onChange={setFilterPillar} />
+            <FilterRow label="Status" options={statusFilterOptions} value={effectiveStatus} onChange={setFilterStatus} />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", flex: 1, minWidth: 0 }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: "0.08em", textTransform: "uppercase", marginRight: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Channel</span>
               {filterOptions.map(c => {
@@ -467,9 +574,12 @@ export default function TacticsBoard() {
               >
                 <option value="newest">Newest</option>
                 <option value="oldest">Oldest</option>
+                <option value="most-liked">Most liked</option>
+                <option value="manual">Manual order</option>
                 <option value="channel-asc">Channel A–Z</option>
                 <option value="channel-desc">Channel Z–A</option>
               </select>
+            </div>
             </div>
           </div>
           {displayedTactics.length === 0 ? (
@@ -486,8 +596,10 @@ export default function TacticsBoard() {
                 {(() => {
                   const ch = displayChannel(tactic);
                   const meta = ch ? CHANNEL_BY_KEY[ch] : null;
+                  const pillar = tactic.pillar ? PILLAR_BY_KEY[tactic.pillar] : null;
+                  const status = STATUS_BY_KEY[tactic.status || "Proposed"];
                   return (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
                       {meta ? (
                         <span style={{ fontSize: 9, fontWeight: 700, color: meta.color, background: `${meta.color}18`, border: `1px solid ${meta.color}66`, borderRadius: 4, padding: "2px 8px", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                           {meta.label}
@@ -495,6 +607,16 @@ export default function TacticsBoard() {
                       ) : (
                         <span style={{ fontSize: 9, fontWeight: 700, color: MUTED, border: `1px solid ${BORDER}`, borderRadius: 4, padding: "2px 8px", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                           Uncategorized
+                        </span>
+                      )}
+                      {pillar && (
+                        <span style={{ fontSize: 9, fontWeight: 700, color: pillar.color, background: `${pillar.color}18`, border: `1px solid ${pillar.color}66`, borderRadius: 4, padding: "2px 8px", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                          {pillar.label}
+                        </span>
+                      )}
+                      {status && (
+                        <span style={{ fontSize: 9, fontWeight: 700, color: status.color, background: `${status.color}18`, border: `1px solid ${status.color}66`, borderRadius: 4, padding: "2px 8px", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                          {status.key}
                         </span>
                       )}
                     </div>
@@ -558,6 +680,18 @@ export default function TacticsBoard() {
                   border: `1px solid ${(tactic.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                 }}>&#9660; {tactic.dislikes || 0}</button>
                 <AddToPlanButton title={displayTitle(tactic) || displayChannel(tactic)} description={tacticDescription(tactic)} defaultChannel={displayChannel(tactic)} defaultAudience={asAudienceArray(tactic.audience)[0]} defaultStart={tactic.startDate} defaultEnd={tactic.endDate} sourceType="tactic" sourceId={tactic.id} size="sm" />
+                {sortBy === "manual" && (
+                  <span style={{ display: "inline-flex", gap: 2 }}>
+                    <button onClick={(e) => { e.stopPropagation(); moveTactic(tactic.id, -1); }} title="Move up"
+                      style={{ padding: "2px 6px", fontSize: 11, color: WHITE, background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 4, cursor: "pointer" }}>
+                      ↑
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); moveTactic(tactic.id, 1); }} title="Move down"
+                      style={{ padding: "2px 6px", fontSize: 11, color: WHITE, background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 4, cursor: "pointer" }}>
+                      ↓
+                    </button>
+                  </span>
+                )}
                 <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                   {(tactic.comments || []).length} comment{(tactic.comments || []).length !== 1 ? "s" : ""}
                 </span>
@@ -571,14 +705,18 @@ export default function TacticsBoard() {
 
       {activeTactic && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
-          onClick={() => { setSelectedTactic(null); setConfirmDelete(false); setEditMode(false); setEditForm(null); }}>
+          onClick={() => { setSelectedTactic(null); setConfirmDelete(false); setEditMode(false); setEditForm(null); setShowHistory(false); }}>
           <div style={{ background: CARD, borderRadius: 12, border: `1px solid ${BORDER}`, width: "100%", maxWidth: 680, maxHeight: "90vh", overflowY: "auto", position: "relative" }}
             onClick={e => e.stopPropagation()}>
-            <button onClick={() => { setSelectedTactic(null); setConfirmDelete(false); setEditMode(false); setEditForm(null); }} style={{
+            <button onClick={() => { setSelectedTactic(null); setConfirmDelete(false); setEditMode(false); setEditForm(null); setShowHistory(false); }} style={{
               position: "absolute", top: 12, right: 12, width: 32, height: 32, borderRadius: 16,
               background: `${BG}cc`, color: WHITE, border: `1px solid ${BORDER}`, cursor: "pointer",
               fontSize: 16, lineHeight: "30px", zIndex: 2, textAlign: "center",
             }}>&times;</button>
+
+            {showHistory && (
+              <RevisionLog revisions={activeTactic.revisions || []} onClose={() => setShowHistory(false)} />
+            )}
 
             <div style={{ padding: "24px 24px 20px" }}>
               {(() => {
@@ -615,7 +753,49 @@ export default function TacticsBoard() {
               {editMode && FIELDS.filter(f => f.key !== "title").map(f => (
                 <div key={f.key} style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>{f.label}</div>
-                  {f.type === "channel-select" ? (
+                  {f.type === "pillar-select" ? (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {PILLAR_OPTIONS.map((p) => {
+                        const on = editForm.pillar === p.key;
+                        return (
+                          <button key={p.key} type="button"
+                            onClick={() => setEditForm(fr => ({ ...fr, pillar: on ? "" : p.key }))}
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 6,
+                              padding: "6px 14px", fontSize: 12, fontWeight: 700,
+                              color: on ? WHITE : MUTED,
+                              background: on ? `${p.color}22` : "transparent",
+                              border: `1px solid ${on ? p.color : BORDER}`,
+                              borderRadius: 999, cursor: "pointer",
+                              fontFamily: "'Inter Tight', system-ui, sans-serif",
+                              opacity: on ? 1 : 0.8,
+                            }}>
+                            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: p.color, opacity: on ? 1 : 0.5 }} />
+                            {p.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : f.type === "status-select" ? (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {STATUS_OPTIONS.map((s) => {
+                        const on = editForm.status === s.key;
+                        return (
+                          <button key={s.key} type="button"
+                            onClick={() => setEditForm(fr => ({ ...fr, status: s.key }))}
+                            style={{
+                              padding: "6px 14px", fontSize: 12, fontWeight: 700,
+                              color: on ? WHITE : MUTED,
+                              background: on ? `${s.color}22` : "transparent",
+                              border: `1px solid ${on ? s.color : BORDER}`,
+                              borderRadius: 999, cursor: "pointer",
+                              fontFamily: "'Inter Tight', system-ui, sans-serif",
+                              opacity: on ? 1 : 0.8,
+                            }}>{s.key}</button>
+                        );
+                      })}
+                    </div>
+                  ) : f.type === "channel-select" ? (
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {CHANNEL_OPTIONS.map((c) => {
                         const on = editForm.channel === c.key;
@@ -702,6 +882,30 @@ export default function TacticsBoard() {
               ))}
 
               {!editMode && FIELDS.filter(f => f.key !== "title" && f.key !== "channel").map(f => {
+                if (f.type === "pillar-select") {
+                  const pillar = activeTactic.pillar ? PILLAR_BY_KEY[activeTactic.pillar] : null;
+                  if (!pillar) return null;
+                  return (
+                    <div key={f.key} style={{ marginBottom: 18 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{f.label}</div>
+                      <span style={{ fontSize: 12, color: pillar.color, background: `${pillar.color}18`, border: `1px solid ${pillar.color}66`, borderRadius: 999, padding: "4px 14px", fontWeight: 700, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                        {pillar.label}
+                      </span>
+                    </div>
+                  );
+                }
+                if (f.type === "status-select") {
+                  const s = STATUS_BY_KEY[activeTactic.status || "Proposed"];
+                  if (!s) return null;
+                  return (
+                    <div key={f.key} style={{ marginBottom: 18 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{f.label}</div>
+                      <span style={{ fontSize: 12, color: s.color, background: `${s.color}18`, border: `1px solid ${s.color}66`, borderRadius: 999, padding: "4px 14px", fontWeight: 700, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                        {s.key}
+                      </span>
+                    </div>
+                  );
+                }
                 if (f.key === "audience") {
                   const auds = asAudienceArray(activeTactic.audience);
                   if (!auds.length) return null;
@@ -809,11 +1013,18 @@ export default function TacticsBoard() {
                     }}>Cancel</button>
                   </div>
                 ) : (
-                  <button onClick={() => openEdit(activeTactic)} style={{
-                    padding: "8px 16px", fontSize: 11, fontWeight: 700, color: Y, background: `${Y}12`,
-                    border: `1px solid ${Y}66`, borderRadius: 6, cursor: "pointer",
-                    fontFamily: "'Inter Tight', system-ui, sans-serif", letterSpacing: "0.02em",
-                  }}>&#9998; Edit</button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => openEdit(activeTactic)} style={{
+                      padding: "8px 16px", fontSize: 11, fontWeight: 700, color: Y, background: `${Y}12`,
+                      border: `1px solid ${Y}66`, borderRadius: 6, cursor: "pointer",
+                      fontFamily: "'Inter Tight', system-ui, sans-serif", letterSpacing: "0.02em",
+                    }}>&#9998; Edit</button>
+                    <button onClick={() => setShowHistory(true)} style={{
+                      padding: "8px 16px", fontSize: 11, fontWeight: 700, color: TEAL, background: `${TEAL}12`,
+                      border: `1px solid ${TEAL}66`, borderRadius: 6, cursor: "pointer",
+                      fontFamily: "'Inter Tight', system-ui, sans-serif", letterSpacing: "0.02em",
+                    }}>History ({(activeTactic.revisions || []).length})</button>
+                  </div>
                 )}
                 {!confirmDelete ? (
                   <button onClick={() => setConfirmDelete(true)} disabled={editMode} style={{
@@ -840,6 +1051,45 @@ export default function TacticsBoard() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function FilterRow({ label, options, value, onChange }) {
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+      <span style={{ fontSize: 10, fontWeight: 700, color: "#777", letterSpacing: "0.08em", textTransform: "uppercase", marginRight: 4, fontFamily: "'Inter Tight', system-ui, sans-serif", minWidth: 54 }}>
+        {label}
+      </span>
+      {options.map((o) => {
+        const on = (value || "") === o.key;
+        const disabled = o.count === 0 && o.key !== "";
+        return (
+          <button
+            key={o.key || "__all__"}
+            type="button"
+            onClick={() => onChange(o.key)}
+            disabled={disabled}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "4px 10px", fontSize: 11, fontWeight: 700,
+              color: "#EDEDE8",
+              background: on ? `${o.color}22` : "transparent",
+              border: `1px solid ${on ? o.color : "#222"}`,
+              borderRadius: 999,
+              cursor: disabled ? "not-allowed" : "pointer",
+              opacity: disabled ? 0.4 : 1,
+              fontFamily: "'Inter Tight', system-ui, sans-serif",
+              letterSpacing: "0.02em",
+            }}
+          >
+            {o.key !== "" && (
+              <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: o.color, opacity: on ? 1 : 0.65 }} />
+            )}
+            {o.label} <span style={{ opacity: 0.65, fontWeight: 500 }}>({o.count})</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

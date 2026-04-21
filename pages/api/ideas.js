@@ -29,7 +29,7 @@ export default async function handler(req, res) {
   let ideas = await kvGet(CACHE_KEY) || [];
 
   if (action === "create") {
-    const { name, description, mockupUrl, extensions, tactics, audience, createdBy } = body;
+    const { name, description, mockupUrl, extensions, tactics, audience, pillar, status, createdBy } = body;
     if (!name) return res.status(400).json({ error: "Name is required" });
 
     const idea = {
@@ -40,6 +40,9 @@ export default async function handler(req, res) {
       tactics: tactics || [],
       extensions: extensions || [],
       audience: audience || "",
+      pillar: pillar || "",
+      status: status || "Proposed",
+      order: Date.now(),
       likes: 0,
       dislikes: 0,
       likedBy: [],
@@ -54,17 +57,49 @@ export default async function handler(req, res) {
   }
 
   if (action === "update") {
-    const { ideaId, name, description, mockupUrl, tactics, audience } = body;
+    const { ideaId, name, description, mockupUrl, tactics, audience, pillar, status, order, editedBy } = body;
     const idea = ideas.find(i => i.id === ideaId);
     if (!idea) return res.status(404).json({ error: "Idea not found" });
+
+    const tracked = ["name", "description", "mockupUrl", "tactics", "audience", "pillar", "status"];
+    const incoming = { name, description, mockupUrl, tactics, audience, pillar, status };
+    const changes = [];
+    for (const k of tracked) {
+      const next = incoming[k];
+      if (next === undefined) continue;
+      const prev = idea[k];
+      // Skip snapshotting mockup data URIs so the log doesn't balloon
+      if (k === "mockupUrl" && typeof next === "string" && next.startsWith("data:")) continue;
+      const same = JSON.stringify(prev ?? "") === JSON.stringify(next ?? "");
+      if (!same) changes.push({ field: k, from: prev ?? "", to: next });
+    }
+    if (changes.length > 0) {
+      idea.revisions = [
+        { date: new Date().toISOString(), editedBy: editedBy || "Anonymous", changes },
+        ...(idea.revisions || []),
+      ].slice(0, 50);
+    }
+
     if (name !== undefined) idea.name = name;
     if (description !== undefined) idea.description = description;
     if (mockupUrl !== undefined) idea.mockupUrl = mockupUrl;
     if (tactics !== undefined) idea.tactics = tactics;
     if (audience !== undefined) idea.audience = audience;
+    if (pillar !== undefined) idea.pillar = pillar;
+    if (status !== undefined) idea.status = status;
+    if (order !== undefined) idea.order = order;
     idea.updatedAt = new Date().toISOString();
     await kvSet(CACHE_KEY, ideas);
     return res.status(200).json({ ok: true, idea });
+  }
+
+  if (action === "reorder") {
+    const { items } = body;
+    if (!Array.isArray(items)) return res.status(400).json({ error: "items required" });
+    const byId = new Map(items.map((i) => [i.id, i.order]));
+    for (const idea of ideas) if (byId.has(idea.id)) idea.order = byId.get(idea.id);
+    await kvSet(CACHE_KEY, ideas);
+    return res.status(200).json({ ok: true });
   }
 
   if (action === "like" || action === "dislike") {

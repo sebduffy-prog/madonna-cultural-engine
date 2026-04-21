@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
+import AudienceSegmentVenn from "./AudienceSegmentVenn";
 
 const DocUploader = dynamic(() => import("./DocUploader"), { ssr: false });
 
@@ -511,6 +512,8 @@ export default function AudienceIntelligence({ gwiData }) {
       )}
 
       {topTab === "gwi" && <>
+      {/* segment sizing — sits above the statement finder */}
+      <AudienceSegmentVenn />
       {/* metric + category filter row */}
       <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ fontSize: 11, color: WHITE, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Inter Tight', sans-serif", fontWeight: 600 }}>

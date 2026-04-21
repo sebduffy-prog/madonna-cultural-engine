@@ -128,13 +128,15 @@ function buildDatasets(exportData) {
   // Ideas + Ideas Comments
   const ideas = cd.ideas_data?.data;
   if (Array.isArray(ideas)) {
-    const cols = ["id", "name", "description", "createdBy", "createdAt", "likes", "dislikes", "tactics", "commentsCount", "updatedAt"];
+    const cols = ["id", "name", "pillar", "status", "description", "createdBy", "createdAt", "likes", "dislikes", "tactics", "commentsCount", "updatedAt", "order"];
     add("Ideas", cols, ideas.map((i) => [
-      i.id, i.name, i.description, i.createdBy, i.createdAt,
+      i.id, i.name, i.pillar || "", i.status || "Proposed",
+      i.description, i.createdBy, i.createdAt,
       i.likes || 0, i.dislikes || 0,
       (i.tactics || []).join(" | "),
       (i.comments || []).length,
       i.updatedAt || "",
+      i.order || "",
     ]));
     const commentRows = ideas.flatMap((i) => (i.comments || []).map((c) => [i.id, i.name, c.author, c.date, c.text]));
     add("Ideas Comments", ["ideaId", "ideaName", "author", "date", "text"], commentRows);
@@ -143,14 +145,17 @@ function buildDatasets(exportData) {
   // Tactics + Tactics Comments
   const tactics = cd.tactics_data?.data;
   if (Array.isArray(tactics)) {
-    const cols = ["id", "title", "channel", "roleOfChannel", "audience", "audienceDetail", "format", "phase", "budget", "startDate", "endDate", "notes", "likes", "dislikes", "createdBy", "createdAt", "updatedAt"];
+    const cols = ["id", "title", "channel", "pillar", "status", "objective", "kpi", "roleOfChannel", "audience", "audienceDetail", "format", "phase", "budget", "startDate", "endDate", "notes", "likes", "dislikes", "createdBy", "createdAt", "updatedAt", "order"];
     add("Tactics", cols, tactics.map((t) => [
-      t.id, t.title || "", t.channel || "", t.roleOfChannel || "",
+      t.id, t.title || "", t.channel || "", t.pillar || "", t.status || "Proposed",
+      t.objective || "", t.kpi || "",
+      t.roleOfChannel || "",
       Array.isArray(t.audience) ? t.audience.join(" | ") : (t.audience || ""),
       t.audienceDetail || "", t.format || "", t.phase || "", t.budget || "",
       t.startDate || "", t.endDate || "", t.notes || "",
       t.likes || 0, t.dislikes || 0,
       t.createdBy || "", t.createdAt || "", t.updatedAt || "",
+      t.order || "",
     ]));
     const commentRows = tactics.flatMap((t) => (t.comments || []).map((c) => [t.id, t.title || t.channel || "", c.author, c.date, c.text]));
     add("Tactics Comments", ["tacticId", "tacticTitle", "author", "date", "text"], commentRows);
