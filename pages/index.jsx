@@ -583,7 +583,7 @@ function MasterRefresh() {
         setStatus("No data to export");
         return;
       }
-      const XLSX = await import("xlsx");
+      const XLSX = await import("xlsx-js-style");
       const wb = XLSX.utils.book_new();
       for (const ds of datasets) {
         const aoa = [ds.columns, ...ds.rows];
