@@ -1045,8 +1045,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
         </div>
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, lineHeight: 1.1, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Pulse</h1>
-        <p style={{ fontSize: 15, color: WHITE, margin: "0 0 4px", fontStyle: "italic", opacity: 0.85 }}>Cultural intelligence dashboard</p>
+        <h1 style={{ fontSize: 64, fontWeight: 800, color: WHITE, lineHeight: 1, margin: "0 0 6px", letterSpacing: "-0.03em", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Pulse</h1>
         <div style={{ height: 3, background: Y, borderRadius: 2, margin: "16px 0 24px" }} />
 
         <MentionsTicker />

@@ -414,7 +414,7 @@ export default function CulturalFeed() {
         }}>
           Cultural Feed
         </h2>
-        <span style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>
+        <span style={{ fontSize: 11, color: WHITE, marginLeft: 4 }}>
           Live trends + strategic recommendations
         </span>
       </div>
@@ -486,7 +486,7 @@ export default function CulturalFeed() {
 
         {isLoading && (
           <div style={{ padding: "40px 0", textAlign: "center" }}>
-            <span style={{ fontSize: 13, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
+            <span style={{ fontSize: 13, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>
               Loading latest coverage…
             </span>
           </div>

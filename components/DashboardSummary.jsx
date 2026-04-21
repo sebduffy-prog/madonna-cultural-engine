@@ -110,7 +110,7 @@ export default function DashboardSummary() {
         <h2 style={{ fontSize: 14, fontWeight: 700, color: WHITE, letterSpacing: "0.04em", textTransform: "uppercase", margin: 0, fontFamily: "'Inter Tight', sans-serif" }}>
           Dashboard
         </h2>
-        <span style={{ fontSize: 11, color: MUTED }}>Summary of current activity</span>
+        <span style={{ fontSize: 11, color: WHITE }}>Summary of current activity</span>
       </div>
 
       {/* Top metrics row */}
@@ -190,7 +190,7 @@ export default function DashboardSummary() {
               </div>
             </div>
             <LineChart
-              height={130}
+              height={240}
               showLegend={false}
               series={[{
                 label: "Daily streams",
@@ -208,7 +208,7 @@ export default function DashboardSummary() {
         {/* Most-relevant Madonna coverage (sorted by signal strength, not date) */}
         <Panel title="Most relevant Madonna coverage" color={Y}>
           {madonnaArticles.length === 0 ? (
-            <p style={{ fontSize: 12, color: MUTED }}>No recent coverage found. Run a search in the Media tab.</p>
+            <p style={{ fontSize: 12, color: WHITE }}>No recent coverage found. Run a search in the Media tab.</p>
           ) : (
             <div className="scroll-fade" style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
               {[...madonnaArticles].map(item => {
@@ -238,7 +238,7 @@ export default function DashboardSummary() {
           {b24?.dailyMetrics?.length > 0 ? (
             <DualLineChart data={b24.dailyMetrics} height={180} />
           ) : (
-            <p style={{ fontSize: 12, color: MUTED }}>No social data yet. Check Social Listening tab.</p>
+            <p style={{ fontSize: 12, color: WHITE }}>No social data yet. Check Social Listening tab.</p>
           )}
         </Panel>
 
@@ -257,7 +257,7 @@ export default function DashboardSummary() {
               ))}
             </div>
           ) : (
-            <p style={{ fontSize: 12, color: MUTED }}>No platform data yet.</p>
+            <p style={{ fontSize: 12, color: WHITE }}>No platform data yet.</p>
           )}
         </Panel>
 
@@ -288,7 +288,7 @@ export default function DashboardSummary() {
             </div>
           ) : (
             <div>
-              <p style={{ fontSize: 12, color: MUTED, margin: 0 }}>Social data loading. Check Social Listening tab for full analytics.</p>
+              <p style={{ fontSize: 12, color: WHITE, margin: 0 }}>Social data loading. Check Social Listening tab for full analytics.</p>
             </div>
           )}
         </Panel>
@@ -309,7 +309,7 @@ export default function DashboardSummary() {
                 </div>
               ))}
             </div>
-            {ai?.generatedAt && <div style={{ fontSize: 9, color: MUTED, marginTop: 8 }}>Generated: {new Date(ai.generatedAt).toLocaleString("en-GB")}</div>}
+            {ai?.generatedAt && <div style={{ fontSize: 9, color: WHITE, marginTop: 8 }}>Generated: {new Date(ai.generatedAt).toLocaleString("en-GB")}</div>}
           </Panel>
         </div>
       )}

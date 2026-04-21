@@ -347,7 +347,7 @@ export default function SocialDashboard() {
 
           <Section title="Mentions by category" color={PURPLE}>
             {hasB24 && b24.platforms?.length > 0 ? (
-              <DonutChart size={150} segments={b24.platforms.map(p => ({
+              <DonutChart size={220} segments={b24.platforms.map(p => ({
                 label: p.platform, value: p.mentions,
                 color: PLATFORM_COLORS[p.platform] || MUTED,
               }))} />
@@ -374,7 +374,7 @@ export default function SocialDashboard() {
                 positive: Math.round((p.mentions || 0) * (sentPosPct / 100)),
                 neutral: Math.round((p.mentions || 0) * (sentNeuPct / 100)),
                 negative: Math.round((p.mentions || 0) * (sentNegPct / 100)),
-              }))} height={200} />
+              }))} height={320} />
             ) : (
               <div>
                 {Object.entries(legacy?.sentimentByPlatform || {}).map(([p, s]) => (

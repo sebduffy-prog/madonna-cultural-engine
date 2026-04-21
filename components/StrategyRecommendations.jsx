@@ -109,7 +109,7 @@ export default function StrategyRecommendations() {
         ))}
       </div>
 
-      <p style={{ fontSize: 11, color: MUTED, margin: "0 0 20px", lineHeight: 1.5, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+      <p style={{ fontSize: 11, color: WHITE, margin: "0 0 20px", lineHeight: 1.5, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
         Recommendations below are generated weekly against this brief, grounded in the week's intelligence data (media, social, YouTube, Spotify). Full brief lives in <code style={{ color: WHITE, background: BG, padding: "1px 6px", borderRadius: 3 }}>strategy-prompt.md</code>.
       </p>
 
@@ -121,7 +121,7 @@ export default function StrategyRecommendations() {
             Strategic Recommendations
           </h2>
           {data?.generatedAt && (
-            <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', sans-serif" }}>
+            <span style={{ fontSize: 10, color: WHITE, fontFamily: "'Inter Tight', sans-serif" }}>
               Generated {new Date(data.generatedAt).toLocaleDateString("en-GB")}
             </span>
           )}
@@ -185,7 +185,7 @@ export default function StrategyRecommendations() {
           <p style={{ fontSize: 14, color: WHITE, margin: "0 0 8px", fontFamily: "'Inter Tight', sans-serif" }}>
             {data?.recommendations ? "No recommendations for this category" : "No recommendations generated yet"}
           </p>
-          <p style={{ fontSize: 12, color: MUTED, margin: 0 }}>
+          <p style={{ fontSize: 12, color: WHITE, margin: 0 }}>
             Hit Generate to create AI-powered strategic recommendations based on this week's intelligence data.
           </p>
         </div>

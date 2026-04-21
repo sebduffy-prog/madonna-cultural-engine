@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 const BG = "#0C0C0C";
 const BORDER = "#222";
 const MUTED = "#777";
@@ -6,8 +8,17 @@ const WHITE = "#EDEDE8";
 // SVG line chart -- accepts multiple series
 // series: [{ label, color, data: [{ date, value }] }]
 export default function LineChart({ series, height = 120, showLegend = true }) {
+  const ref = useRef(null);
+  const [w, setW] = useState(800);
+  useEffect(() => {
+    if (!ref.current || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([e]) => setW(Math.max(320, Math.floor(e.contentRect.width))));
+    ro.observe(ref.current);
+    return () => ro.disconnect();
+  }, []);
+
   if (!series || series.length === 0 || series.every(s => !s.data || s.data.length < 2)) {
-    return <div style={{ color: MUTED, fontSize: 11, padding: "12px 0" }}>Not enough data points yet. Trends appear after multiple scans.</div>;
+    return <div ref={ref} style={{ color: WHITE, fontSize: 11, padding: "12px 0" }}>Not enough data points yet. Trends appear after multiple scans.</div>;
   }
 
   const allDates = [...new Set(series.flatMap(s => s.data.map(d => d.date)))].sort();
@@ -16,33 +27,32 @@ export default function LineChart({ series, height = 120, showLegend = true }) {
   const minVal = Math.min(...allValues, 0);
   const range = Math.max(maxVal - minVal, 1);
 
-  const w = 500;
   const h = height;
-  const padL = 35;
-  const padR = 10;
-  const padT = 10;
-  const padB = 24;
-  const chartW = w - padL - padR;
-  const chartH = h - padT - padB;
+  const padL = 44;
+  const padR = 12;
+  const padT = 12;
+  const padB = 28;
+  const chartW = Math.max(40, w - padL - padR);
+  const chartH = Math.max(40, h - padT - padB);
 
   function x(i) { return padL + (i / Math.max(allDates.length - 1, 1)) * chartW; }
   function y(v) { return padT + chartH - ((v - minVal) / range) * chartH; }
 
   return (
-    <div>
-      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height, display: "block" }}>
+    <div ref={ref} style={{ width: "100%" }}>
+      <svg width={w} height={h} style={{ display: "block" }}>
         {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
           const val = minVal + range * pct;
           const yPos = y(val);
           return (
             <g key={pct}>
               <line x1={padL} y1={yPos} x2={w - padR} y2={yPos} stroke={BORDER} strokeWidth={0.5} />
-              <text x={padL - 4} y={yPos + 3} textAnchor="end" fill={MUTED} fontSize={8} fontFamily="'Inter Tight', sans-serif">{Math.round(val)}</text>
+              <text x={padL - 6} y={yPos + 4} textAnchor="end" fill={MUTED} fontSize={11} fontFamily="'Inter Tight', sans-serif">{Math.round(val)}</text>
             </g>
           );
         })}
         {allDates.map((date, i) => (
-          <text key={i} x={x(i)} y={h - 4} textAnchor="middle" fill={MUTED} fontSize={7} fontFamily="'Inter Tight', sans-serif">
+          <text key={i} x={x(i)} y={h - 6} textAnchor="middle" fill={MUTED} fontSize={11} fontFamily="'Inter Tight', sans-serif">
             {new Date(date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
           </text>
         ))}
@@ -58,9 +68,9 @@ export default function LineChart({ series, height = 120, showLegend = true }) {
 
           return (
             <g key={s.label}>
-              <path d={pathD} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" opacity={0.9} />
+              <path d={pathD} fill="none" stroke={s.color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" opacity={0.95} />
               {points.map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r={3} fill={s.color} stroke={BG} strokeWidth={1}>
+                <circle key={i} cx={p.x} cy={p.y} r={4} fill={s.color} stroke={BG} strokeWidth={1.5}>
                   <title>{s.label}: {p.val}</title>
                 </circle>
               ))}

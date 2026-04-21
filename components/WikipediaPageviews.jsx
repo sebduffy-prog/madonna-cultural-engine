@@ -49,7 +49,7 @@ export default function WikipediaPageviews() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 10, color: TEAL, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, fontFamily: FONT }}>Wikipedia pageviews</div>
-          <div style={{ fontSize: 11, color: MUTED, marginTop: 3, fontFamily: FONT }}>
+          <div style={{ fontSize: 11, color: WHITE, marginTop: 3, fontFamily: FONT }}>
             Daily attention signal across Madonna-related English Wikipedia articles — last {data.period?.days || 60} days
           </div>
         </div>

@@ -48,7 +48,7 @@ function Panel({ title, subtitle, children, right, accent = PURPLE }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 10, color: accent, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, fontFamily: FONT }}>{title}</div>
-          {subtitle && <div style={{ fontSize: 10, color: MUTED, marginTop: 3, fontFamily: FONT }}>{subtitle}</div>}
+          {subtitle && <div style={{ fontSize: 10, color: WHITE, marginTop: 3, fontFamily: FONT }}>{subtitle}</div>}
         </div>
         {right}
       </div>
@@ -68,8 +68,12 @@ function HorizontalBar({ value, max, color, height = 8 }) {
 
 function Sparkline({ data, color = WHITE, width = 120, height = 32 }) {
   if (!data || data.length < 2) return <div style={{ width, height }} />;
-  const max = Math.max(...data, 1);
-  const min = Math.min(...data, 0);
+  // Scale to the actual min/max of the series so small deltas on huge baselines
+  // (e.g. 11.1B → 11.2B streams) still show visible movement.
+  const numeric = data.filter((v) => typeof v === "number" && isFinite(v));
+  if (numeric.length < 2) return <div style={{ width, height }} />;
+  const max = Math.max(...numeric);
+  const min = Math.min(...numeric);
   const range = max - min || 1;
   const step = data.length > 1 ? width / (data.length - 1) : 0;
   const pts = data.map((v, i) => `${(i * step).toFixed(1)},${(height - ((v - min) / range) * (height - 2) - 1).toFixed(1)}`).join(" ");
@@ -175,7 +179,9 @@ function SimilarArtistsNetwork({ similar }) {
 
   const [nodes, setNodes] = useState(() => initial.map(n => ({ ...n, x: n.rx, y: n.ry, vx: 0, vy: 0 })));
   const [draggingId, setDraggingId] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
   const dragRef = useRef(null);
+  const pointerStartRef = useRef(null);
   const svgRef = useRef(null);
   const rafRef = useRef(null);
 
@@ -250,6 +256,7 @@ function SimilarArtistsNetwork({ similar }) {
     e.preventDefault();
     const { x, y } = toSvgCoords(e);
     dragRef.current = { id: node.id, x, y };
+    pointerStartRef.current = { id: node.id, x, y };
     setDraggingId(node.id);
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
   }
@@ -259,7 +266,17 @@ function SimilarArtistsNetwork({ similar }) {
     dragRef.current = { ...dragRef.current, x, y };
   }
   function onPointerUp() {
+    // Treat a pointerdown→pointerup with no meaningful movement as a click,
+    // so you can tap a node to see its correlation without triggering drag.
+    if (pointerStartRef.current && dragRef.current) {
+      const dx = dragRef.current.x - pointerStartRef.current.x;
+      const dy = dragRef.current.y - pointerStartRef.current.y;
+      if (Math.hypot(dx, dy) < 6) {
+        setSelectedId((prev) => (prev === pointerStartRef.current.id ? null : pointerStartRef.current.id));
+      }
+    }
     dragRef.current = null;
+    pointerStartRef.current = null;
     setDraggingId(null);
   }
 
@@ -291,11 +308,12 @@ function SimilarArtistsNetwork({ similar }) {
           const op = 0.4 + (n.match || 0) * 0.6;
           const r = 6 + (n.match || 0) * 10;
           const active = draggingId === n.id;
+          const selected = selectedId === n.id;
           return (
-            <g key={n.id} style={{ cursor: active ? "grabbing" : "grab" }} onPointerDown={(e) => onPointerDown(e, n)}>
+            <g key={n.id} style={{ cursor: active ? "grabbing" : "pointer" }} onPointerDown={(e) => onPointerDown(e, n)}>
               <circle cx={n.x} cy={n.y} r={r + 14} fill="transparent" pointerEvents="all" />
-              <circle cx={n.x} cy={n.y} r={r} fill={PURPLE} opacity={active ? 1 : op}
-                stroke={active ? WHITE : "none"} strokeWidth={active ? 2 : 0}>
+              <circle cx={n.x} cy={n.y} r={r} fill={PURPLE} opacity={active || selected ? 1 : op}
+                stroke={active || selected ? WHITE : "none"} strokeWidth={active || selected ? 2 : 0}>
                 <title>{`${n.name} — ${Math.round((n.match || 0) * 100)}% match`}</title>
               </circle>
               <text x={n.x} y={n.y - (r + 8)} textAnchor="middle" fontSize="11" fill={WHITE} style={{ pointerEvents: "none" }}>{n.name}</text>
@@ -303,9 +321,52 @@ function SimilarArtistsNetwork({ similar }) {
           );
         })}
       </svg>
-      <p style={{ fontSize: 10, color: MUTED, textAlign: "center", margin: "8px 0 0", fontFamily: FONT }}>
-        Drag any artist to reposition — release to let it spring back
+      <p style={{ fontSize: 10, color: WHITE, textAlign: "center", margin: "8px 0 0", fontFamily: FONT }}>
+        Click a node for details — drag to reposition
       </p>
+      {(() => {
+        if (!selectedId) return null;
+        const idx = artists.findIndex((a) => a.name === selectedId);
+        if (idx < 0) return null;
+        const a = artists[idx];
+        const matchPct = Math.round((a.match || 0) * 100);
+        const rank = idx + 1;
+        const rankLabel = rank === 1 ? "1st" : rank === 2 ? "2nd" : rank === 3 ? "3rd" : `${rank}th`;
+        return (
+          <div style={{
+            marginTop: 12, background: CARD, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${PURPLE}`,
+            borderRadius: 8, padding: "14px 16px", fontFamily: FONT,
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 10, color: PURPLE, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>Similarity detail</div>
+                <div style={{ fontSize: 18, color: WHITE, fontWeight: 700, marginTop: 4 }}>{a.name}</div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ background: `${PURPLE}22`, border: `1px solid ${PURPLE}66`, borderRadius: 6, padding: "6px 12px", textAlign: "center", minWidth: 84 }}>
+                  <div style={{ fontSize: 9, color: PURPLE, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Match</div>
+                  <div style={{ fontSize: 20, color: WHITE, fontWeight: 800 }}>{matchPct}%</div>
+                </div>
+                <div style={{ background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "6px 12px", textAlign: "center", minWidth: 84 }}>
+                  <div style={{ fontSize: 9, color: WHITE, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, opacity: 0.8 }}>Rank</div>
+                  <div style={{ fontSize: 18, color: WHITE, fontWeight: 700 }}>{rankLabel}</div>
+                </div>
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: WHITE, lineHeight: 1.55, margin: "10px 0 0" }}>
+              Last.fm scores {a.name} at <b>{matchPct}%</b> similarity to Madonna — the {rankLabel} strongest co-listening overlap in her similar-artist graph. The match score is derived from users who play both: the higher it is, the more routinely a Madonna fan also spins {a.name}.
+            </p>
+            {a.url && (
+              <a href={a.url} target="_blank" rel="noreferrer noopener" style={{
+                display: "inline-block", marginTop: 10, fontSize: 11, color: PURPLE, textDecoration: "none",
+                border: `1px solid ${PURPLE}66`, borderRadius: 6, padding: "4px 10px", fontWeight: 700,
+              }}>
+                Open on Last.fm →
+              </a>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -359,16 +420,24 @@ export default function MusicIntelligence() {
   const spotifyStreamSpark = [...(kworb?.history || [])].reverse().map(h => h.totalStreams).concat([kworb?.totalStreams]).filter(v => v != null);
   const appleHitSpark = [...(apple?.history || [])].reverse().map(h => h.totalSongHits).concat([songHits]).filter(v => v != null);
 
-  // Only show a sparkline once there's enough history AND actual movement;
-  // flat / near-empty lines made the Trend panel look meaningless.
+  // Show a sparkline once we have ≥ 3 points with actual movement.
+  // Fewer / flat series fall back to a "collecting" placeholder so the
+  // Trend box still communicates what's happening.
   function sparkHasMovement(spark) {
-    if (!Array.isArray(spark) || spark.length < 5) return false;
-    const valid = spark.filter(v => typeof v === "number" && v > 0);
-    if (valid.length < 5) return false;
+    const valid = (spark || []).filter((v) => typeof v === "number" && v > 0);
+    if (valid.length < 3) return false;
     return Math.max(...valid) - Math.min(...valid) > 0;
   }
   const showSpotifySpark = sparkHasMovement(spotifyStreamSpark);
   const showAppleSpark = sparkHasMovement(appleHitSpark);
+  const spotifyPoints = spotifyStreamSpark.filter((v) => typeof v === "number" && v > 0).length;
+  const applePoints = appleHitSpark.filter((v) => typeof v === "number" && v > 0).length;
+  const spotifyDelta = spotifyStreamSpark.length >= 2
+    ? spotifyStreamSpark[spotifyStreamSpark.length - 1] - spotifyStreamSpark[0]
+    : 0;
+  const appleDelta = appleHitSpark.length >= 2
+    ? appleHitSpark[appleHitSpark.length - 1] - appleHitSpark[0]
+    : 0;
 
   const maxTrackPlaycount = Math.max(1, ...((lastfm?.topTracks || []).map(t => t.playcount || 0)));
 

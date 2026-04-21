@@ -15,7 +15,7 @@ export default function SocialPulse() {
       </div>
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "32px 24px", textAlign: "center" }}>
         <p style={{ fontSize: 14, color: WHITE, margin: "0 0 8px", fontFamily: "'Inter Tight', sans-serif" }}>Being rebuilt with platform APIs</p>
-        <p style={{ fontSize: 12, color: MUTED, margin: 0 }}>Media mention tracking and trend index are available in the Media tab.</p>
+        <p style={{ fontSize: 12, color: WHITE, margin: 0 }}>Media mention tracking and trend index are available in the Media tab.</p>
       </div>
     </div>
   );

@@ -328,10 +328,14 @@ export function DonutChart({ segments = [], size = 160 }) {
         background: CARD,
         borderRadius: 8,
         border: `1px solid ${BORDER}`,
-        padding: 16,
+        padding: 20,
         display: "flex",
         alignItems: "center",
-        gap: 24,
+        justifyContent: "center",
+        gap: 28,
+        height: "100%",
+        minHeight: svgSize + 40,
+        flexWrap: "wrap",
       }}
     >
       <svg width={svgSize} height={svgSize} viewBox={`0 0 ${svgSize} ${svgSize}`} style={{ flexShrink: 0 }}>
@@ -362,23 +366,23 @@ export function DonutChart({ segments = [], size = 160 }) {
         {/* center text */}
         <text
           x={cx}
-          y={cy - 6}
+          y={cy - 8}
           textAnchor="middle"
           dominantBaseline="middle"
           fill={WHITE}
-          fontSize={20}
-          fontWeight={600}
+          fontSize={Math.round(size * 0.16)}
+          fontWeight={700}
           fontFamily={FONT}
         >
           {fmt(total)}
         </text>
         <text
           x={cx}
-          y={cy + 12}
+          y={cy + Math.round(size * 0.11)}
           textAnchor="middle"
           dominantBaseline="middle"
-          fill={MUTED}
-          fontSize={10}
+          fill={WHITE}
+          fontSize={Math.round(size * 0.065)}
           fontFamily={FONT}
         >
           total
@@ -386,23 +390,23 @@ export function DonutChart({ segments = [], size = 160 }) {
       </svg>
 
       {/* labels */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, fontFamily: FONT, fontSize: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, fontFamily: FONT, fontSize: 14 }}>
         {segments.map((seg, i) => {
           const pct = total > 0 ? ((seg.value / total) * 100).toFixed(1) : 0;
           return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span
                 style={{
                   display: "inline-block",
-                  width: 8,
-                  height: 8,
+                  width: 10,
+                  height: 10,
                   borderRadius: "50%",
                   background: seg.color,
                   flexShrink: 0,
                 }}
               />
-              <span style={{ color: WHITE }}>
-                {seg.label}: <span style={{ color: DIM }}>{pct}%</span>
+              <span style={{ color: WHITE, fontWeight: 600 }}>
+                {seg.label}: <span style={{ color: WHITE, fontWeight: 400 }}>{pct}%</span>
               </span>
             </div>
           );
@@ -415,16 +419,16 @@ export function DonutChart({ segments = [], size = 160 }) {
 // ---------------------------------------------------------------------------
 // 4. StackedBarChart
 // ---------------------------------------------------------------------------
-export function StackedBarChart({ data = [], height = 200 }) {
+export function StackedBarChart({ data = [], height = 280 }) {
   if (!data.length) return null;
 
-  const pad = { top: 16, right: 16, bottom: 56, left: 44 };
-  const width = 600;
+  const pad = { top: 20, right: 24, bottom: 64, left: 52 };
+  const width = 900;
   const cw = width - pad.left - pad.right;
   const ch = height - pad.top - pad.bottom;
 
   const maxVal = Math.max(...data.map((d) => d.positive + d.neutral + d.negative)) || 1;
-  const barWidth = Math.min(36, (cw / data.length) * 0.6);
+  const barWidth = Math.min(80, (cw / data.length) * 0.7);
   const barGap = cw / data.length;
 
   const gridCount = 5;
@@ -432,17 +436,18 @@ export function StackedBarChart({ data = [], height = 200 }) {
   const toY = (v) => pad.top + ch - (ch * v) / maxVal;
 
   return (
-    <div style={{ background: CARD, borderRadius: 8, border: `1px solid ${BORDER}`, padding: 16 }}>
+    <div style={{ background: CARD, borderRadius: 8, border: `1px solid ${BORDER}`, padding: 20 }}>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         width="100%"
-        style={{ overflow: "visible", fontFamily: FONT }}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ overflow: "visible", fontFamily: FONT, display: "block" }}
       >
         {/* grid */}
         {yTicks.map((v, i) => (
           <g key={i}>
             <line x1={pad.left} x2={width - pad.right} y1={toY(v)} y2={toY(v)} stroke={BORDER} strokeWidth={1} />
-            <text x={pad.left - 8} y={toY(v)} textAnchor="end" dominantBaseline="middle" fill={DIM} fontSize={10}>
+            <text x={pad.left - 10} y={toY(v)} textAnchor="end" dominantBaseline="middle" fill={DIM} fontSize={14}>
               {fmt(Math.round(v))}
             </text>
           </g>
@@ -470,11 +475,11 @@ export function StackedBarChart({ data = [], height = 200 }) {
               {/* x label */}
               <text
                 x={cx}
-                y={pad.top + ch + 8}
+                y={pad.top + ch + 14}
                 textAnchor="end"
-                fill={MUTED}
-                fontSize={9}
-                transform={`rotate(-35 ${cx} ${pad.top + ch + 8})`}
+                fill={WHITE}
+                fontSize={13}
+                transform={`rotate(-30 ${cx} ${pad.top + ch + 14})`}
               >
                 {d.label}
               </text>

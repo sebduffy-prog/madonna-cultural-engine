@@ -199,7 +199,7 @@ export default function GraphRAG() {
           {!data && !loading && (
             <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "32px 24px", textAlign: "center" }}>
               <p style={{ fontSize: 14, color: WHITE, margin: "0 0 8px" }}>No YouTube data yet</p>
-              <p style={{ fontSize: 12, color: MUTED, margin: 0 }}>Hit Scan YouTube to detect new and viral Madonna content.</p>
+              <p style={{ fontSize: 12, color: WHITE, margin: 0 }}>Hit Scan YouTube to detect new and viral Madonna content.</p>
             </div>
           )}
         </>

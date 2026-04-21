@@ -535,7 +535,7 @@ export default function AudienceIntelligence({ gwiData }) {
             </button>
           ))}
         </div>
-        <span style={{ fontSize: 10, color: WHITE, opacity: 0.7, fontStyle: "italic" }}>{currentMetric.description}</span>
+        <span style={{ fontSize: 10, color: WHITE, fontStyle: "italic" }}>{currentMetric.description}</span>
       </div>
 
       <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
