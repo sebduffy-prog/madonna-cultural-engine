@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { motion } from "framer-motion";
 import PulseWordmark from "../components/PulseWordmark";
+import PulseParticleText from "../components/PulseParticleText";
 import { pageStagger, fadeUp } from "../lib/motion";
 
 const StreetArtMap = dynamic(() => import("../components/StreetArtMap"), { ssr: false });
@@ -1003,7 +1004,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         <div style={{ textAlign: "center", position: "relative", zIndex: 1 }}>
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
           <div style={{ margin: "12px 0 8px" }}>
-            <PulseWordmark size={120} />
+            <PulseParticleText text="Pulse" fontSize={140} color={WHITE} particleSize={2} particleDensity={4} mouseRadius={130} />
           </div>
           <div style={{ height: 3, width: 180, background: Y, borderRadius: 2, margin: "14px auto 32px" }} />
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: "rgba(21,21,21,0.8)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif", backdropFilter: "blur(10px)" }} autoFocus />

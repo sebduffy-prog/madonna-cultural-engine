@@ -67,88 +67,223 @@ function HorizontalBar({ value, max, color, height = 8 }) {
   );
 }
 
-// Curved ticker — albums scroll horizontally while bobbing along a sine wave.
-// Each item: cover + name + weekly playcount, all moving together. Hover pauses.
-function CurvedAlbumTicker({ albums = [], height: panelHeight = 200, itemSize = 72, speed = 32, amplitude = 28 }) {
-  const ref = useRef(null);
-  const [width, setWidth] = useState(800);
-  const [offset, setOffset] = useState(0);
-  const pausedRef = useRef(false);
+// Circular 3D album carousel — covers arranged in a ring around a central
+// hub. Drag left/right to rotate with inertia; idles into a slow auto-spin.
+// Live banner above the ring updates to the "front" album as it rotates.
+// Glassy container + edge-fade gradients keep the composition clean on any
+// background in the Music tab.
+function CircularAlbumCarousel({
+  albums = [],
+  panelHeight = 340,
+  radius = 200,
+  itemW = 150,
+  itemH = 150,
+  perspective = 1400,
+  tilt = -14,
+  autoSpeed = 0.12,      // deg per frame
+  damping = 0.93,         // inertia decay per frame
+  dragSensitivity = 0.45, // drag px → deg
+}) {
+  const wrapRef = useRef(null);
+  const [angle, setAngle] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const velocityRef = useRef(0);
+  const lastPointerRef = useRef(null);
+
+  const n = albums.length;
 
   useEffect(() => {
-    if (!ref.current || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(([e]) => setWidth(Math.max(360, Math.floor(e.contentRect.width))));
-    ro.observe(ref.current);
-    return () => ro.disconnect();
-  }, []);
-
-  useEffect(() => {
-    let last = performance.now();
     let raf;
-    const loop = (now) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
-      if (!pausedRef.current) setOffset((o) => o + dt * speed);
-      raf = requestAnimationFrame(loop);
+    const step = () => {
+      setAngle((prev) => {
+        let next = prev + velocityRef.current;
+        if (!dragging) {
+          velocityRef.current *= damping;
+          if (Math.abs(velocityRef.current) < 0.02) {
+            velocityRef.current = 0;
+            next = prev + autoSpeed;
+          }
+        }
+        return next;
+      });
+      raf = requestAnimationFrame(step);
     };
-    raf = requestAnimationFrame(loop);
+    raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [speed]);
+  }, [dragging, autoSpeed, damping]);
 
-  if (!albums.length) return null;
+  if (!n) return null;
 
-  const spacing = itemSize + 72;
-  const totalLen = albums.length * spacing;
-  const freq = (Math.PI * 2) / Math.max(width, 320);
-  // Repeat enough times to keep the screen populated at all offsets
-  const copies = Math.max(3, Math.ceil(width / totalLen) + 2);
-  const items = [];
-  for (let c = 0; c < copies; c++) for (let i = 0; i < albums.length; i++) items.push({ a: albums[i], i: c * albums.length + i });
+  const perItem = 360 / n;
+
+  // Normalise angle and pick the album currently closest to facing camera.
+  const normalised = ((angle % 360) + 360) % 360;
+  const frontIndex = ((Math.round(-normalised / perItem) % n) + n) % n;
+  const frontAlbum = albums[frontIndex];
+
+  function onPointerDown(e) {
+    setDragging(true);
+    velocityRef.current = 0;
+    lastPointerRef.current = { x: e.clientX, y: e.clientY };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+  }
+  function onPointerMove(e) {
+    if (!lastPointerRef.current) return;
+    const dx = e.clientX - lastPointerRef.current.x;
+    lastPointerRef.current = { x: e.clientX, y: e.clientY };
+    const deg = dx * dragSensitivity;
+    velocityRef.current = deg;
+    setAngle((a) => a + deg);
+  }
+  function onPointerUp(e) {
+    setDragging(false);
+    lastPointerRef.current = null;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+  }
 
   return (
     <div
-      ref={ref}
-      onMouseEnter={() => { pausedRef.current = true; }}
-      onMouseLeave={() => { pausedRef.current = false; }}
-      style={{ position: "relative", width: "100%", height: panelHeight, overflow: "hidden" }}
+      ref={wrapRef}
+      style={{
+        position: "relative",
+        width: "100%",
+        background: "linear-gradient(180deg, rgba(167,139,250,0.10), rgba(21,21,21,0.25))",
+        border: `1px solid ${BORDER}`,
+        borderRadius: 14,
+        overflow: "hidden",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+      }}
     >
-      {items.map(({ a, i }) => {
-        const rawX = i * spacing - offset;
-        const x = ((rawX % totalLen) + totalLen) % totalLen;
-        if (x < -itemSize || x > width + itemSize) return null;
-        const y = panelHeight / 2 - itemSize / 2 - 20 + Math.sin(x * freq) * amplitude;
-        const rank = a.rank || 0;
-        const trend = rank > 0 && rank <= 3 ? "↑" : rank > 0 && rank <= 7 ? "→" : "";
-        const trendColor = trend === "↑" ? GREEN : WHITE;
-        return (
-          <a
-            key={`${a.name}-${i}`}
-            href={a.url || "#"}
-            target="_blank"
-            rel="noreferrer noopener"
-            style={{
-              position: "absolute", left: x, top: y, width: itemSize,
-              textDecoration: "none", color: WHITE,
-              transition: "transform 0.25s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.08)")}
-            onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-          >
-            {a.image ? (
-              <img src={a.image} alt="" style={{ width: itemSize, height: itemSize, borderRadius: 6, display: "block", objectFit: "cover", boxShadow: "0 4px 10px rgba(0,0,0,0.4)" }} />
-            ) : (
-              <div style={{ width: itemSize, height: itemSize, borderRadius: 6, background: CARD, border: `1px solid ${BORDER}` }} />
-            )}
-            <div style={{ fontSize: 9, color: WHITE, marginTop: 6, textAlign: "center", fontFamily: FONT, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: itemSize }}>
-              {a.name}
+      {/* Trending banner — updates live as the ring rotates */}
+      <div style={{
+        position: "relative", zIndex: 3,
+        padding: "14px 18px",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
+        borderBottom: `1px solid ${BORDER}`,
+        background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0))",
+        backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+      }}>
+        <div>
+          <div style={{ fontSize: 9, fontWeight: 700, color: CORAL, textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: FONT }}>
+            Trending now · #{frontIndex + 1} of {n}
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: WHITE, fontFamily: FONT, marginTop: 2, letterSpacing: "-0.01em" }}>
+            {frontAlbum?.name || ""}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 9, color: WHITE, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: FONT, fontWeight: 700, opacity: 0.7 }}>Plays</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: WHITE, fontFamily: FONT, fontVariantNumeric: "tabular-nums" }}>
+              {fmt(frontAlbum?.playcount)}
             </div>
-            <div style={{ fontSize: 9, color: trendColor, textAlign: "center", fontFamily: FONT, fontWeight: 700, letterSpacing: "0.02em" }}>
-              {trend ? <span style={{ marginRight: 3 }}>{trend}</span> : null}
-              {fmt(a.playcount)} plays
+          </div>
+          {frontAlbum?.rank ? (
+            <div style={{
+              background: `${CORAL}22`, border: `1px solid ${CORAL}66`, borderRadius: 6,
+              padding: "6px 10px", textAlign: "center",
+            }}>
+              <div style={{ fontSize: 8, color: CORAL, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, fontFamily: FONT }}>Rank</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: WHITE, fontFamily: FONT }}>#{frontAlbum.rank}</div>
             </div>
-          </a>
-        );
-      })}
+          ) : null}
+        </div>
+      </div>
+
+      {/* 3D ring */}
+      <div
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        style={{
+          position: "relative",
+          width: "100%",
+          height: panelHeight,
+          perspective,
+          cursor: dragging ? "grabbing" : "grab",
+          touchAction: "pan-y",
+          userSelect: "none",
+        }}
+      >
+        <div style={{
+          position: "absolute",
+          left: "50%", top: "50%",
+          width: itemW, height: itemH,
+          marginLeft: -itemW / 2, marginTop: -itemH / 2,
+          transformStyle: "preserve-3d",
+          transform: `rotateX(${tilt}deg) rotateY(${angle}deg)`,
+          pointerEvents: "none",
+        }}>
+          {albums.map((a, i) => {
+            const itemAngle = i * perItem;
+            // Position "facing camera" is when itemAngle + angle ≡ 0 (mod 360)
+            const effective = ((itemAngle + angle) % 360 + 360) % 360;
+            const delta = effective > 180 ? effective - 360 : effective; // -180..180
+            const absDelta = Math.abs(delta);
+            const depthOpacity = Math.max(0.35, 1 - absDelta / 180);   // back = dimmer
+            const isFront = i === frontIndex;
+            const scale = isFront ? 1.08 : 1;
+            return (
+              <div key={`${a.name}-${i}`} style={{
+                position: "absolute",
+                inset: 0,
+                transformStyle: "preserve-3d",
+                transform: `rotateY(${itemAngle}deg) translateZ(${radius}px) scale(${scale})`,
+                transition: "transform 0.25s",
+              }}>
+                <a
+                  href={a.url || "#"}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  style={{
+                    display: "block", width: "100%", height: "100%",
+                    borderRadius: 14, overflow: "hidden",
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.45)",
+                    opacity: depthOpacity,
+                    textDecoration: "none", color: WHITE,
+                    pointerEvents: "auto",
+                    backfaceVisibility: "hidden",
+                    WebkitBackfaceVisibility: "hidden",
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  {a.image ? (
+                    <img src={a.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  ) : (
+                    <div style={{ width: "100%", height: "100%", background: CARD, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, fontSize: 10, color: WHITE, padding: 12, textAlign: "center" }}>
+                      {a.name}
+                    </div>
+                  )}
+                </a>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Edge fades — glassy trailing trend effect */}
+        <div style={{
+          position: "absolute", inset: 0, pointerEvents: "none",
+          background: "linear-gradient(to right, rgba(12,12,12,0.95) 0%, rgba(12,12,12,0) 14%, rgba(12,12,12,0) 86%, rgba(12,12,12,0.95) 100%)",
+        }} />
+        <div style={{
+          position: "absolute", inset: 0, pointerEvents: "none",
+          background: "radial-gradient(ellipse at center, rgba(167,139,250,0.10) 0%, rgba(167,139,250,0) 60%)",
+        }} />
+      </div>
+
+      {/* Footer hint */}
+      <div style={{
+        position: "relative", zIndex: 3,
+        padding: "10px 18px",
+        borderTop: `1px solid ${BORDER}`,
+        fontSize: 10, color: WHITE, fontFamily: FONT, letterSpacing: "0.04em",
+        display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap",
+      }}>
+        <span>Drag to spin · releases with inertia · auto-idles</span>
+        <span style={{ color: CORAL, fontWeight: 700 }}>{n} albums in rotation</span>
+      </div>
     </div>
   );
 }
@@ -572,50 +707,12 @@ export default function MusicIntelligence() {
         <Kpi label="Apple album chart hits" value={albumHits != null ? albumHits : "—"} sub={apple?.albumAggregate?.length != null ? `${apple.albumAggregate.length} albums in charts` : ""} color={CORAL} delta={apple?.momentum?.totalAlbumHitsChange} />
       </div>
 
-      {/* Trend — responsive LineChart per metric, stacked on narrow screens */}
-      {(showSpotifyTrend || showAppleTrend) && (
-        <Panel title="Trend" subtitle={`Daily snapshots since first refresh · ${Math.max(spotifyStats.count, appleStats.count)} points`} accent={PURPLE}>
-          <div style={{ display: "grid", gridTemplateColumns: (showSpotifyTrend && showAppleTrend) ? "1fr 1fr" : "1fr", gap: 24 }}>
-            {showSpotifyTrend && (
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 10, color: GREEN, textTransform: "uppercase", fontFamily: FONT, letterSpacing: "0.08em", fontWeight: 700 }}>Spotify streams</div>
-                    <div style={{ fontSize: 9, color: WHITE, fontFamily: FONT, marginTop: 2 }}>{spotifyStats.count} day{spotifyStats.count === 1 ? "" : "s"} tracked</div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: WHITE, fontFamily: FONT }}>{fmt(kworb?.totalStreams)}</div>
-                    {spotifyStats.count >= 2 && (
-                      <div style={{ fontSize: 11, fontWeight: 700, color: spotifyStats.delta > 0 ? GREEN : spotifyStats.delta < 0 ? RED : WHITE, fontFamily: FONT }}>
-                        {spotifyStats.delta > 0 ? "↑" : spotifyStats.delta < 0 ? "↓" : "→"} {fmt(Math.abs(spotifyStats.delta))}{spotifyStats.pct != null ? ` (${spotifyStats.pct > 0 ? "+" : ""}${spotifyStats.pct.toFixed(2)}%)` : ""}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <LineChart height={180} showLegend={false} series={[{ label: "Streams", color: GREEN, data: spotifyTrend }]} />
-              </div>
-            )}
-            {showAppleTrend && (
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 10, color: PURPLE, textTransform: "uppercase", fontFamily: FONT, letterSpacing: "0.08em", fontWeight: 700 }}>Apple song chart hits</div>
-                    <div style={{ fontSize: 9, color: WHITE, fontFamily: FONT, marginTop: 2 }}>{appleStats.count} day{appleStats.count === 1 ? "" : "s"} tracked</div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: WHITE, fontFamily: FONT }}>{songHits}</div>
-                    {appleStats.count >= 2 && (
-                      <div style={{ fontSize: 11, fontWeight: 700, color: appleStats.delta > 0 ? GREEN : appleStats.delta < 0 ? RED : WHITE, fontFamily: FONT }}>
-                        {appleStats.delta > 0 ? "↑" : appleStats.delta < 0 ? "↓" : "→"} {Math.abs(appleStats.delta)}{appleStats.pct != null ? ` (${appleStats.pct > 0 ? "+" : ""}${appleStats.pct.toFixed(1)}%)` : ""}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <LineChart height={180} showLegend={false} series={[{ label: "Chart hits", color: PURPLE, data: appleTrend }]} />
-              </div>
-            )}
-          </div>
-        </Panel>
+      {/* Trend slot — now a circular album carousel. Glassy ring, live
+          trending banner above, drag-to-spin with inertia + auto-idle. */}
+      {(lastfm?.topAlbums || []).length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <CircularAlbumCarousel albums={(lastfm.topAlbums || []).slice(0, 12)} />
+        </div>
       )}
 
       {/* Spotify streams (kworb) */}
@@ -870,13 +967,6 @@ export default function MusicIntelligence() {
       {(lastfm?.similarArtists || []).length > 0 && (
         <Panel title="Artists fans also play" subtitle="Similarity network — larger = stronger co-listening overlap" accent={PURPLE}>
           <SimilarArtistsNetwork similar={lastfm.similarArtists} />
-        </Panel>
-      )}
-
-      {/* Top albums — curved ticker (hover to pause) */}
-      {(lastfm?.topAlbums || []).length > 0 && (
-        <Panel title="Top albums on Last.fm" subtitle="Covers scroll on a curve · hover to pause · ↑ top 3, → top 7" accent={CORAL}>
-          <CurvedAlbumTicker albums={(lastfm.topAlbums || []).slice(0, 12)} />
         </Panel>
       )}
 
