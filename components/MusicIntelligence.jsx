@@ -67,6 +67,29 @@ function HorizontalBar({ value, max, color, height = 8 }) {
   );
 }
 
+// Compact stat pill used inside the trending banner above the carousel.
+function Stat({ label, value, color = WHITE, accent = false }) {
+  return (
+    <div style={{
+      minWidth: 86,
+      padding: "8px 12px",
+      borderRadius: 8,
+      border: `1px solid ${accent ? color + "66" : BORDER}`,
+      background: accent ? `${color}18` : "rgba(255,255,255,0.04)",
+      textAlign: "right",
+      backdropFilter: "blur(6px)",
+      WebkitBackdropFilter: "blur(6px)",
+    }}>
+      <div style={{ fontSize: 9, color: color, textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 700, fontFamily: FONT, opacity: accent ? 1 : 0.75 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: color, fontFamily: FONT, fontVariantNumeric: "tabular-nums", lineHeight: 1.1, marginTop: 2 }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
 // Circular 3D album carousel — covers arranged in a ring around a central
 // hub. Drag left/right to rotate with inertia; idles into a slow auto-spin.
 // Live banner above the ring updates to the "front" album as it rotates.
@@ -74,21 +97,23 @@ function HorizontalBar({ value, max, color, height = 8 }) {
 // background in the Music tab.
 function CircularAlbumCarousel({
   albums = [],
-  panelHeight = 340,
-  radius = 200,
-  itemW = 150,
-  itemH = 150,
-  perspective = 1400,
-  tilt = -14,
-  autoSpeed = 0.12,      // deg per frame
-  damping = 0.93,         // inertia decay per frame
-  dragSensitivity = 0.45, // drag px → deg
+  panelHeight = 380,
+  radius = 420,
+  itemW = 140,
+  itemH = 140,
+  perspective = 1600,
+  tilt = -10,
+  autoSpeed = 0.12,        // deg per frame
+  damping = 0.93,           // inertia decay per frame
+  dragSensitivity = 0.5,    // drag px → deg
 }) {
   const wrapRef = useRef(null);
   const [angle, setAngle] = useState(0);
   const [dragging, setDragging] = useState(false);
   const velocityRef = useRef(0);
   const lastPointerRef = useRef(null);
+  const dragStartRef = useRef(null);
+  const didDragRef = useRef(false);
 
   const n = albums.length;
 
@@ -121,16 +146,37 @@ function CircularAlbumCarousel({
   const frontIndex = ((Math.round(-normalised / perItem) % n) + n) % n;
   const frontAlbum = albums[frontIndex];
 
+  // Derived trend stats vs. the catalogue median so "vs avg" lights up
+  // red for up / green for down (per spec).
+  const playcounts = albums.map((a) => a.playcount || 0).filter((v) => v > 0).sort((a, b) => a - b);
+  const median = playcounts.length
+    ? playcounts[Math.floor(playcounts.length / 2)]
+    : 0;
+  const frontPlays = frontAlbum?.playcount || 0;
+  const vsMedianPct = median > 0 ? Math.round(((frontPlays - median) / median) * 1000) / 10 : null;
+  const totalPlays = albums.reduce((s, a) => s + (a.playcount || 0), 0);
+  const sharePct = totalPlays > 0 ? Math.round((frontPlays / totalPlays) * 1000) / 10 : null;
+  const UP_COLOR = "#EF4444";   // user spec: red = up
+  const DOWN_COLOR = "#34D399"; // user spec: green = down
+  const vsColor = vsMedianPct == null ? WHITE : vsMedianPct > 0 ? UP_COLOR : vsMedianPct < 0 ? DOWN_COLOR : WHITE;
+
   function onPointerDown(e) {
     setDragging(true);
     velocityRef.current = 0;
     lastPointerRef.current = { x: e.clientX, y: e.clientY };
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    didDragRef.current = false;
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
   }
   function onPointerMove(e) {
     if (!lastPointerRef.current) return;
     const dx = e.clientX - lastPointerRef.current.x;
     lastPointerRef.current = { x: e.clientX, y: e.clientY };
+    if (dragStartRef.current) {
+      const totalDx = e.clientX - dragStartRef.current.x;
+      const totalDy = e.clientY - dragStartRef.current.y;
+      if (Math.hypot(totalDx, totalDy) > 5) didDragRef.current = true;
+    }
     const deg = dx * dragSensitivity;
     velocityRef.current = deg;
     setAngle((a) => a + deg);
@@ -138,6 +184,7 @@ function CircularAlbumCarousel({
   function onPointerUp(e) {
     setDragging(false);
     lastPointerRef.current = null;
+    dragStartRef.current = null;
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
   }
 
@@ -155,39 +202,37 @@ function CircularAlbumCarousel({
         WebkitBackdropFilter: "blur(14px)",
       }}
     >
-      {/* Trending banner — updates live as the ring rotates */}
+      {/* Trending banner — stats row updates live as the ring rotates */}
       <div style={{
         position: "relative", zIndex: 3,
-        padding: "14px 18px",
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
+        padding: "16px 22px",
         borderBottom: `1px solid ${BORDER}`,
-        background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0))",
-        backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+        background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0))",
+        backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
       }}>
-        <div>
-          <div style={{ fontSize: 9, fontWeight: 700, color: CORAL, textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: FONT }}>
-            Trending now · #{frontIndex + 1} of {n}
-          </div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: WHITE, fontFamily: FONT, marginTop: 2, letterSpacing: "-0.01em" }}>
-            {frontAlbum?.name || ""}
-          </div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: CORAL, textTransform: "uppercase", letterSpacing: "0.16em", fontFamily: FONT, marginBottom: 6 }}>
+          Trending now · #{frontIndex + 1} of {n}
         </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 9, color: WHITE, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: FONT, fontWeight: 700, opacity: 0.7 }}>Plays</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: WHITE, fontFamily: FONT, fontVariantNumeric: "tabular-nums" }}>
-              {fmt(frontAlbum?.playcount)}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 18, flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0, flex: "1 1 280px" }}>
+            <div style={{ fontSize: 26, fontWeight: 800, color: WHITE, fontFamily: FONT, letterSpacing: "-0.01em", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {frontAlbum?.name || ""}
+            </div>
+            <div style={{ fontSize: 11, color: WHITE, fontFamily: FONT, opacity: 0.75, marginTop: 4, letterSpacing: "0.02em" }}>
+              Madonna · Last.fm weekly
             </div>
           </div>
-          {frontAlbum?.rank ? (
-            <div style={{
-              background: `${CORAL}22`, border: `1px solid ${CORAL}66`, borderRadius: 6,
-              padding: "6px 10px", textAlign: "center",
-            }}>
-              <div style={{ fontSize: 8, color: CORAL, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, fontFamily: FONT }}>Rank</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: WHITE, fontFamily: FONT }}>#{frontAlbum.rank}</div>
-            </div>
-          ) : null}
+          <div style={{ display: "flex", alignItems: "stretch", gap: 10, flexWrap: "wrap" }}>
+            <Stat label="Plays" value={fmt(frontAlbum?.playcount || 0)} color={WHITE} />
+            <Stat label="Rank" value={frontAlbum?.rank ? `#${frontAlbum.rank}` : "—"} color={CORAL} accent />
+            <Stat
+              label="vs avg"
+              value={vsMedianPct == null ? "—" : `${vsMedianPct > 0 ? "↑ +" : vsMedianPct < 0 ? "↓ " : ""}${vsMedianPct}%`}
+              color={vsColor}
+              accent
+            />
+            <Stat label="Share" value={sharePct == null ? "—" : `${sharePct}%`} color={WHITE} />
+          </div>
         </div>
       </div>
 
@@ -214,7 +259,6 @@ function CircularAlbumCarousel({
           marginLeft: -itemW / 2, marginTop: -itemH / 2,
           transformStyle: "preserve-3d",
           transform: `rotateX(${tilt}deg) rotateY(${angle}deg)`,
-          pointerEvents: "none",
         }}>
           {albums.map((a, i) => {
             const itemAngle = i * perItem;
@@ -222,9 +266,12 @@ function CircularAlbumCarousel({
             const effective = ((itemAngle + angle) % 360 + 360) % 360;
             const delta = effective > 180 ? effective - 360 : effective; // -180..180
             const absDelta = Math.abs(delta);
-            const depthOpacity = Math.max(0.35, 1 - absDelta / 180);   // back = dimmer
+            // Hide anything past 80° off-axis so the back half can't bleed
+            // through the front. Front third gets full vivacity.
+            const visible = absDelta <= 80;
+            const depthOpacity = visible ? Math.max(0.45, 1 - absDelta / 110) : 0;
             const isFront = i === frontIndex;
-            const scale = isFront ? 1.08 : 1;
+            const scale = isFront ? 1.1 : 1;
             return (
               <div key={`${a.name}-${i}`} style={{
                 position: "absolute",
@@ -232,27 +279,34 @@ function CircularAlbumCarousel({
                 transformStyle: "preserve-3d",
                 transform: `rotateY(${itemAngle}deg) translateZ(${radius}px) scale(${scale})`,
                 transition: "transform 0.25s",
+                pointerEvents: visible ? "auto" : "none",
               }}>
                 <a
                   href={a.url || "#"}
                   target="_blank"
                   rel="noreferrer noopener"
+                  draggable={false}
+                  onClick={(e) => { if (didDragRef.current) e.preventDefault(); }}
                   style={{
                     display: "block", width: "100%", height: "100%",
                     borderRadius: 14, overflow: "hidden",
-                    boxShadow: "0 8px 32px rgba(0,0,0,0.45)",
+                    boxShadow: isFront ? "0 12px 40px rgba(0,0,0,0.55)" : "0 8px 28px rgba(0,0,0,0.4)",
                     opacity: depthOpacity,
                     textDecoration: "none", color: WHITE,
-                    pointerEvents: "auto",
                     backfaceVisibility: "hidden",
                     WebkitBackfaceVisibility: "hidden",
+                    cursor: dragging ? "grabbing" : "grab",
                   }}
-                  onPointerDown={(e) => e.stopPropagation()}
                 >
                   {a.image ? (
-                    <img src={a.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    <img
+                      src={a.image}
+                      alt=""
+                      draggable={false}
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" }}
+                    />
                   ) : (
-                    <div style={{ width: "100%", height: "100%", background: CARD, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, fontSize: 10, color: WHITE, padding: 12, textAlign: "center" }}>
+                    <div style={{ width: "100%", height: "100%", background: CARD, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, fontSize: 10, color: WHITE, padding: 12, textAlign: "center", pointerEvents: "none" }}>
                       {a.name}
                     </div>
                   )}
