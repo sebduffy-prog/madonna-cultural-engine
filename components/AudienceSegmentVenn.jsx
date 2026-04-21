@@ -369,6 +369,9 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
   function onPointerUp() { dragRef.current = null; }
   function onWheel(e) {
     if (animating) return;
+    // Only zoom the corpus when the user explicitly opts in with a modifier
+    // (⌘/Ctrl). Without a modifier, let the wheel scroll the page as normal.
+    if (!(e.ctrlKey || e.metaKey)) return;
     e.preventDefault();
     const rect = svgRef.current.getBoundingClientRect();
     const sx = e.clientX - rect.left;
@@ -427,7 +430,7 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
           Segment sizing · full corpus
         </h3>
         <span style={{ fontSize: 11, color: WHITE, fontFamily: FONT }}>
-          Madonna Fans ({UK_ADULT_POP}m) · {segments.length} segments · {totalStatements} statements · drag · scroll · click to dive
+          Madonna Fans ({UK_ADULT_POP}m) · {segments.length} segments · {totalStatements} statements · drag · ⌘/Ctrl + scroll to zoom · click to dive
         </span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
           <ZoomButton label="−" onClick={() => {
@@ -485,20 +488,12 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
             </defs>
 
             <g transform={`translate(${view.tx},${view.ty}) scale(${view.s})`}>
-              {/* Root circle — Madonna Fans universe */}
+              {/* Root fill — sits behind segments as a gentle universe backdrop */}
               {layout.root && (
-                <g opacity={focus && focus !== layout.root.id ? 0.55 : 1}>
+                <g opacity={focus && focus !== layout.root.id ? 0.55 : 1} pointerEvents="none">
                   <circle
                     cx={layout.root.x} cy={layout.root.y} r={layout.root.r}
                     fill="url(#g-root)"
-                    stroke={layout.root.color}
-                    strokeOpacity={0.55}
-                    strokeWidth={1.4 / view.s}
-                    strokeDasharray={`${6 / view.s} ${4 / view.s}`}
-                    onClick={(e) => { e.stopPropagation(); focusNode(layout.root); }}
-                    onPointerEnter={() => setHover(layout.root.id)}
-                    onPointerLeave={() => setHover(null)}
-                    style={{ cursor: "pointer" }}
                   />
                 </g>
               )}
@@ -545,8 +540,8 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                           fontWeight={700}
                           fill={WHITE}
                           fillOpacity={catLabelOpacity}
+                          fontFamily={FONT}
                           pointerEvents="none"
-                          style={{ paintOrder: "stroke", stroke: "rgba(12,12,12,0.6)", strokeWidth: 2 / view.s }}
                         >
                           {truncate(c.label, 22)}
                         </text>
@@ -583,8 +578,8 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                             fontWeight={600}
                             fill={WHITE}
                             fillOpacity={stmtLabelOpacity}
+                            fontFamily={FONT}
                             pointerEvents="none"
-                            style={{ paintOrder: "stroke", stroke: "rgba(12,12,12,0.7)", strokeWidth: 1.4 / view.s }}
                           >
                             {truncate(s.label, 18)}
                           </text>
@@ -594,6 +589,25 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                   )}
                 </g>
               ))}
+
+              {/* Root outline overlay — sits on TOP of the segments so the
+                  Madonna Fans universe is always clearly framed. */}
+              {layout.root && (
+                <g opacity={focus && focus !== layout.root.id ? 0.55 : 1}>
+                  <circle
+                    cx={layout.root.x} cy={layout.root.y} r={layout.root.r}
+                    fill="none"
+                    stroke={layout.root.color}
+                    strokeOpacity={0.7}
+                    strokeWidth={1.6 / view.s}
+                    strokeDasharray={`${6 / view.s} ${4 / view.s}`}
+                    onClick={(e) => { e.stopPropagation(); focusNode(layout.root); }}
+                    onPointerEnter={() => setHover(layout.root.id)}
+                    onPointerLeave={() => setHover(null)}
+                    style={{ cursor: "pointer" }}
+                  />
+                </g>
+              )}
 
               {/* Root label — prominent when zoomed out, fades as we dive in */}
               {layout.root && rootLabelOpacity > 0.02 && (
@@ -605,20 +619,10 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                     fontSize={34 / Math.max(1, view.s * 0.7)}
                     fontWeight={800}
                     fill={WHITE}
-                    style={{ paintOrder: "stroke", stroke: "rgba(12,12,12,0.8)", strokeWidth: 4 / view.s, letterSpacing: "-0.01em" }}
+                    fontFamily={FONT}
+                    style={{ letterSpacing: "-0.01em" }}
                   >
                     {layout.root.label}
-                  </text>
-                  <text
-                    x={layout.root.x}
-                    y={layout.root.y - layout.root.r * 0.78 + 22 / Math.max(1, view.s * 0.7)}
-                    textAnchor="middle"
-                    fontSize={13 / Math.max(1, view.s * 0.7)}
-                    fontWeight={600}
-                    fill={WHITE}
-                    fillOpacity={0.7}
-                  >
-                    {layout.root.size.toFixed(0)}m UK adults · zoom in for segments
                   </text>
                 </g>
               )}
@@ -634,7 +638,7 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                       fontSize={base / Math.max(1, view.s * 0.65)}
                       fontWeight={800}
                       fill={WHITE}
-                      style={{ paintOrder: "stroke", stroke: "rgba(12,12,12,0.7)", strokeWidth: 3 / view.s }}
+                      fontFamily={FONT}
                     >
                       {n.label}
                     </text>
@@ -644,6 +648,7 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                       fontSize={(base * 0.55) / Math.max(1, view.s * 0.65)}
                       fill={WHITE}
                       fillOpacity={0.85}
+                      fontFamily={FONT}
                     >
                       {n.size.toFixed(1)}m
                     </text>
@@ -665,8 +670,8 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
               : catOpacity > 0.5
                 ? "Categories · keep zooming for statements"
                 : segLabelOpacity > 0.5
-                  ? "Segments · zoom in to reveal categories"
-                  : "Madonna Fans · zoom in to see the 7 segments"}
+                  ? "Segments · ⌘/Ctrl + scroll to zoom"
+                  : "Madonna Fans · ⌘/Ctrl + scroll to zoom into segments"}
           </div>
         </div>
 
