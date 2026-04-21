@@ -28,8 +28,8 @@ export default function LineChart({ series, height = 120, showLegend = true }) {
   const range = Math.max(maxVal - minVal, 1);
 
   const h = height;
-  const padL = 44;
-  const padR = 12;
+  const padL = 60;
+  const padR = 16;
   const padT = 12;
   const padB = 28;
   const chartW = Math.max(40, w - padL - padR);
@@ -37,6 +37,15 @@ export default function LineChart({ series, height = 120, showLegend = true }) {
 
   function x(i) { return padL + (i / Math.max(allDates.length - 1, 1)) * chartW; }
   function y(v) { return padT + chartH - ((v - minVal) / range) * chartH; }
+
+  function fmtVal(n) {
+    if (n == null || !isFinite(n)) return "";
+    const abs = Math.abs(n);
+    if (abs >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
+    if (abs >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+    if (abs >= 1e3) return `${(n / 1e3).toFixed(abs >= 1e4 ? 0 : 1)}K`;
+    return Math.round(n).toLocaleString();
+  }
 
   return (
     <div ref={ref} style={{ width: "100%" }}>
@@ -47,7 +56,7 @@ export default function LineChart({ series, height = 120, showLegend = true }) {
           return (
             <g key={pct}>
               <line x1={padL} y1={yPos} x2={w - padR} y2={yPos} stroke={BORDER} strokeWidth={0.5} />
-              <text x={padL - 6} y={yPos + 4} textAnchor="end" fill={MUTED} fontSize={11} fontFamily="'Inter Tight', sans-serif">{Math.round(val)}</text>
+              <text x={padL - 6} y={yPos + 4} textAnchor="end" fill={MUTED} fontSize={11} fontFamily="'Inter Tight', sans-serif">{fmtVal(val)}</text>
             </g>
           );
         })}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { KpiStripSkeleton, PanelSkeleton } from "./Skeleton";
 import { fadeUp, kpiTween, hoverLift } from "../lib/motion";
+import LineChart from "./LineChart";
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", MUTED = "#777", WHITE = "#EDEDE8", DIM = "#999";
 const GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF", PURPLE = "#A78BFA", AMBER = "#F59E0B", PINK = "#F472B6", CORAL = "#FB923C";
@@ -268,11 +269,14 @@ function SimilarArtistsNetwork({ similar }) {
   function onPointerUp() {
     // Treat a pointerdown→pointerup with no meaningful movement as a click,
     // so you can tap a node to see its correlation without triggering drag.
-    if (pointerStartRef.current && dragRef.current) {
-      const dx = dragRef.current.x - pointerStartRef.current.x;
-      const dy = dragRef.current.y - pointerStartRef.current.y;
+    const start = pointerStartRef.current;
+    const drag = dragRef.current;
+    if (start && drag) {
+      const dx = drag.x - start.x;
+      const dy = drag.y - start.y;
       if (Math.hypot(dx, dy) < 6) {
-        setSelectedId((prev) => (prev === pointerStartRef.current.id ? null : pointerStartRef.current.id));
+        const clickedId = start.id;
+        setSelectedId((prev) => (prev === clickedId ? null : clickedId));
       }
     }
     dragRef.current = null;
@@ -416,28 +420,39 @@ export default function MusicIntelligence() {
   const strengthMarkets = (marketIndex?.markets || []).filter(m => m.total > 0);
   const maxStrength = Math.max(1, ...strengthMarkets.map(m => m.total));
 
-  // Sparkline data for Spotify streams + Apple chart hits
-  const spotifyStreamSpark = [...(kworb?.history || [])].reverse().map(h => h.totalStreams).concat([kworb?.totalStreams]).filter(v => v != null);
-  const appleHitSpark = [...(apple?.history || [])].reverse().map(h => h.totalSongHits).concat([songHits]).filter(v => v != null);
-
-  // Show a sparkline once we have ≥ 3 points with actual movement.
-  // Fewer / flat series fall back to a "collecting" placeholder so the
-  // Trend box still communicates what's happening.
-  function sparkHasMovement(spark) {
-    const valid = (spark || []).filter((v) => typeof v === "number" && v > 0);
-    if (valid.length < 3) return false;
-    return Math.max(...valid) - Math.min(...valid) > 0;
+  // Build { date, value } series for the Trend panel from the stored history.
+  // Each kworb / apple history entry carries an ISO date plus the value. We
+  // append the latest live value so the line always reaches "now".
+  function buildSeries(history, valueKey, liveValue) {
+    const rows = [...(history || [])]
+      .reverse()
+      .filter((h) => h?.date && h?.[valueKey] != null)
+      .map((h) => ({ date: h.date, value: h[valueKey] }));
+    if (liveValue != null) {
+      const today = new Date().toISOString();
+      if (!rows.find((r) => r.date.slice(0, 10) === today.slice(0, 10))) {
+        rows.push({ date: today, value: liveValue });
+      } else {
+        rows[rows.length - 1] = { ...rows[rows.length - 1], value: liveValue };
+      }
+    }
+    return rows;
   }
-  const showSpotifySpark = sparkHasMovement(spotifyStreamSpark);
-  const showAppleSpark = sparkHasMovement(appleHitSpark);
-  const spotifyPoints = spotifyStreamSpark.filter((v) => typeof v === "number" && v > 0).length;
-  const applePoints = appleHitSpark.filter((v) => typeof v === "number" && v > 0).length;
-  const spotifyDelta = spotifyStreamSpark.length >= 2
-    ? spotifyStreamSpark[spotifyStreamSpark.length - 1] - spotifyStreamSpark[0]
-    : 0;
-  const appleDelta = appleHitSpark.length >= 2
-    ? appleHitSpark[appleHitSpark.length - 1] - appleHitSpark[0]
-    : 0;
+  const spotifyTrend = buildSeries(kworb?.history, "totalStreams", kworb?.totalStreams);
+  const appleTrend = buildSeries(apple?.history, "totalSongHits", songHits);
+
+  function trendStats(series) {
+    if (!series.length) return { count: 0, delta: 0, pct: null };
+    const first = series[0].value;
+    const last = series[series.length - 1].value;
+    const delta = last - first;
+    const pct = first > 0 ? (delta / first) * 100 : null;
+    return { count: series.length, delta, pct };
+  }
+  const spotifyStats = trendStats(spotifyTrend);
+  const appleStats = trendStats(appleTrend);
+  const showSpotifyTrend = spotifyTrend.length >= 2;
+  const showAppleTrend = appleTrend.length >= 2 && appleStats.delta !== 0;
 
   const maxTrackPlaycount = Math.max(1, ...((lastfm?.topTracks || []).map(t => t.playcount || 0)));
 
@@ -471,26 +486,46 @@ export default function MusicIntelligence() {
         <Kpi label="Apple album chart hits" value={albumHits != null ? albumHits : "—"} sub={apple?.albumAggregate?.length != null ? `${apple.albumAggregate.length} albums in charts` : ""} color={CORAL} delta={apple?.momentum?.totalAlbumHitsChange} />
       </div>
 
-      {/* Trends — only render once we have enough days AND actual movement */}
-      {(showSpotifySpark || showAppleSpark) && (
-        <Panel title="Trend" subtitle="Daily snapshots since first refresh" accent={PURPLE}>
-          <div style={{ display: "grid", gridTemplateColumns: (showSpotifySpark && showAppleSpark) ? "1fr 1fr" : "1fr", gap: 20 }}>
-            {showSpotifySpark && (
+      {/* Trend — responsive LineChart per metric, stacked on narrow screens */}
+      {(showSpotifyTrend || showAppleTrend) && (
+        <Panel title="Trend" subtitle={`Daily snapshots since first refresh · ${Math.max(spotifyStats.count, appleStats.count)} points`} accent={PURPLE}>
+          <div style={{ display: "grid", gridTemplateColumns: (showSpotifyTrend && showAppleTrend) ? "1fr 1fr" : "1fr", gap: 24 }}>
+            {showSpotifyTrend && (
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 10, color: GREEN, textTransform: "uppercase", fontFamily: FONT, letterSpacing: "0.05em" }}>Spotify streams</span>
-                  <span style={{ fontSize: 11, color: WHITE, fontFamily: FONT }}>{fmt(kworb?.totalStreams)}</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: GREEN, textTransform: "uppercase", fontFamily: FONT, letterSpacing: "0.08em", fontWeight: 700 }}>Spotify streams</div>
+                    <div style={{ fontSize: 9, color: WHITE, fontFamily: FONT, marginTop: 2 }}>{spotifyStats.count} day{spotifyStats.count === 1 ? "" : "s"} tracked</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: WHITE, fontFamily: FONT }}>{fmt(kworb?.totalStreams)}</div>
+                    {spotifyStats.count >= 2 && (
+                      <div style={{ fontSize: 11, fontWeight: 700, color: spotifyStats.delta > 0 ? GREEN : spotifyStats.delta < 0 ? RED : WHITE, fontFamily: FONT }}>
+                        {spotifyStats.delta > 0 ? "↑" : spotifyStats.delta < 0 ? "↓" : "→"} {fmt(Math.abs(spotifyStats.delta))}{spotifyStats.pct != null ? ` (${spotifyStats.pct > 0 ? "+" : ""}${spotifyStats.pct.toFixed(2)}%)` : ""}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <Sparkline data={spotifyStreamSpark} color={GREEN} width={380} height={60} />
+                <LineChart height={180} showLegend={false} series={[{ label: "Streams", color: GREEN, data: spotifyTrend }]} />
               </div>
             )}
-            {showAppleSpark && (
+            {showAppleTrend && (
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 10, color: GREEN, textTransform: "uppercase", fontFamily: FONT, letterSpacing: "0.05em" }}>Apple song chart hits</span>
-                  <span style={{ fontSize: 11, color: WHITE, fontFamily: FONT }}>{songHits}</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: PURPLE, textTransform: "uppercase", fontFamily: FONT, letterSpacing: "0.08em", fontWeight: 700 }}>Apple song chart hits</div>
+                    <div style={{ fontSize: 9, color: WHITE, fontFamily: FONT, marginTop: 2 }}>{appleStats.count} day{appleStats.count === 1 ? "" : "s"} tracked</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: WHITE, fontFamily: FONT }}>{songHits}</div>
+                    {appleStats.count >= 2 && (
+                      <div style={{ fontSize: 11, fontWeight: 700, color: appleStats.delta > 0 ? GREEN : appleStats.delta < 0 ? RED : WHITE, fontFamily: FONT }}>
+                        {appleStats.delta > 0 ? "↑" : appleStats.delta < 0 ? "↓" : "→"} {Math.abs(appleStats.delta)}{appleStats.pct != null ? ` (${appleStats.pct > 0 ? "+" : ""}${appleStats.pct.toFixed(1)}%)` : ""}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <Sparkline data={appleHitSpark} color={GREEN} width={380} height={60} />
+                <LineChart height={180} showLegend={false} series={[{ label: "Chart hits", color: PURPLE, data: appleTrend }]} />
               </div>
             )}
           </div>

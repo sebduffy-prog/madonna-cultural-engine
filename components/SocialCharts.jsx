@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 const FONT = "'Inter Tight', system-ui, sans-serif";
 const WHITE = "#EDEDE8";
@@ -328,13 +328,11 @@ export function DonutChart({ segments = [], size = 160 }) {
         background: CARD,
         borderRadius: 8,
         border: `1px solid ${BORDER}`,
-        padding: 20,
+        padding: 16,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        gap: 28,
-        height: "100%",
-        minHeight: svgSize + 40,
+        gap: 20,
         flexWrap: "wrap",
       }}
     >
@@ -420,15 +418,23 @@ export function DonutChart({ segments = [], size = 160 }) {
 // 4. StackedBarChart
 // ---------------------------------------------------------------------------
 export function StackedBarChart({ data = [], height = 280 }) {
+  const ref = useRef(null);
+  const [width, setW] = useState(600);
+  useEffect(() => {
+    if (!ref.current || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([e]) => setW(Math.max(320, Math.floor(e.contentRect.width - 40))));
+    ro.observe(ref.current);
+    return () => ro.disconnect();
+  }, []);
+
   if (!data.length) return null;
 
   const pad = { top: 20, right: 24, bottom: 64, left: 52 };
-  const width = 900;
-  const cw = width - pad.left - pad.right;
+  const cw = Math.max(80, width - pad.left - pad.right);
   const ch = height - pad.top - pad.bottom;
 
   const maxVal = Math.max(...data.map((d) => d.positive + d.neutral + d.negative)) || 1;
-  const barWidth = Math.min(80, (cw / data.length) * 0.7);
+  const barWidth = Math.min(64, (cw / data.length) * 0.65);
   const barGap = cw / data.length;
 
   const gridCount = 5;
@@ -436,11 +442,10 @@ export function StackedBarChart({ data = [], height = 280 }) {
   const toY = (v) => pad.top + ch - (ch * v) / maxVal;
 
   return (
-    <div style={{ background: CARD, borderRadius: 8, border: `1px solid ${BORDER}`, padding: 20 }}>
+    <div ref={ref} style={{ background: CARD, borderRadius: 8, border: `1px solid ${BORDER}`, padding: 20 }}>
       <svg
-        viewBox={`0 0 ${width} ${height}`}
-        width="100%"
-        preserveAspectRatio="xMidYMid meet"
+        width={width}
+        height={height}
         style={{ overflow: "visible", fontFamily: FONT, display: "block" }}
       >
         {/* grid */}
