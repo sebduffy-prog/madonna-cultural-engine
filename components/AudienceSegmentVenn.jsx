@@ -369,6 +369,9 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
   function onPointerUp() { dragRef.current = null; }
   function onWheel(e) {
     if (animating) return;
+    // Only zoom the corpus when the user explicitly opts in with a modifier
+    // (⌘/Ctrl). Without a modifier, let the wheel scroll the page as normal.
+    if (!(e.ctrlKey || e.metaKey)) return;
     e.preventDefault();
     const rect = svgRef.current.getBoundingClientRect();
     const sx = e.clientX - rect.left;
@@ -427,7 +430,7 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
           Segment sizing · full corpus
         </h3>
         <span style={{ fontSize: 11, color: WHITE, fontFamily: FONT }}>
-          Madonna Fans ({UK_ADULT_POP}m) · {segments.length} segments · {totalStatements} statements · drag · scroll · click to dive
+          Madonna Fans ({UK_ADULT_POP}m) · {segments.length} segments · {totalStatements} statements · drag · ⌘/Ctrl + scroll to zoom · click to dive
         </span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
           <ZoomButton label="−" onClick={() => {
@@ -471,9 +474,9 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
           >
             <defs>
               {layout.root && (
-                <radialGradient id="g-root" cx="50%" cy="45%" r="65%">
-                  <stop offset="0%"   stopColor={layout.root.color} stopOpacity={0.18} />
-                  <stop offset="100%" stopColor={layout.root.color} stopOpacity={0.04} />
+                <radialGradient id="g-root" cx="50%" cy="40%" r="60%">
+                  <stop offset="0%"   stopColor={layout.root.color} stopOpacity={0.85} />
+                  <stop offset="100%" stopColor={layout.root.color} stopOpacity={0.30} />
                 </radialGradient>
               )}
               {layout.segments.map((n) => (
@@ -485,24 +488,6 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
             </defs>
 
             <g transform={`translate(${view.tx},${view.ty}) scale(${view.s})`}>
-              {/* Root circle — Madonna Fans universe */}
-              {layout.root && (
-                <g opacity={focus && focus !== layout.root.id ? 0.55 : 1}>
-                  <circle
-                    cx={layout.root.x} cy={layout.root.y} r={layout.root.r}
-                    fill="url(#g-root)"
-                    stroke={layout.root.color}
-                    strokeOpacity={0.55}
-                    strokeWidth={1.4 / view.s}
-                    strokeDasharray={`${6 / view.s} ${4 / view.s}`}
-                    onClick={(e) => { e.stopPropagation(); focusNode(layout.root); }}
-                    onPointerEnter={() => setHover(layout.root.id)}
-                    onPointerLeave={() => setHover(null)}
-                    style={{ cursor: "pointer" }}
-                  />
-                </g>
-              )}
-
               {/* Segment circles */}
               {layout.segments.map((n) => (
                 <g key={n.id} opacity={focus && focus !== n.id ? 0.22 : segOpacity}>
@@ -518,6 +503,25 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                   />
                 </g>
               ))}
+
+              {/* Madonna Fans universe — same style as segments (radial
+                  gradient fill + solid stroke), layered on top so it sits
+                  over the segments. Categories / statements are rendered
+                  after it so they still show through when zoomed in. */}
+              {layout.root && (
+                <g opacity={focus && focus !== layout.root.id ? 0.55 : 1}>
+                  <circle
+                    cx={layout.root.x} cy={layout.root.y} r={layout.root.r}
+                    fill="url(#g-root)"
+                    stroke={layout.root.color}
+                    strokeWidth={focus === layout.root.id ? 2.5 / view.s : 1 / view.s}
+                    onClick={(e) => { e.stopPropagation(); focusNode(layout.root); }}
+                    onPointerEnter={() => setHover(layout.root.id)}
+                    onPointerLeave={() => setHover(null)}
+                    style={{ cursor: "pointer", transition: "stroke-width 0.2s" }}
+                  />
+                </g>
+              )}
 
               {/* Category layer */}
               {catOpacity > 0.01 && layout.segments.map((n) => (
@@ -545,8 +549,8 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                           fontWeight={700}
                           fill={WHITE}
                           fillOpacity={catLabelOpacity}
+                          fontFamily={FONT}
                           pointerEvents="none"
-                          style={{ paintOrder: "stroke", stroke: "rgba(12,12,12,0.6)", strokeWidth: 2 / view.s }}
                         >
                           {truncate(c.label, 22)}
                         </text>
@@ -583,8 +587,8 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                             fontWeight={600}
                             fill={WHITE}
                             fillOpacity={stmtLabelOpacity}
+                            fontFamily={FONT}
                             pointerEvents="none"
-                            style={{ paintOrder: "stroke", stroke: "rgba(12,12,12,0.7)", strokeWidth: 1.4 / view.s }}
                           >
                             {truncate(s.label, 18)}
                           </text>
@@ -605,20 +609,10 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                     fontSize={34 / Math.max(1, view.s * 0.7)}
                     fontWeight={800}
                     fill={WHITE}
-                    style={{ paintOrder: "stroke", stroke: "rgba(12,12,12,0.8)", strokeWidth: 4 / view.s, letterSpacing: "-0.01em" }}
+                    fontFamily={FONT}
+                    style={{ letterSpacing: "-0.01em" }}
                   >
                     {layout.root.label}
-                  </text>
-                  <text
-                    x={layout.root.x}
-                    y={layout.root.y - layout.root.r * 0.78 + 22 / Math.max(1, view.s * 0.7)}
-                    textAnchor="middle"
-                    fontSize={13 / Math.max(1, view.s * 0.7)}
-                    fontWeight={600}
-                    fill={WHITE}
-                    fillOpacity={0.7}
-                  >
-                    {layout.root.size.toFixed(0)}m UK adults · zoom in for segments
                   </text>
                 </g>
               )}
@@ -634,7 +628,7 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                       fontSize={base / Math.max(1, view.s * 0.65)}
                       fontWeight={800}
                       fill={WHITE}
-                      style={{ paintOrder: "stroke", stroke: "rgba(12,12,12,0.7)", strokeWidth: 3 / view.s }}
+                      fontFamily={FONT}
                     >
                       {n.label}
                     </text>
@@ -644,6 +638,7 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                       fontSize={(base * 0.55) / Math.max(1, view.s * 0.65)}
                       fill={WHITE}
                       fillOpacity={0.85}
+                      fontFamily={FONT}
                     >
                       {n.size.toFixed(1)}m
                     </text>
@@ -665,8 +660,8 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
               : catOpacity > 0.5
                 ? "Categories · keep zooming for statements"
                 : segLabelOpacity > 0.5
-                  ? "Segments · zoom in to reveal categories"
-                  : "Madonna Fans · zoom in to see the 7 segments"}
+                  ? "Segments · ⌘/Ctrl + scroll to zoom"
+                  : "Madonna Fans · ⌘/Ctrl + scroll to zoom into segments"}
           </div>
         </div>
 
