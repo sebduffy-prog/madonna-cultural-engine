@@ -42,8 +42,31 @@ function formatTacticDates(t) {
 
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", WHITE = "#EDEDE8", MUTED = "#777", DIM = "#999", GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF";
 
+const CHANNEL_OPTIONS = [
+  { key: "Social", label: "Social", color: TEAL },
+  { key: "OOH",    label: "OOH",    color: Y },
+  { key: "PPC",    label: "PPC",    color: GREEN },
+  { key: "Audio",  label: "Audio",  color: "#A78BFA" },
+  { key: "Video",  label: "Video",  color: "#FB7185" },
+];
+const CHANNEL_KEYS = CHANNEL_OPTIONS.map(c => c.key);
+const CHANNEL_BY_KEY = Object.fromEntries(CHANNEL_OPTIONS.map(c => [c.key, c]));
+
+// Legacy tactics stored freeform channel text and no title.
+// For display/edit, treat that freeform value as the title and leave channel unset.
+function displayTitle(t) {
+  if (t.title) return t.title;
+  if (t.channel && !CHANNEL_KEYS.includes(t.channel)) return t.channel;
+  return "";
+}
+function displayChannel(t) {
+  if (t.channel && CHANNEL_KEYS.includes(t.channel)) return t.channel;
+  return "";
+}
+
 const FIELDS = [
-  { key: "channel", label: "Channel", placeholder: "e.g. TikTok, OOH, Spotify, Radio, Experiential" },
+  { key: "title", label: "Title", placeholder: "e.g. TikTok launch film, OOH takeover, Spotify sponsorship" },
+  { key: "channel", label: "Channel", type: "channel-select", hint: "Pick one" },
   { key: "roleOfChannel", label: "Role of Channel", placeholder: "What this channel is doing in the mix (reach, reappraisal, proof, depth...)" },
   { key: "audience", label: "Audience", type: "multi-audience", hint: "Pick one or more — click to toggle" },
   { key: "audienceDetail", label: "Audience Detail", placeholder: "Specific mindset, behaviour, sub-cohort — freeform" },
@@ -54,7 +77,7 @@ const FIELDS = [
   { key: "notes", label: "Notes", placeholder: "Anything else — rationale, dependencies, references" },
 ];
 
-const EMPTY_FORM = { channel: "", roleOfChannel: "", audience: [], audienceDetail: "", format: "", phase: "", budget: "", startDate: "", endDate: "", notes: "" };
+const EMPTY_FORM = { title: "", channel: "", roleOfChannel: "", audience: [], audienceDetail: "", format: "", phase: "", budget: "", startDate: "", endDate: "", notes: "" };
 
 function getUserId() {
   let id = localStorage.getItem("sweettooth_user");
@@ -145,37 +168,42 @@ export default function TacticsBoard() {
   const [filterChannel, setFilterChannel] = useState("");
   const [sortBy, setSortBy] = useState("newest");
 
-  const channelGroups = (() => {
-    const map = new Map();
-    tactics.forEach(t => {
-      const raw = (t.channel || "").trim();
-      if (!raw) return;
-      const key = raw.toLowerCase();
-      if (!map.has(key)) map.set(key, { key, label: raw, count: 0 });
-      map.get(key).count += 1;
-    });
-    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
-  })();
+  const channelCounts = CHANNEL_OPTIONS.map(c => ({
+    key: c.key,
+    label: c.label,
+    color: c.color,
+    count: tactics.filter(t => displayChannel(t) === c.key).length,
+  }));
+  const uncategorizedCount = tactics.filter(t => !displayChannel(t)).length;
+  const filterOptions = [
+    { key: "", label: "All", count: tactics.length, color: Y },
+    ...channelCounts,
+    ...(uncategorizedCount > 0 ? [{ key: "__uncategorized__", label: "Uncategorized", count: uncategorizedCount, color: MUTED }] : []),
+  ];
 
-  const activeFilterExists = filterChannel && channelGroups.some(c => c.key === filterChannel);
-  const effectiveFilter = activeFilterExists ? filterChannel : "";
+  const effectiveFilter = filterOptions.some(o => o.key === filterChannel) ? filterChannel : "";
 
   const sortComparators = {
     newest: (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
     oldest: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
-    "channel-asc": (a, b) => (a.channel || "").localeCompare(b.channel || "") || (new Date(b.createdAt) - new Date(a.createdAt)),
-    "channel-desc": (a, b) => (b.channel || "").localeCompare(a.channel || "") || (new Date(b.createdAt) - new Date(a.createdAt)),
+    "channel-asc": (a, b) => (displayChannel(a) || "\uffff").localeCompare(displayChannel(b) || "\uffff") || (new Date(b.createdAt) - new Date(a.createdAt)),
+    "channel-desc": (a, b) => (displayChannel(b) || "\uffff").localeCompare(displayChannel(a) || "\uffff") || (new Date(b.createdAt) - new Date(a.createdAt)),
   };
 
-  const displayedTactics = [
-    ...(effectiveFilter
-      ? tactics.filter(t => (t.channel || "").trim().toLowerCase() === effectiveFilter)
-      : tactics),
-  ].sort(sortComparators[sortBy] || sortComparators.newest);
+  const matchesFilter = (t) => {
+    if (!effectiveFilter) return true;
+    if (effectiveFilter === "__uncategorized__") return !displayChannel(t);
+    return displayChannel(t) === effectiveFilter;
+  };
+
+  const displayedTactics = [...tactics.filter(matchesFilter)].sort(
+    sortComparators[sortBy] || sortComparators.newest
+  );
 
   function openEdit(t) {
     setEditForm({
-      channel: t.channel || "",
+      title: displayTitle(t),
+      channel: displayChannel(t),
       roleOfChannel: t.roleOfChannel || "",
       audience: asAudienceArray(t.audience),
       audienceDetail: t.audienceDetail || "",
@@ -213,7 +241,7 @@ export default function TacticsBoard() {
           action: "update-from-source",
           sourceType: "tactic",
           sourceId: tacticId,
-          title: editForm.channel,
+          title: editForm.title || editForm.channel,
           description: tacticDescription({ ...editForm }),
           audience: primaryAudience,
         }),
@@ -267,9 +295,10 @@ export default function TacticsBoard() {
       {showForm && (
         <form onSubmit={handleCreate} style={{ background: CARD, borderRadius: 10, padding: 24, border: `1px solid ${BORDER}`, marginBottom: 24 }}>
           {FIELDS.map((f, i) => {
-            const required = f.key === "channel";
+            const required = f.key === "title" || f.key === "channel";
             const isNotes = f.key === "notes";
             const isMultiAudience = f.type === "multi-audience";
+            const isChannelSelect = f.type === "channel-select";
             const selected = isMultiAudience ? asAudienceArray(form.audience) : null;
             return (
               <div key={f.key} style={{ marginBottom: i === FIELDS.length - 1 ? 20 : 16 }}>
@@ -277,7 +306,38 @@ export default function TacticsBoard() {
                   {f.label}{required ? " *" : ""}
                   {f.hint && <span style={{ marginLeft: 8, fontSize: 10, color: DIM, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>{f.hint}</span>}
                 </label>
-                {isMultiAudience ? (
+                {isChannelSelect ? (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {CHANNEL_OPTIONS.map((c) => {
+                      const on = form.channel === c.key;
+                      return (
+                        <button
+                          key={c.key}
+                          type="button"
+                          onClick={() => setForm((fr) => ({ ...fr, channel: on ? "" : c.key }))}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 6,
+                            padding: "6px 14px", fontSize: 12, fontWeight: 700,
+                            color: on ? WHITE : MUTED,
+                            background: on ? `${c.color}22` : "transparent",
+                            border: `1px solid ${on ? c.color : BORDER}`,
+                            borderRadius: 999, cursor: "pointer",
+                            fontFamily: "'Inter Tight', system-ui, sans-serif",
+                            transition: "all 0.15s ease",
+                            opacity: on ? 1 : 0.8,
+                          }}
+                        >
+                          <span style={{
+                            display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+                            background: c.color,
+                            opacity: on ? 1 : 0.5,
+                          }} />
+                          {c.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : isMultiAudience ? (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {AUDIENCE_OPTIONS.map((a) => {
                       const on = selected.includes(a.key);
@@ -342,9 +402,10 @@ export default function TacticsBoard() {
               </div>
             );
           })}
-          <button type="submit" style={{
+          <button type="submit" disabled={!form.title?.trim() || !form.channel} style={{
             padding: "10px 28px", fontSize: 13, fontWeight: 700, color: BG, background: Y,
-            border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif",
+            border: "none", borderRadius: 6, cursor: (!form.title?.trim() || !form.channel) ? "not-allowed" : "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif",
+            opacity: (!form.title?.trim() || !form.channel) ? 0.5 : 1,
           }}>Create Tactic</button>
         </form>
       )}
@@ -359,23 +420,31 @@ export default function TacticsBoard() {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center", marginBottom: 16, padding: "12px 14px", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8 }}>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", flex: 1, minWidth: 0 }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: "0.08em", textTransform: "uppercase", marginRight: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Channel</span>
-              {[{ key: "", label: "All", count: tactics.length }, ...channelGroups].map(c => {
+              {filterOptions.map(c => {
                 const on = (effectiveFilter || "") === c.key;
+                const showDot = c.key !== "";
                 return (
                   <button
                     key={c.key || "__all__"}
                     type="button"
                     onClick={() => setFilterChannel(c.key)}
+                    disabled={c.count === 0 && c.key !== ""}
                     style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
                       padding: "4px 10px", fontSize: 11, fontWeight: 700,
-                      color: on ? BG : WHITE,
-                      background: on ? Y : "transparent",
-                      border: `1px solid ${on ? Y : BORDER}`,
-                      borderRadius: 999, cursor: "pointer",
+                      color: on ? WHITE : (c.count === 0 && c.key !== "" ? MUTED : WHITE),
+                      background: on ? `${c.color}22` : "transparent",
+                      border: `1px solid ${on ? c.color : BORDER}`,
+                      borderRadius: 999,
+                      cursor: c.count === 0 && c.key !== "" ? "not-allowed" : "pointer",
+                      opacity: c.count === 0 && c.key !== "" ? 0.4 : 1,
                       fontFamily: "'Inter Tight', system-ui, sans-serif",
                       letterSpacing: "0.02em",
                     }}
                   >
+                    {showDot && (
+                      <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: c.color, opacity: on ? 1 : 0.65 }} />
+                    )}
                     {c.label} <span style={{ opacity: 0.65, fontWeight: 500 }}>({c.count})</span>
                   </button>
                 );
@@ -413,10 +482,24 @@ export default function TacticsBoard() {
               onMouseEnter={e => e.currentTarget.style.borderColor = Y}
               onMouseLeave={e => e.currentTarget.style.borderColor = BORDER}>
               <div onClick={() => { setSelectedTactic(tactic.id); setConfirmDelete(false); }} style={{ padding: "16px 16px 8px" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: Y, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
-                  Channel
-                </div>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: WHITE, margin: "0 0 10px", fontFamily: "'Inter Tight', system-ui, sans-serif", lineHeight: 1.3 }}>{tactic.channel}</h3>
+                {(() => {
+                  const ch = displayChannel(tactic);
+                  const meta = ch ? CHANNEL_BY_KEY[ch] : null;
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                      {meta ? (
+                        <span style={{ fontSize: 9, fontWeight: 700, color: meta.color, background: `${meta.color}18`, border: `1px solid ${meta.color}66`, borderRadius: 4, padding: "2px 8px", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                          {meta.label}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 9, fontWeight: 700, color: MUTED, border: `1px solid ${BORDER}`, borderRadius: 4, padding: "2px 8px", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                          Uncategorized
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: WHITE, margin: "0 0 10px", fontFamily: "'Inter Tight', system-ui, sans-serif", lineHeight: 1.3 }}>{displayTitle(tactic) || "(Untitled)"}</h3>
                 {tactic.roleOfChannel && (
                   <div style={{ fontSize: 12, color: DIM, lineHeight: 1.55, marginBottom: 8, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                     {tactic.roleOfChannel}
@@ -473,7 +556,7 @@ export default function TacticsBoard() {
                   color: (tactic.dislikes || 0) > 0 ? RED : MUTED, background: `${RED}10`,
                   border: `1px solid ${(tactic.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 6, cursor: "pointer",
                 }}>&#9660; {tactic.dislikes || 0}</button>
-                <AddToPlanButton title={tactic.channel} description={tacticDescription(tactic)} defaultChannel={tactic.channel} defaultAudience={asAudienceArray(tactic.audience)[0]} defaultStart={tactic.startDate} defaultEnd={tactic.endDate} sourceType="tactic" sourceId={tactic.id} size="sm" />
+                <AddToPlanButton title={displayTitle(tactic) || displayChannel(tactic)} description={tacticDescription(tactic)} defaultChannel={displayChannel(tactic)} defaultAudience={asAudienceArray(tactic.audience)[0]} defaultStart={tactic.startDate} defaultEnd={tactic.endDate} sourceType="tactic" sourceId={tactic.id} size="sm" />
                 <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
                   {(tactic.comments || []).length} comment{(tactic.comments || []).length !== 1 ? "s" : ""}
                 </span>
@@ -497,23 +580,64 @@ export default function TacticsBoard() {
             }}>&times;</button>
 
             <div style={{ padding: "24px 24px 20px" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: Y, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Channel</div>
+              {(() => {
+                const ch = displayChannel(activeTactic);
+                const meta = ch ? CHANNEL_BY_KEY[ch] : null;
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    {meta ? (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: meta.color, background: `${meta.color}18`, border: `1px solid ${meta.color}66`, borderRadius: 4, padding: "3px 10px", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                        {meta.label}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: MUTED, border: `1px solid ${BORDER}`, borderRadius: 4, padding: "3px 10px", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+                        Uncategorized
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+              <div style={{ fontSize: 10, fontWeight: 700, color: Y, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Title</div>
               {editMode ? (
-                <input value={editForm.channel} onChange={e => setEditForm(f => ({ ...f, channel: e.target.value }))}
+                <input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="Title"
                   style={{
                     width: "100%", padding: "10px 14px", fontSize: 22, fontWeight: 800, color: WHITE, background: BG,
                     border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", marginBottom: 8, boxSizing: "border-box",
                     fontFamily: "'Inter Tight', system-ui, sans-serif",
                   }} />
               ) : (
-                <h2 style={{ fontSize: 24, fontWeight: 800, color: WHITE, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{activeTactic.channel}</h2>
+                <h2 style={{ fontSize: 24, fontWeight: 800, color: WHITE, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{displayTitle(activeTactic) || "(Untitled)"}</h2>
               )}
               <div style={{ fontSize: 11, color: MUTED, marginBottom: 20 }}>{activeTactic.createdBy} &middot; {new Date(activeTactic.createdAt).toLocaleDateString()}{activeTactic.updatedAt ? ` · edited ${new Date(activeTactic.updatedAt).toLocaleDateString()}` : ""}</div>
 
-              {editMode && FIELDS.filter(f => f.key !== "channel").map(f => (
+              {editMode && FIELDS.filter(f => f.key !== "title").map(f => (
                 <div key={f.key} style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>{f.label}</div>
-                  {f.type === "multi-audience" ? (
+                  {f.type === "channel-select" ? (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {CHANNEL_OPTIONS.map((c) => {
+                        const on = editForm.channel === c.key;
+                        return (
+                          <button key={c.key} type="button"
+                            onClick={() => setEditForm(fr => ({ ...fr, channel: on ? "" : c.key }))}
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 6,
+                              padding: "6px 14px", fontSize: 12, fontWeight: 700,
+                              color: on ? WHITE : MUTED,
+                              background: on ? `${c.color}22` : "transparent",
+                              border: `1px solid ${on ? c.color : BORDER}`,
+                              borderRadius: 999, cursor: "pointer",
+                              fontFamily: "'Inter Tight', system-ui, sans-serif",
+                              opacity: on ? 1 : 0.8,
+                            }}>
+                            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: c.color, opacity: on ? 1 : 0.5 }} />
+                            {c.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : f.type === "multi-audience" ? (
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {AUDIENCE_OPTIONS.map((a) => {
                         const on = asAudienceArray(editForm.audience).includes(a.key);
@@ -576,7 +700,7 @@ export default function TacticsBoard() {
                 </div>
               ))}
 
-              {!editMode && FIELDS.filter(f => f.key !== "channel").map(f => {
+              {!editMode && FIELDS.filter(f => f.key !== "title" && f.key !== "channel").map(f => {
                 if (f.key === "audience") {
                   const auds = asAudienceArray(activeTactic.audience);
                   if (!auds.length) return null;
@@ -629,7 +753,7 @@ export default function TacticsBoard() {
                   border: `1px solid ${(activeTactic.dislikes || 0) > 0 ? RED + "66" : BORDER}`, borderRadius: 8, cursor: "pointer",
                 }}>&#9660; {activeTactic.dislikes || 0}</button>
                 <span style={{ marginLeft: "auto" }}>
-                  <AddToPlanButton title={activeTactic.channel} description={tacticDescription(activeTactic)} defaultChannel={activeTactic.channel} defaultAudience={asAudienceArray(activeTactic.audience)[0]} defaultStart={activeTactic.startDate} defaultEnd={activeTactic.endDate} sourceType="tactic" sourceId={activeTactic.id} size="md" />
+                  <AddToPlanButton title={displayTitle(activeTactic) || displayChannel(activeTactic)} description={tacticDescription(activeTactic)} defaultChannel={displayChannel(activeTactic)} defaultAudience={asAudienceArray(activeTactic.audience)[0]} defaultStart={activeTactic.startDate} defaultEnd={activeTactic.endDate} sourceType="tactic" sourceId={activeTactic.id} size="md" />
                 </span>
               </div>
 
@@ -672,7 +796,7 @@ export default function TacticsBoard() {
               <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 {editMode ? (
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => saveEdit(activeTactic.id)} disabled={editSaving || !editForm?.channel?.trim()} style={{
+                    <button onClick={() => saveEdit(activeTactic.id)} disabled={editSaving || !editForm?.title?.trim() || !editForm?.channel} style={{
                       padding: "9px 20px", fontSize: 12, fontWeight: 700, color: BG, background: Y,
                       border: "none", borderRadius: 6, cursor: editSaving ? "wait" : "pointer",
                       fontFamily: "'Inter Tight', system-ui, sans-serif", opacity: editSaving ? 0.6 : 1,

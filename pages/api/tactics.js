@@ -25,11 +25,13 @@ export default async function handler(req, res) {
   let tactics = await kvGet(CACHE_KEY) || [];
 
   if (action === "create") {
-    const { channel, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes, createdBy } = body;
+    const { title, channel, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes, createdBy } = body;
+    if (!title || !title.trim()) return res.status(400).json({ error: "Title is required" });
     if (!channel) return res.status(400).json({ error: "Channel is required" });
 
     const tactic = {
       id: uuid(),
+      title: title.trim(),
       channel,
       roleOfChannel: roleOfChannel || "",
       audience: audience || [],
@@ -54,9 +56,10 @@ export default async function handler(req, res) {
   }
 
   if (action === "update") {
-    const { tacticId, channel, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes } = body;
+    const { tacticId, title, channel, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes } = body;
     const tactic = tactics.find(t => t.id === tacticId);
     if (!tactic) return res.status(404).json({ error: "Tactic not found" });
+    if (title !== undefined) tactic.title = title;
     if (channel !== undefined) tactic.channel = channel;
     if (roleOfChannel !== undefined) tactic.roleOfChannel = roleOfChannel;
     if (audience !== undefined) tactic.audience = audience;
