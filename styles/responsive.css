@@ -1,0 +1,69 @@
+/* Mobile + tablet responsive adjustments.
+   Laptop (>=769px) is unchanged — every rule below is scoped to smaller viewports. */
+
+/* Smooth scrolling everywhere */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 24px;
+}
+
+/* Slim, non-jumpy scrollbars */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(237,237,232,0.18);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(237,237,232,0.32);
+}
+
+/* Fade mask at the edges of scrollable lists — content softly dissolves
+   instead of hard-clipping at the container edge. Opt-in via .scroll-fade. */
+.scroll-fade {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 18px, black calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, black 18px, black calc(100% - 18px), transparent 100%);
+}
+
+/* Tablet + phone */
+@media (max-width: 768px) {
+  /* Collapse heavy KPI grids to 2 columns so cards stay readable */
+  .kpi-grid-6,
+  .kpi-grid-5,
+  .kpi-grid-4 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Side-by-side panel splits stack vertically */
+  .panel-split-2,
+  .panel-split-3 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Tab nav scrolls horizontally instead of wrapping */
+  .tab-nav {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+  }
+  .tab-nav::-webkit-scrollbar { display: none; }
+
+  h1 { font-size: 30px !important; }
+  h2 { font-size: 18px !important; }
+}
+
+/* Phone only */
+@media (max-width: 480px) {
+  /* Single column for KPIs on narrow phones */
+  .kpi-grid-6,
+  .kpi-grid-5,
+  .kpi-grid-4,
+  .kpi-grid-3 {
+    grid-template-columns: 1fr !important;
+  }
+  h1 { font-size: 24px !important; }
+  body { font-size: 13px; }
+}

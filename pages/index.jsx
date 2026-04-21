@@ -1,8 +1,34 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import dynamic from "next/dynamic";
+import fs from "fs";
+import path from "path";
+import { motion } from "framer-motion";
+import PulseWordmark from "../components/PulseWordmark";
+import PulseParticleText from "../components/PulseParticleText";
+import { pageStagger, fadeUp } from "../lib/motion";
+
+const StreetArtMap = dynamic(() => import("../components/StreetArtMap"), { ssr: false });
+const AudienceCommentsGraph = dynamic(() => import("../components/AudienceCommentsGraph"), { ssr: false });
+const AudienceIntelligence = dynamic(() => import("../components/AudienceIntelligence"), { ssr: false });
+const CulturalFeed = dynamic(() => import("../components/CulturalFeed"), { ssr: false });
+const SpotifyTracker = dynamic(() => import("../components/SpotifyTracker"), { ssr: false });
+const SocialPulse = dynamic(() => import("../components/SocialPulse"), { ssr: false });
+const SocialDashboard = dynamic(() => import("../components/SocialDashboard"), { ssr: false });
+const DashboardSummary = dynamic(() => import("../components/DashboardSummary"), { ssr: false });
+const MentionsTicker = dynamic(() => import("../components/MentionsTicker"), { ssr: false });
+const StrategyRecommendations = dynamic(() => import("../components/StrategyRecommendations"), { ssr: false });
+const GraphRAG = dynamic(() => import("../components/GraphRAG"), { ssr: false });
+const YouTubeIntelligence = dynamic(() => import("../components/YouTubeIntelligence"), { ssr: false });
+const IdeasBoard = dynamic(() => import("../components/IdeasBoard"), { ssr: false });
+const TacticsBoard = dynamic(() => import("../components/TacticsBoard"), { ssr: false });
+const CampaignCalendar = dynamic(() => import("../components/CampaignCalendar"), { ssr: false });
+const DocUploader = dynamic(() => import("../components/DocUploader"), { ssr: false });
+const MusicIntelligence = dynamic(() => import("../components/MusicIntelligence"), { ssr: false });
+const WikipediaPageviews = dynamic(() => import("../components/WikipediaPageviews"), { ssr: false });
 
 const Y = "#FFD500";
 const BG = "#0C0C0C";
-const CARD = "#151515";
+const CARD = "rgba(21,21,21,0.68)";
 const BORDER = "#222";
 const MUTED = "#777";
 const WHITE = "#EDEDE8";
@@ -55,18 +81,938 @@ function StatRow({ label, value, sub, color = WHITE }) {
   );
 }
 
-export default function Dashboard() {
-  const [tab, setTab] = useState("insight");
+// Shape data coming out of /api/export into a list of well-named tables
+// that are suitable for XLSX sheets or CSV files. Each dataset = one sheet / one CSV.
+function formatCell(v) {
+  if (v == null) return "";
+  if (typeof v === "object") {
+    if (Array.isArray(v)) {
+      return v.length > 0 && typeof v[0] !== "object"
+        ? v.join(" | ")
+        : `[${v.length} items]`;
+    }
+    try { return JSON.stringify(v).slice(0, 500); } catch { return ""; }
+  }
+  return v;
+}
+
+function sanitizeSheetName(name) {
+  // Excel sheet name: max 31 chars, no / \ ? * [ ] :
+  return name.replace(/[\/\\?*\[\]:]/g, "_").slice(0, 31);
+}
+
+function sanitizeFileName(name) {
+  return name.replace(/[^\w\-]+/g, "_").replace(/_+/g, "_").slice(0, 60);
+}
+
+function toCSV(columns, rows) {
+  const esc = (v) => {
+    if (v == null) return "";
+    const s = String(v);
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+  return [columns.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))].join("\r\n");
+}
+
+function buildDatasets(exportData) {
+  const datasets = [];
+  const add = (name, columns, rows) => {
+    if (!columns || columns.length === 0 || !rows || rows.length === 0) return;
+    datasets.push({ name: sanitizeSheetName(name), columns, rows });
+  };
+
+  const cd = exportData?.cacheData || {};
+  const hd = exportData?.historyData || {};
+
+  // Ideas + Ideas Comments
+  const ideas = cd.ideas_data?.data;
+  if (Array.isArray(ideas)) {
+    const cols = ["id", "name", "pillar", "status", "description", "createdBy", "createdAt", "likes", "dislikes", "tactics", "commentsCount", "updatedAt", "order"];
+    add("Ideas", cols, ideas.map((i) => [
+      i.id, i.name, i.pillar || "", i.status || "Proposed",
+      i.description, i.createdBy, i.createdAt,
+      i.likes || 0, i.dislikes || 0,
+      (i.tactics || []).join(" | "),
+      (i.comments || []).length,
+      i.updatedAt || "",
+      i.order || "",
+    ]));
+    const commentRows = ideas.flatMap((i) => (i.comments || []).map((c) => [i.id, i.name, c.author, c.date, c.text]));
+    add("Ideas Comments", ["ideaId", "ideaName", "author", "date", "text"], commentRows);
+  }
+
+  // Tactics + Tactics Comments
+  const tactics = cd.tactics_data?.data;
+  if (Array.isArray(tactics)) {
+    const cols = ["id", "title", "channel", "pillar", "status", "objective", "kpi", "roleOfChannel", "audience", "audienceDetail", "format", "phase", "budget", "startDate", "endDate", "notes", "likes", "dislikes", "createdBy", "createdAt", "updatedAt", "order"];
+    add("Tactics", cols, tactics.map((t) => [
+      t.id, t.title || "", t.channel || "", t.pillar || "", t.status || "Proposed",
+      t.objective || "", t.kpi || "",
+      t.roleOfChannel || "",
+      Array.isArray(t.audience) ? t.audience.join(" | ") : (t.audience || ""),
+      t.audienceDetail || "", t.format || "", t.phase || "", t.budget || "",
+      t.startDate || "", t.endDate || "", t.notes || "",
+      t.likes || 0, t.dislikes || 0,
+      t.createdBy || "", t.createdAt || "", t.updatedAt || "",
+      t.order || "",
+    ]));
+    const commentRows = tactics.flatMap((t) => (t.comments || []).map((c) => [t.id, t.title || t.channel || "", c.author, c.date, c.text]));
+    add("Tactics Comments", ["tacticId", "tacticTitle", "author", "date", "text"], commentRows);
+  }
+
+  // Calendar
+  const cal = cd.calendar_data?.data;
+  const calEvents = Array.isArray(cal) ? cal : (Array.isArray(cal?.events) ? cal.events : null);
+  if (calEvents) {
+    const cols = ["id", "title", "description", "channel", "audience", "start", "end", "status", "createdBy", "createdAt", "sourceType", "sourceId"];
+    add("Calendar", cols, calEvents.map((e) => cols.map((c) => formatCell(e[c]))));
+  }
+
+  // Map Pins
+  const pins = cd.custom_map_pins?.data;
+  if (Array.isArray(pins)) {
+    const cols = ["id", "title", "description", "lat", "lng", "color", "city", "createdBy", "createdAt"];
+    add("Map Pins", cols, pins.map((p) => cols.map((c) => formatCell(p[c]))));
+  }
+
+  // News feeds
+  for (const key of ["feeds:madonna", "feeds:fashion", "feeds:gay", "feeds:culture"]) {
+    const items = cd[key]?.data?.items;
+    if (!Array.isArray(items) || items.length === 0) continue;
+    const cat = key.split(":")[1];
+    const label = `Feed - ${cat.charAt(0).toUpperCase() + cat.slice(1)}`;
+    const cols = ["title", "source", "type", "date", "url", "description"];
+    add(label, cols, items.map((i) => cols.map((c) => formatCell(i[c]))));
+  }
+
+  // Media Trend
+  const mti = cd.media_trend_cache?.data;
+  if (mti) {
+    if (Array.isArray(mti.queryScores)) {
+      const cols = ["label", "todayCount", "prevCount", "dailyChange", "baselineCount", "pctChange"];
+      add("Media Trend - Queries", cols, mti.queryScores.map((q) => cols.map((c) => formatCell(q[c]))));
+    }
+    const sumCols = ["fetchedAt", "isFirstRun", "baselineDate", "baseline", "index", "totalMentions", "dailyChange", "totalToday", "totalBaseline"];
+    add("Media Trend - Summary", sumCols, [sumCols.map((c) => formatCell(mti[c]))]);
+  }
+
+  // Media Feed Pool
+  const mfp = cd.media_feed_pool?.data;
+  const mfpItems = Array.isArray(mfp) ? mfp : (Array.isArray(mfp?.items) ? mfp.items : null);
+  if (mfpItems && mfpItems.length) {
+    const sample = mfpItems[0] || {};
+    const cols = Object.keys(sample).slice(0, 10);
+    add("Media Feed Pool", cols, mfpItems.map((i) => cols.map((c) => formatCell(i[c]))));
+  }
+
+  // Brand24 (7d / 14d / 30d)
+  for (const key of ["brand24_data", "brand24_data_14d", "brand24_data_30d"]) {
+    const d = cd[key]?.data;
+    if (!d) continue;
+    const mentions = Array.isArray(d) ? d : (d.mentions || d.items);
+    if (!Array.isArray(mentions) || mentions.length === 0) continue;
+    const sample = mentions[0] || {};
+    const cols = Object.keys(sample).slice(0, 12);
+    const label = key === "brand24_data" ? "Brand24 (7d)" : key === "brand24_data_14d" ? "Brand24 (14d)" : "Brand24 (30d)";
+    add(label, cols, mentions.map((m) => cols.map((c) => formatCell(m[c]))));
+  }
+
+  // Social Dashboard
+  const sd = cd.social_dashboard?.data;
+  if (sd && typeof sd === "object") {
+    if (Array.isArray(sd.reddit) && sd.reddit.length) {
+      const sample = sd.reddit[0] || {};
+      const cols = Object.keys(sample).slice(0, 12);
+      add("Social - Reddit", cols, sd.reddit.map((r) => cols.map((c) => formatCell(r[c]))));
+    }
+    if (Array.isArray(sd.youtube) && sd.youtube.length) {
+      const sample = sd.youtube[0] || {};
+      const cols = Object.keys(sample).slice(0, 12);
+      add("Social - YouTube", cols, sd.youtube.map((r) => cols.map((c) => formatCell(r[c]))));
+    }
+  }
+
+  // Social Composite
+  const sc = cd.social_composite?.data;
+  if (sc && typeof sc === "object" && !Array.isArray(sc)) {
+    const cols = Object.keys(sc).filter((k) => typeof sc[k] !== "object");
+    if (cols.length) add("Social Composite", cols, [cols.map((c) => formatCell(sc[c]))]);
+  }
+
+  // YouTube RAG
+  const ytv = cd.youtube_rag_videos?.data;
+  if (Array.isArray(ytv) && ytv.length) {
+    const sample = ytv[0] || {};
+    const cols = Object.keys(sample).slice(0, 12);
+    add("YouTube Videos", cols, ytv.map((v) => cols.map((c) => formatCell(v[c]))));
+  }
+  const ytc = cd.youtube_rag_comments?.data;
+  if (Array.isArray(ytc) && ytc.length) {
+    const sample = ytc[0] || {};
+    const cols = Object.keys(sample).slice(0, 12);
+    add("YouTube Comments", cols, ytc.map((c) => cols.map((k) => formatCell(c[k]))));
+  }
+  const ytt = cd.youtube_rag_themes?.data;
+  if (Array.isArray(ytt) && ytt.length) {
+    const sample = ytt[0] || {};
+    const cols = Object.keys(sample).slice(0, 12);
+    add("YouTube Themes", cols, ytt.map((t) => cols.map((c) => formatCell(t[c]))));
+  }
+
+  // AI Recommendations (flattened by category)
+  const air = cd.ai_recommendations?.data;
+  if (air && air.recommendations) {
+    const rows = [];
+    for (const [cat, recs] of Object.entries(air.recommendations)) {
+      if (!Array.isArray(recs)) continue;
+      recs.forEach((r) => rows.push([cat, r.type || "", r.title || "", r.description || ""]));
+    }
+    add("AI Recommendations", ["category", "type", "title", "description"], rows);
+  }
+
+  // Audience Bridge / Bear Hunt docs (drop raw content to keep sheets clean)
+  for (const [key, label] of [["audience_bridge_docs", "Audience Bridge Docs"], ["bear_hunt_docs", "Bear Hunt Docs"]]) {
+    const arr = cd[key]?.data;
+    if (!Array.isArray(arr) || arr.length === 0) continue;
+    const sample = arr[0] || {};
+    const cols = Object.keys(sample).filter((k) => k !== "content" && k !== "body").slice(0, 10);
+    add(label, cols, arr.map((d) => cols.map((c) => formatCell(d[c]))));
+  }
+
+  // Spotify (best-effort across common shapes)
+  const sp = cd.spotify_data?.data;
+  if (sp && typeof sp === "object") {
+    for (const subKey of ["tracks", "playlists", "artists", "items"]) {
+      const arr = sp[subKey];
+      if (!Array.isArray(arr) || arr.length === 0) continue;
+      const sample = arr[0] || {};
+      const cols = Object.keys(sample).slice(0, 12);
+      add(`Spotify - ${subKey.charAt(0).toUpperCase() + subKey.slice(1)}`, cols, arr.map((r) => cols.map((c) => formatCell(r[c]))));
+    }
+  }
+
+  // Historical time-series
+  const histLabels = {
+    media_trend_history: "Hist - Media Trend",
+    brand24_history: "Hist - Brand24",
+    social_composite_history: "Hist - Social Composite",
+    youtube_rag_history: "Hist - YouTube RAG",
+    spotify_popularity_history: "Hist - Spotify Popularity",
+    wikipedia_history: "Hist - Wikipedia",
+  };
+  for (const [key, entries] of Object.entries(hd)) {
+    if (!Array.isArray(entries) || entries.length === 0) continue;
+    const label = histLabels[key] || key;
+    const sample = entries.find((e) => e && typeof e === "object") || {};
+    const cols = typeof sample === "object" && sample !== null && Object.keys(sample).length
+      ? Object.keys(sample).slice(0, 15)
+      : ["value"];
+    const rows = entries.map((e) =>
+      e && typeof e === "object" ? cols.map((c) => formatCell(e[c])) : [formatCell(e)]
+    );
+    add(label, cols, rows);
+  }
+
+  return datasets;
+}
+
+function MasterRefresh() {
+  const [running, setRunning] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  async function refreshAll() {
+    setRunning(true);
+    setStatus("Refreshing all data sources...");
+
+    const endpoints = [
+      { name: "News (Madonna)", url: "/api/news?category=madonna&refresh=1" },
+      { name: "News (Fashion)", url: "/api/news?category=fashion&refresh=1" },
+      { name: "News (Gay)", url: "/api/news?category=gay&refresh=1" },
+      { name: "News (Culture)", url: "/api/news?category=culture&refresh=1" },
+      { name: "Media Index", url: "/api/media-index?refresh=1" },
+      { name: "Brand24", url: "/api/brand24?refresh=1" },
+      { name: "Social Dashboard", url: "/api/social-dashboard?refresh=1" },
+      { name: "Social Composite", url: "/api/social?refresh=1" },
+      { name: "YouTube RAG", url: "/api/youtube-rag?refresh=1" },
+      { name: "AI Strategy", url: "/api/ai-strategy?refresh=1" },
+    ];
+
+    let done = 0;
+    const results = [];
+
+    for (const ep of endpoints) {
+      setStatus(`${ep.name}... (${done}/${endpoints.length})`);
+      try {
+        const r = await fetch(ep.url, { signal: AbortSignal.timeout(30000) });
+        results.push({ name: ep.name, ok: r.ok, status: r.status });
+      } catch (err) {
+        results.push({ name: ep.name, ok: false, error: err.message });
+      }
+      done++;
+    }
+
+    const succeeded = results.filter(r => r.ok).length;
+    const failed = results.filter(r => !r.ok);
+    setStatus(`Done: ${succeeded}/${endpoints.length} succeeded${failed.length > 0 ? ` — failed: ${failed.map(f => f.name).join(", ")}` : ""}`);
+    setRunning(false);
+    setTimeout(() => setStatus(null), 8000);
+  }
+
+  const [downloading, setDownloading] = useState(false);
+
+  async function downloadMemory() {
+    setDownloading(true);
+    setStatus("Exporting all database records...");
+
+    let exportData;
+    try {
+      const r = await fetch("/api/export");
+      exportData = await r.json();
+    } catch (err) {
+      setStatus("Export failed: " + err.message);
+      setDownloading(false);
+      return;
+    }
+
+    const ts = new Date();
+    const tsStr = ts.toISOString().slice(0, 19).replace(/[T:]/g, "-");
+    const tsDisplay = ts.toLocaleString("en-GB", { dateStyle: "full", timeStyle: "medium" });
+    const esc = (s) => (s || "").toString().replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    let doc = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Pulse — Full Data Export ${tsStr}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>body{font-family:'Inter Tight',system-ui,-apple-system,sans-serif;color:#222;margin:0;padding:0;background:#fff}
+    h1{font-size:24px;border-bottom:3px solid #FFD500;padding-bottom:8px}
+    h2{font-size:18px;color:#333;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:24px}
+    h3{font-size:14px;color:#555;margin-top:14px}
+    h4{font-size:12px;color:#777;margin-top:10px}
+    p{margin:6px 0;line-height:1.45;word-wrap:break-word;overflow-wrap:break-word}
+    table{border-collapse:collapse;width:100%;margin:8px 0;table-layout:fixed}
+    th,td{border:1px solid #ddd;padding:4px 6px;font-size:9px;text-align:left;vertical-align:top;word-wrap:break-word;overflow-wrap:break-word;word-break:break-word}
+    th{background:#f5f5f5;font-weight:700;font-size:9px}
+    .ts{color:#999;font-size:9px}
+    .meta{color:#888;font-size:10px;margin:4px 0}
+    .section{page-break-inside:avoid}
+    </style></head><body>`;
+
+    doc += `<h1>Pulse — Full Data Export</h1>`;
+    doc += `<p class="meta">Exported: ${tsDisplay}</p>`;
+    doc += `<p class="meta">VCCP Media Cultural Intelligence — All database records</p>`;
+    doc += `<p class="meta">Export timestamp: ${exportData.exportedAt}</p>`;
+
+    // Helper to render any data object as a readable table.
+    // inCell=true tightens string length so table cells never overflow the page.
+    function renderObject(obj, depth = 0, inCell = false) {
+      const strCap = inCell ? 200 : 800;
+      if (obj === null || obj === undefined) return "<em>null</em>";
+      if (typeof obj === "string") return esc(obj).slice(0, strCap);
+      if (typeof obj === "number" || typeof obj === "boolean") return String(obj);
+      if (Array.isArray(obj)) {
+        if (obj.length === 0) return "<em>empty</em>";
+        if (typeof obj[0] !== "object") return obj.map(v => esc(String(v))).join(", ").slice(0, strCap);
+        if (depth > 1) return `[${obj.length} items]`;
+        // Render array of objects as table — max 10 columns to avoid page overflow
+        const keys = [...new Set(obj.flatMap(item => typeof item === "object" && item ? Object.keys(item) : []))].slice(0, 10);
+        if (keys.length === 0) return `[${obj.length} items]`;
+        const colWidth = `${Math.floor(100 / keys.length)}%`;
+        let t = `<table><tr>${keys.map(k => `<th style="width:${colWidth}">${esc(k)}</th>`).join("")}</tr>`;
+        obj.forEach(item => {
+          t += `<tr>${keys.map(k => `<td>${typeof item === "object" && item ? renderObject(item[k], depth + 1, true) : esc(String(item)).slice(0, 200)}</td>`).join("")}</tr>`;
+        });
+        t += "</table>";
+        return t;
+      }
+      if (typeof obj === "object") {
+        if (depth > 2) return "{...}";
+        return Object.entries(obj).map(([k, v]) => `<b>${esc(k)}:</b> ${renderObject(v, depth + 1, inCell)}`).join("<br/>");
+      }
+      return esc(String(obj));
+    }
+
+    // PART 1: All cached data stores
+    doc += `<h2>PART 1: Current Data Stores</h2>`;
+    const cacheLabels = {
+      "media_trend_cache": "Media Trend Index",
+      "media_feed_pool": "Media Feed Pool",
+      "feeds:madonna": "Madonna News Feed",
+      "feeds:fashion": "Fashion News Feed",
+      "feeds:gay": "LGBTQ+ News Feed",
+      "feeds:culture": "Culture News Feed",
+      "brand24_data": "Social Listening (7d)",
+      "brand24_data_14d": "Social Listening (14d)",
+      "brand24_data_30d": "Social Listening (30d)",
+      "social_dashboard": "Social Dashboard (Reddit + YouTube)",
+      "social_composite": "Social Composite Index",
+      "youtube_rag_cache": "YouTube RAG Cache",
+      "youtube_rag_videos": "YouTube Videos Store",
+      "youtube_rag_comments": "YouTube Comments Store",
+      "youtube_rag_themes": "YouTube Themes",
+      "ai_recommendations": "AI Strategy Recommendations",
+      "ideas_data": "Ideas Board",
+      "calendar_data": "Campaign Calendar",
+      "custom_map_pins": "Custom Map Pins",
+      "audience_bridge_docs": "Audience Bridge Documents",
+      "bear_hunt_docs": "Bear Hunt Documents",
+      "spotify_data": "Spotify Data",
+    };
+
+    for (const [key, entry] of Object.entries(exportData.cacheData || {})) {
+      const label = cacheLabels[key] || key;
+      const data = entry.data;
+      const fetchedAt = entry.fetchedAt || data?.fetchedAt || data?.cachedAt || data?.generatedAt;
+      doc += `<div class="section"><h3>${label}</h3>`;
+      if (fetchedAt) doc += `<p class="ts">Last updated: ${fetchedAt}</p>`;
+      doc += `<p class="ts">Cache key: ${key}</p>`;
+
+      // Special handling for known data shapes
+      if (key === "ideas_data" && Array.isArray(data)) {
+        data.forEach(idea => {
+          doc += `<h4>${esc(idea.name)} <span class="ts">${idea.createdAt}</span></h4>`;
+          doc += `<p class="meta">By ${esc(idea.createdBy)} | Likes: ${idea.likes || 0} | Dislikes: ${idea.dislikes || 0}</p>`;
+          if (idea.description) doc += `<p>${esc(idea.description)}</p>`;
+          if (idea.tactics?.length) { doc += `<ul>`; idea.tactics.forEach(t => { doc += `<li>${esc(t)}</li>`; }); doc += `</ul>`; }
+          if (idea.comments?.length) {
+            idea.comments.forEach(c => { doc += `<p class="meta"><b>${esc(c.author)}</b> <span class="ts">${c.date}</span>: ${esc(c.text)}</p>`; });
+          }
+        });
+      } else if (key.startsWith("feeds:") && data?.items) {
+        doc += `<p>Total: ${data.totalFound} | Brave: ${data.braveResults} | RSS: ${data.rssResults} <span class="ts">${data.cachedAt || ""}</span></p>`;
+        doc += `<table><tr><th>Title</th><th>Source</th><th>Type</th><th>Date</th></tr>`;
+        (data.items || []).forEach(i => { doc += `<tr><td>${esc(i.title)}</td><td>${esc(i.source)}</td><td>${i.type}</td><td class="ts">${i.date || ""}</td></tr>`; });
+        doc += `</table>`;
+      } else if (key === "ai_recommendations" && data?.recommendations) {
+        doc += `<p class="ts">Generated: ${data.generatedAt}</p>`;
+        ["madonna", "fashion", "gay", "culture"].forEach(cat => {
+          const recs = data.recommendations[cat];
+          if (!recs?.length) return;
+          doc += `<h4>${cat.charAt(0).toUpperCase() + cat.slice(1)}</h4>`;
+          recs.forEach(r => { doc += `<p><b>[${r.type}] ${esc(r.title)}</b><br/>${esc(r.description)}</p>`; });
+        });
+      } else if (Array.isArray(data)) {
+        doc += renderObject(data);
+      } else if (typeof data === "object" && data) {
+        // Render top-level keys
+        for (const [k, v] of Object.entries(data)) {
+          if (k === "_debug") continue;
+          if (k === "items" && Array.isArray(v)) {
+            doc += `<h4>${k} (${v.length} entries)</h4>`;
+            doc += renderObject(v.slice(0, 50));
+            if (v.length > 50) doc += `<p class="meta">... and ${v.length - 50} more</p>`;
+          } else if (Array.isArray(v) && v.length > 0 && typeof v[0] === "object") {
+            doc += `<h4>${k} (${v.length} entries)</h4>`;
+            doc += renderObject(v.slice(0, 30));
+            if (v.length > 30) doc += `<p class="meta">... and ${v.length - 30} more</p>`;
+          } else {
+            doc += `<p><b>${esc(k)}:</b> ${renderObject(v)}</p>`;
+          }
+        }
+      }
+      doc += `</div>`;
+    }
+
+    // PART 2: All history / time-series data
+    doc += `<h2>PART 2: Historical Time-Series Data</h2>`;
+    const historyLabels = {
+      "media_trend_history": "Media Trend History",
+      "brand24_history": "Social Listening History",
+      "social_composite_history": "Social Composite History",
+      "youtube_rag_history": "YouTube RAG History",
+      "spotify_popularity_history": "Spotify Popularity History",
+      "wikipedia_history": "Wikipedia Pageview History",
+    };
+
+    for (const [key, entries] of Object.entries(exportData.historyData || {})) {
+      const label = historyLabels[key] || key;
+      doc += `<div class="section"><h3>${label} (${entries.length} entries)</h3>`;
+      doc += `<p class="ts">History key: ${key}</p>`;
+      if (entries.length > 0) {
+        doc += renderObject(entries);
+      }
+      doc += `</div>`;
+    }
+
+    doc += `<hr/><p class="meta">End of full data export — ${Object.keys(exportData.cacheData || {}).length} data stores, ${Object.keys(exportData.historyData || {}).length} history series</p>`;
+    doc += `<p class="meta">Pulse — VCCP Media Cultural Intelligence</p>`;
+    doc += `</body></html>`;
+
+    // Build a real .docx from the same HTML so Word / Pages render headings,
+    // tables, lists, and <br/> line breaks natively. html-docx-js is loaded
+    // on demand so it never runs at build/SSR time.
+    let blob;
+    let filename;
+    try {
+      const mod = await import("html-docx-js/dist/html-docx");
+      const htmlDocx = mod.default || mod;
+      // Landscape + tight margins keep wide tables on the page.
+      blob = htmlDocx.asBlob(doc, { orientation: "landscape", margins: { top: 540, right: 540, bottom: 540, left: 540 } });
+      filename = `Pulse-Full-Export-${tsStr}.docx`;
+    } catch (err) {
+      // Fallback: ship the HTML directly if the converter fails to load.
+      blob = new Blob([doc], { type: "text/html;charset=utf-8" });
+      filename = `Pulse-Full-Export-${tsStr}.html`;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Revoke after a tick so Safari/Firefox complete the download
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+    setStatus("Download complete");
+    setDownloading(false);
+    setTimeout(() => setStatus(null), 5000);
+  }
+
+  async function fetchExportData() {
+    const r = await fetch("/api/export");
+    return await r.json();
+  }
+
+  async function downloadXlsx() {
+    setDownloading(true);
+    setStatus("Building XLSX workbook...");
+    try {
+      const exportData = await fetchExportData();
+      const datasets = buildDatasets(exportData);
+      if (datasets.length === 0) {
+        setStatus("No data to export");
+        return;
+      }
+      const XLSX = await import("xlsx-js-style");
+      const wb = XLSX.utils.book_new();
+      for (const ds of datasets) {
+        const aoa = [ds.columns, ...ds.rows];
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        // Column widths derived from content — cap at 50 so nothing runs wild
+        ws["!cols"] = ds.columns.map((col, i) => {
+          const sampleLen = Math.max(
+            String(col).length,
+            ...ds.rows.slice(0, 200).map((r) => String(r[i] ?? "").length)
+          );
+          return { wch: Math.min(50, Math.max(10, sampleLen + 2)) };
+        });
+        ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+        XLSX.utils.book_append_sheet(wb, ws, ds.name);
+      }
+      const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+      XLSX.writeFile(wb, `Pulse-Full-Export-${ts}.xlsx`);
+      setStatus("Download complete");
+    } catch (err) {
+      setStatus("XLSX export failed: " + err.message);
+    } finally {
+      setDownloading(false);
+      setTimeout(() => setStatus(null), 5000);
+    }
+  }
+
+  async function downloadCsvs() {
+    setDownloading(true);
+    setStatus("Building CSV bundle...");
+    try {
+      const exportData = await fetchExportData();
+      const datasets = buildDatasets(exportData);
+      if (datasets.length === 0) {
+        setStatus("No data to export");
+        return;
+      }
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      for (const ds of datasets) {
+        zip.file(`${sanitizeFileName(ds.name)}.csv`, toCSV(ds.columns, ds.rows));
+      }
+      const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Pulse-Full-Export-${ts}-csvs.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setStatus("Download complete");
+    } catch (err) {
+      setStatus("CSV export failed: " + err.message);
+    } finally {
+      setDownloading(false);
+      setTimeout(() => setStatus(null), 5000);
+    }
+  }
+
+  const dlBtn = {
+    padding: "10px 18px", fontSize: 12, fontWeight: 700,
+    color: "#EDEDE8", background: "transparent",
+    border: "1px solid #222", borderRadius: 8,
+    fontFamily: "'Inter Tight', system-ui, sans-serif",
+    transition: "all 0.15s",
+  };
+  const disabledBtn = { ...dlBtn, color: "#777", background: "#222", cursor: "wait" };
+
+  return (
+    <div style={{ marginTop: 32, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <button onClick={downloadMemory} disabled={downloading || running}
+          style={{ ...(downloading ? disabledBtn : dlBtn), cursor: downloading ? "wait" : "pointer" }}>
+          {downloading ? "Collecting..." : "Download as DOCX"}
+        </button>
+        <button onClick={downloadXlsx} disabled={downloading || running}
+          style={{ ...(downloading ? disabledBtn : dlBtn), cursor: downloading ? "wait" : "pointer" }}>
+          Download as XLSX
+        </button>
+        <button onClick={downloadCsvs} disabled={downloading || running}
+          style={{ ...(downloading ? disabledBtn : dlBtn), cursor: downloading ? "wait" : "pointer" }}>
+          Download as CSVs
+        </button>
+        {status && (
+          <span style={{ fontSize: 10, color: running || downloading ? "#A78BFA" : status.includes("failed") ? "#EF4444" : "#34D399", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+            {status}
+          </span>
+        )}
+      </div>
+      <button onClick={refreshAll} disabled={running || downloading} style={{
+        padding: "10px 24px", fontSize: 12, fontWeight: 700,
+        color: running ? "#777" : "#0C0C0C",
+        background: running ? "#222" : "#FFD500",
+        border: "none", borderRadius: 8, cursor: running ? "wait" : "pointer",
+        fontFamily: "'Inter Tight', system-ui, sans-serif",
+        transition: "all 0.15s",
+      }}>
+        {running ? "Refreshing..." : "Refresh Everything"}
+      </button>
+    </div>
+  );
+}
+
+export async function getStaticProps() {
+  const dir = path.join(process.cwd(), "Market Research");
+
+  function parseCSV(text) {
+    const rows = [];
+    let current = "";
+    let inQuotes = false;
+    const lines = text.split("\n");
+    for (const line of lines) {
+      for (let i = 0; i < line.length; i++) {
+        if (line[i] === '"') inQuotes = !inQuotes;
+      }
+      current += (current ? "\n" : "") + line;
+      if (!inQuotes) { rows.push(current); current = ""; }
+    }
+    if (current) rows.push(current);
+    return rows.map(row => {
+      const cols = []; let field = ""; let q = false;
+      for (let i = 0; i < row.length; i++) {
+        if (row[i] === '"') { q = !q; }
+        else if (row[i] === ',' && !q) { cols.push(field.trim()); field = ""; }
+        else { field += row[i]; }
+      }
+      cols.push(field.trim());
+      return cols;
+    });
+  }
+
+  // Server-side theme classification (mirrors AudienceCommentsGraph keywords)
+  const THEME_KEYWORDS = [
+    { id: "nostalgia", keywords: ["remember", "nostalgia", "childhood", "grew up", "memories", "miss", "classic", "timeless", "old", "back in the day", "years ago"] },
+    { id: "musical", keywords: ["voice", "song", "music", "album", "production", "beat", "melody", "dance", "sound", "sing", "vocal", "masterpiece", "genius"] },
+    { id: "icon", keywords: ["queen", "icon", "legend", "goat", "greatest", "best", "pioneer", "original", "influence", "impact"] },
+    { id: "emotional", keywords: ["love", "heart", "cry", "feel", "soul", "beautiful", "amazing", "perfect", "tears", "moved", "emotion"] },
+    { id: "empowerment", keywords: ["feminist", "feminism", "empowered", "strong woman", "powerful woman", "independent", "boss", "trailblazer", "barrier", "broke the mold"] },
+    { id: "sexuality", keywords: ["sexy", "sex", "provocative", "controversial", "bold", "daring", "scandalous", "shock", "erotica", "book", "naked"] },
+    { id: "discovery", keywords: ["first time", "just found", "discovered", "never heard", "didn't know", "wow", "omg", "wait"] },
+    { id: "humour", keywords: ["lol", "lmao", "haha", "funny", "hilarious", "dead", "joke", "slay", "ate", "serve", "camp", "iconic moment"] },
+    { id: "cultural", keywords: ["era", "generation", "culture", "society", "fashion", "style", "trend", "relevant", "today"] },
+    { id: "criticism", keywords: ["overrated", "hate", "bad", "worst", "old", "surgery", "cringe", "fake"] },
+  ];
+  function classifyComment(content) {
+    const lower = (content || "").toLowerCase();
+    for (const theme of THEME_KEYWORDS) {
+      for (const kw of theme.keywords) {
+        if (lower.includes(kw)) return theme.id;
+      }
+    }
+    return "general";
+  }
+
+  // YouTube comments - classify ALL for accurate counts, sample for visualization
+  const commentFiles = ["youtube_comments_bank_1.csv","youtube_comments_bank_2.csv","youtube_comments_bank_3.csv","youtube_comments_bank_4.csv","youtube_comments_bank_5.csv"];
+  let allComments = [];
+  let totalCommentCount = 0;
+  const fullThemeCounts = {};
+  for (const f of commentFiles) {
+    try {
+      const text = fs.readFileSync(path.join(dir, f), "utf-8");
+      const rows = parseCSV(text);
+      const data = rows.slice(1).filter(r => r.length >= 4 && r[2]).map(r => ({
+        username: r[0] || "", date: r[1] || "", content: r[2] || "", video_title: r[3] || ""
+      }));
+      totalCommentCount += data.length;
+      // Classify all comments server-side for accurate theme counts
+      data.forEach(c => {
+        const theme = classifyComment(c.content);
+        fullThemeCounts[theme] = (fullThemeCounts[theme] || 0) + 1;
+      });
+      // Sample ~4000 per file for visualization (20K total across 5 files)
+      const sample = data.sort(() => Math.random() - 0.5).slice(0, 4000);
+      allComments = allComments.concat(sample);
+    } catch(e) {}
+  }
+
+  // GWI data - extract ALL metric rows (Index, Column %, Row %, Responses)
+  // CSV has two column layouts:
+  //   Location data (r[0] filled):    r[0]=category, r[1]=entity, r[2]=metric, r[3]=totals, r[4-10]=segments
+  //   Non-location data (r[0] empty): r[0]="", r[1]=category, r[2]=entity, r[3]=metric, r[4]=totals, r[5-11]=segments
+  const VALID_METRICS = ["Index", "Column %", "Row %", "Responses"];
+  let gwiData = [];
+  try {
+    const gwiText = fs.readFileSync(path.join(dir, "Project_Sweet_Tooth_Master - All Internet Users (Audience....csv"), "utf-8");
+    const rows = parseCSV(gwiText);
+    let lastQuestion = "";
+    let lastEntityName = "";
+    let isShifted = false;
+    for (let i = 2; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r.length < 8) continue;
+      if (r.every(c => !c || c.trim() === "")) continue;
+
+      if (r[0] && r[0].trim()) {
+        lastQuestion = r[0].trim();
+        isShifted = false;
+      } else if (r[1] && r[1].trim() && r[2] && r[2].trim() && (VALID_METRICS.includes(r[3]) || r[3] === "Universe")) {
+        lastQuestion = r[1].trim();
+        isShifted = true;
+      }
+
+      if (!isShifted) {
+        if (r[1] && r[1].trim()) lastEntityName = r[1].trim();
+        const metric = r[2];
+        if (VALID_METRICS.includes(metric) && lastEntityName) {
+          const vals = [r[4],r[5],r[6],r[7],r[8],r[9],r[10]].map(v => parseFloat(v?.replace(/,/g, "").replace(/%/g, "")) || 0);
+          if (vals.some(v => v > 0)) {
+            gwiData.push({ question: lastQuestion, name: lastEntityName, metric, genJones: vals[0], millennial: vals[1], genX: vals[2], genZ: vals[3], disco: vals[4], fashion: vals[5], nightlife: vals[6] });
+          }
+        }
+      } else {
+        if (r[2] && r[2].trim()) lastEntityName = r[2].trim();
+        const metric = r[3];
+        if (VALID_METRICS.includes(metric) && lastEntityName) {
+          const vals = [r[5],r[6],r[7],r[8],r[9],r[10],r[11]].map(v => parseFloat(v?.replace(/,/g, "").replace(/%/g, "")) || 0);
+          if (vals.some(v => v > 0)) {
+            gwiData.push({ question: lastQuestion, name: lastEntityName, metric, genJones: vals[0], millennial: vals[1], genX: vals[2], genZ: vals[3], disco: vals[4], fashion: vals[5], nightlife: vals[6] });
+          }
+        }
+      }
+    }
+  } catch(e) {}
+
+  // Destinations (Murals) with geocoded coords
+  const muralCoords = {
+    "E1 6LA": [51.5229, -0.0717], "E1 6RF": [51.5207, -0.0717], "SW9 8EQ": [51.4613, -0.1145],
+    "SW9 8JX": [51.4624, -0.1163], "SE1 6JT": [51.4720, -0.0555], "NW1 0JH": [51.5392, -0.1426],
+    "NW1 8AG": [51.5414, -0.1466], "EC2A 3EJ": [51.5256, -0.0825], "EC2A 3NT": [51.5250, -0.0807],
+    "EC1V 9LP": [51.5264, -0.0878], "EC2A 3PQ": [51.5246, -0.0784], "E1 6QR": [51.5199, -0.0726],
+    "E1 6QL": [51.5207, -0.0717], "WC2H 8NJ": [51.5145, -0.1290], "M4 4AA": [53.4858, -2.2382],
+    "M4 1EU": [53.4849, -2.2360], "M1 1FB": [53.4826, -2.2335]
+  };
+  let murals = [];
+  try {
+    const dText = fs.readFileSync(path.join(dir, "destinations.csv"), "utf-8");
+    const rows = parseCSV(dText);
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r.length < 4 || !r[0]) continue;
+      const pc = r[3];
+      const coords = muralCoords[pc] || [51.51 + (Math.random()-0.5)*0.04, -0.1 + (Math.random()-0.5)*0.06];
+      murals.push({ name: r[0], address: r[1], city: r[2], postcode: pc, lat: coords[0], lng: coords[1] });
+    }
+  } catch(e) {}
+
+  // LGBTQ venues with geocoded coords
+  const venueCoords = {
+    "W1D 4UD": [51.5134, -0.1313], "SW4 6DH": [51.4625, -0.1477], "E2 6NB": [51.5272, -0.0618],
+    "EC1V 1JN": [51.5270, -0.0889], "N1 9SD": [51.5340, -0.1240], "W1D 3JN": [51.5136, -0.1318],
+    "WC2N 6PA": [51.5074, -0.1223], "W1H 7AF": [51.5140, -0.1620], "SE11 4LD": [51.4890, -0.1097],
+    "E9 5EN": [51.5454, -0.0354], "E2 6DG": [51.5242, -0.0718], "W1D 6HN": [51.5138, -0.1320],
+    "E8 2PB": [51.5494, -0.0752], "N16 8BJ": [51.5535, -0.0741], "W1D 6QA": [51.5134, -0.1323],
+    "SE11 5QY": [51.4855, -0.1134], "SW8 1RT": [51.4815, -0.1225], "W1F 0TA": [51.5126, -0.1352],
+    "W1D 6QB": [51.5135, -0.1325], "W1D 4UR": [51.5133, -0.1310], "WC1N 1AB": [51.5266, -0.1203],
+    "SE10 8DE": [51.4728, -0.0082], "SE1 7AE": [51.4997, -0.1138], "E8 2AA": [51.5480, -0.0760],
+    "WC2N 4JF": [51.5082, -0.1264], "WC2N 6NG": [51.5086, -0.1239], "SE15 4TL": [51.4702, -0.0667],
+    "NW3 1RE": [51.5560, -0.1781], "W1F 8QL": [51.5140, -0.1360], "WC2H 7BA": [51.5113, -0.1308],
+    "E9 6RG": [51.5400, -0.0414], "W1D 5LB": [51.5136, -0.1316], "SE8 5TQ": [51.4776, -0.0268],
+    "E2 7SB": [51.5298, -0.0622], "SE15 3QQ": [51.4658, -0.0558], "E14 7NW": [51.5118, -0.0265],
+    "WB2H 8BU": [51.5109, -0.1272], "E2 9ED": [51.5323, -0.0600], "WC2N 6HH": [51.5095, -0.1251],
+    "SE1 6AQ": [51.4937, -0.0970], "SE10 8ER": [51.4774, -0.0112], "SE11 5HY": [51.4848, -0.1145],
+    "W1D 6DR": [51.5126, -0.1339], "W1D 5JL": [51.5130, -0.1314], "W14 9NS": [51.4870, -0.2010],
+    "E20 1FT": [51.5437, -0.0136], "SE8 4AU": [51.4779, -0.0277], "SW4 7UJ": [51.4619, -0.1449],
+    "N1 9SD2": [51.5341, -0.1242], "SE1 7TW": [51.4933, -0.1203], "W1T 5EN": [51.5218, -0.1371],
+    "N16 7XB": [51.5544, -0.0739], "W1D 6QD": [51.5133, -0.1328], "E8 4AE": [51.5537, -0.0655],
+    "E14 7JD": [51.5097, -0.0253], "E5 8EE": [51.5572, -0.0465], "W1D 7PL": [51.5126, -0.1336],
+    "NW1 3EE": [51.5283, -0.1353]
+  };
+  let venues = [];
+  try {
+    const vText = fs.readFileSync(path.join(dir, "open_london_lgbtq_venues.csv"), "utf-8");
+    const rows = parseCSV(vText);
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r.length < 2 || !r[0]) continue;
+      const addr = r[1] || "";
+      const pcMatch = addr.match(/([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})/i);
+      const pc = pcMatch ? pcMatch[1].toUpperCase().replace(/\s+/g, " ") : "";
+      const pcKey = pc.replace(/\s/g, " ");
+      const coords = venueCoords[pcKey] || venueCoords[pc.replace(/\s/g, "")] || [51.51 + (Math.random()-0.5)*0.03, -0.1 + (Math.random()-0.5)*0.05];
+      venues.push({ name: r[0], address: addr, lat: coords[0], lng: coords[1] });
+    }
+  } catch(e) {}
+
+  // Warner Sites (flyposting, Manchester murals, London Underground, Heathrow corridor)
+  let sites = { flyposting: [], manchesterMurals: [], londonUnderground: [], heathrowSites: [] };
+  try {
+    const raw = fs.readFileSync(path.join(dir, "warner-sites.json"), "utf-8");
+    sites = JSON.parse(raw);
+  } catch (e) {}
+
+  return { props: { comments: allComments, gwiData, murals, venues, sites, fullThemeCounts, totalCommentCount } };
+}
+
+export default function Dashboard({ comments = [], gwiData = [], murals = [], venues = [], sites = {}, fullThemeCounts = {}, totalCommentCount = 0 }) {
+  const [tab, setTab] = useState("dashboard");
   const [authed, setAuthed] = useState(false);
   const [pw, setPw] = useState("");
+  const [researchSubTab, setResearchSubTab] = useState("library");
+  const [dataReady, setDataReady] = useState(false);
+  const [prefetchProgress, setPrefetchProgress] = useState(0);
+  const [loginImages, setLoginImages] = useState([
+    "/homepage-rotation/FirstImage.png",
+  ]);
+  const [loginImageIndex, setLoginImageIndex] = useState(0);
+  const [loginImagesReady, setLoginImagesReady] = useState(false);
+
+  useEffect(() => {
+    if (authed) return;
+    const rest = Array.from({ length: 16 }, (_, i) => `/homepage-rotation/rotation-${String(i + 1).padStart(2, "0")}.png`);
+    for (let i = rest.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [rest[i], rest[j]] = [rest[j], rest[i]];
+    }
+    const sequence = [
+      "/homepage-rotation/FirstImage.png",
+      ...rest,
+    ];
+    setLoginImages(sequence);
+    let cancelled = false;
+    Promise.all(sequence.map(src => new Promise(resolve => {
+      const img = new window.Image();
+      img.onload = img.onerror = () => resolve();
+      img.src = src;
+    }))).then(() => { if (!cancelled) setLoginImagesReady(true); });
+    return () => { cancelled = true; };
+  }, [authed]);
+
+  useEffect(() => {
+    if (authed || !loginImagesReady || loginImages.length < 2) return;
+    const timer = setInterval(() => {
+      setLoginImageIndex(i => (i + 1) % loginImages.length);
+    }, 500);
+    return () => clearInterval(timer);
+  }, [authed, loginImagesReady, loginImages.length]);
+
+  // Background cache warmer — fires API calls after auth so subsequent tab
+  // visits hit warm caches. Does NOT gate the UI: dashboard is interactive
+  // immediately and each tab shows its own skeleton while its data loads.
+  useEffect(() => {
+    if (!authed || dataReady) return;
+    const endpoints = [
+      "/api/brand24",
+      "/api/apple-charts",
+      "/api/lastfm",
+      "/api/kworb",
+      "/api/market-strength",
+      "/api/media-index",
+      "/api/wikipedia-pageviews",
+      "/api/social-dashboard",
+      "/api/news?category=madonna",
+    ];
+    const total = endpoints.length;
+    let done = 0;
+    setDataReady(true); // reveal dashboard immediately — prefetch is non-blocking
+    endpoints.forEach(url => {
+      fetch(url).catch(() => null).finally(() => {
+        done += 1;
+        setPrefetchProgress(done / total);
+      });
+    });
+  }, [authed, dataReady]);
+
+  // Tab background — all 17 rotation images (including FirstImage monochrome)
+  // are in the pool; each tab switch picks a new random image, guaranteed
+  // different from the currently-displayed one, with a smooth crossfade.
+  const tabBackgrounds = useMemo(() => [
+    "/homepage-rotation/FirstImage.png",
+    ...Array.from({ length: 16 }, (_, i) => `/homepage-rotation/rotation-${String(i + 1).padStart(2, "0")}.png`),
+  ], []);
+  const [tabBg, setTabBg] = useState(() => ({
+    a: tabBackgrounds[Math.floor(Math.random() * tabBackgrounds.length)],
+    b: null,
+    active: "a",
+  }));
+  const prevTabRef = useRef(null);
+
+  useEffect(() => {
+    if (!authed) return;
+    if (prevTabRef.current === tab) return;
+    const isFirstTabChange = prevTabRef.current === null;
+    prevTabRef.current = tab;
+    if (isFirstTabChange) return;
+    setTabBg(prev => {
+      const currentImg = prev.active === "a" ? prev.a : prev.b;
+      const pool = tabBackgrounds.filter(img => img && img !== currentImg);
+      const next = pool[Math.floor(Math.random() * pool.length)];
+      return prev.active === "a"
+        ? { ...prev, b: next, active: "b" }
+        : { ...prev, a: next, active: "a" };
+    });
+  }, [tab, authed, tabBackgrounds]);
 
   if (!authed) {
     return (
-      <div style={{ background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
-        <div style={{ textAlign: "center" }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y }}>VCCPm cultural intelligence</span>
-          <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, margin: "8px 0 24px", letterSpacing: "-0.02em" }}>Madonna</h1>
-          <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif" }} autoFocus />
+      <div style={{
+        minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: "'Inter Tight', system-ui, sans-serif",
+        background: BG,
+        position: "relative",
+        overflow: "hidden",
+      }}>
+        {loginImages.map((src, i) => (
+          <img
+            key={src}
+            src={src}
+            alt=""
+            aria-hidden="true"
+            decoding="async"
+            style={{
+              position: "absolute", inset: 0, width: "100%", height: "100%",
+              objectFit: "cover", objectPosition: "center",
+              opacity: i === loginImageIndex ? 1 : 0,
+              transition: "opacity 180ms ease-in-out",
+              pointerEvents: "none",
+            }}
+          />
+        ))}
+        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.3)" }} />
+        <div style={{ textAlign: "center", position: "relative", zIndex: 1 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
+          <div style={{ margin: "12px 0 8px" }}>
+            <PulseParticleText text="Pulse" fontSize={140} color={WHITE} mouseRadius={130} />
+          </div>
+          <div style={{ height: 3, width: 180, background: Y, borderRadius: 2, margin: "14px auto 32px" }} />
+          <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: "rgba(21,21,21,0.8)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif", backdropFilter: "blur(10px)" }} autoFocus />
           <div style={{ marginTop: 12 }}>
             <button onClick={() => { if (pw === "Tune5") setAuthed(true); }} style={{ background: Y, color: BG, border: "none", borderRadius: 8, padding: "10px 32px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Enter</button>
           </div>
@@ -77,35 +1023,82 @@ export default function Dashboard() {
   }
 
   return (
-    <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Newsreader', 'Georgia', serif", color: WHITE }}>
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 24px" }}>
+    <>
+    <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Inter Tight', system-ui, sans-serif", color: WHITE, position: "relative" }}>
+      {/* Per-tab background image with smooth crossfade on tab switch */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
+        {tabBg.a && (
+          <img src={tabBg.a} alt="" aria-hidden="true" decoding="async" style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%",
+            objectFit: "cover", objectPosition: "center",
+            opacity: tabBg.active === "a" ? 1 : 0,
+            transition: "opacity 700ms ease-in-out",
+          }} />
+        )}
+        {tabBg.b && (
+          <img src={tabBg.b} alt="" aria-hidden="true" decoding="async" style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%",
+            objectFit: "cover", objectPosition: "center",
+            opacity: tabBg.active === "b" ? 1 : 0,
+            transition: "opacity 700ms ease-in-out",
+          }} />
+        )}
+        <div style={{ position: "absolute", inset: 0, background: "rgba(12,12,12,0.55)" }} />
+      </div>
+
+      <div style={{ position: "relative", zIndex: 1, maxWidth: ["youtube","gwi","streetmap","culturalfeed","socialpulse","music","dashboard","ideas","calendar","strategy","tactics","research"].includes(tab) ? "min(1600px, 96vw)" : "min(960px, 92vw)", margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
 
         <div style={{ marginBottom: 8 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCPm cultural intelligence</span>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
         </div>
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: WHITE, lineHeight: 1.1, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Madonna</h1>
-        <p style={{ fontSize: 15, color: MUTED, margin: "0 0 4px", fontStyle: "italic" }}>The original. Not the comeback.</p>
+        <div aria-label="Pulse" style={{ lineHeight: 1, margin: "0 0 4px", textAlign: "left", position: "relative", zIndex: 0 }}>
+          <PulseParticleText
+            text="Pulse"
+            fontSize={36}
+            color={WHITE}
+            mouseRadius={70}
+          />
+        </div>
         <div style={{ height: 3, background: Y, borderRadius: 2, margin: "16px 0 24px" }} />
 
-        <div style={{ display: "flex", gap: 6, marginBottom: 32, flexWrap: "wrap" }}>
+        <MentionsTicker />
+
+        <div className="tab-nav" style={{ display: "flex", gap: 6, marginBottom: 32, flexWrap: "wrap" }}>
           {[
-            { id: "insight", label: "The insight" },
-            { id: "audiences", label: "Who matters and why" },
-            { id: "territories", label: "Where to fight" },
-            { id: "engine", label: "The reactive engine" },
-            { id: "channels", label: "Where attention lives" },
-            { id: "britishgas", label: "Social intelligence" },
+            { id: "dashboard", label: "Dashboard" },
+            { id: "culturalfeed", label: "Media" },
+            { id: "socialpulse", label: "Social listening" },
+            { id: "music", label: "Music" },
+            { id: "youtube", label: "YouTube" },
+            { id: "gwi", label: "Audience" },
+            { id: "strategy", label: "Strategy" },
+            { id: "tactics", label: "Tactics" },
+            { id: "streetmap", label: "Locations" },
+            { id: "ideas", label: "Ideas" },
+            { id: "calendar", label: "Calendar" },
+            { id: "research", label: "Research" },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
-              padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 400,
-              color: tab === t.id ? BG : MUTED, background: tab === t.id ? Y : "transparent",
-              border: tab === t.id ? "none" : `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+              padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 600,
+              color: tab === t.id ? BG : WHITE, background: tab === t.id ? Y : "transparent",
+              border: tab === t.id ? "none" : `1px solid rgba(237,237,232,0.55)`, borderRadius: 6, cursor: "pointer",
               fontFamily: "'Inter Tight', system-ui, sans-serif", transition: "all 0.15s"
             }}>{t.label}</button>
           ))}
         </div>
 
-        {tab === "insight" && <>
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
+        >
+        {tab === "dashboard" && <>
+          <DashboardSummary />
+          <WikipediaPageviews />
+        </>}
+
+        {tab === "_old_insight" && <>
           <Sect title="The human truth">
             <Pull text="The world is busy debating whether Madonna is still relevant. The answer is in every artist they compare her to." />
             <Insight text="This isn't a positioning exercise. It's a tension that already exists inside the audience's head. They know she's the origin. They just haven't said it out loud. The cultural engine doesn't argue the case. It makes the invisible visible." color={DIM} />
@@ -143,221 +1136,7 @@ export default function Dashboard() {
           </Sect>
         </>}
 
-        {tab === "audiences" && <>
-          <Sect title="Who these people actually are">
-            <Insight text="These aren't demographic segments. They're emotional relationships. Each cluster has a different reason for caring about Madonna, a different entry point into the catalogue, and a different thing they need from the cultural engine. The content that moves a nostalgia loyalist will bore a Gen Z discoverer. The content that excites a music purist will alienate a fashion follower. One brand truth, six different conversations." color={DIM} />
-          </Sect>
-
-          {[
-            { name: "The nostalgia loyalists", age: "35-55", color: PURPLE, type: "Core base",
-              why: "They don't just like Madonna's music. They are partially made of it. Specific songs are welded to specific memories: the summer of Like a Prayer, the club where they first heard Hung Up, the road trip soundtracked by Ray of Light. This isn't fandom. It's autobiography.",
-              need: "They need the engine to honour what they already feel, not explain it to them. Archive content, vault drops, behind-the-scenes material they haven't seen. The emotional currency is recognition: 'you were there, and that mattered.'",
-              risk: "Over-serving them at the expense of growth. They'll show up anyway. The engine must resist the temptation to make everything a nostalgia play." },
-            { name: "The queer culture custodians", age: "25-50", color: PINK, type: "Core base",
-              why: "For many LGBTQ+ people over 30, Madonna wasn't just an ally. She was the first famous person who made them feel like they weren't broken. The relationship is pre-career: it starts with Christopher Flynn, the gay dance teacher who told a teenage Madonna she was special. It runs through the AIDS crisis, Truth or Dare, Vogue, Stonewall. This isn't brand loyalty. It's a debt of recognition that goes both ways.",
-              need: "Authenticity above everything. This cluster detects corporate Pride in milliseconds. Content must feel like it comes from inside the community, not from a brand addressing the community. The GLAAD speech, not the rainbow logo.",
-              risk: "Tokenisation. The queer community is not a campaign beat. It's a year-round relationship. Activating only around Pride months signals inauthenticity." },
-            { name: "The Gen Z discoverers", age: "16-26", color: TEAL, type: "Growth audience",
-              why: "They didn't grow up with Madonna. They found her through an algorithm, a sample, a TikTok dance challenge, a thrift flip of a Gaultier-inspired outfit. Their relationship is curiosity, not loyalty. They're the most valuable growth audience because they don't have preconceptions. They're meeting the icon for the first time.",
-              need: "Surprise over argument. 'Wait, SHE did that first?' is the reaction that converts curiosity into fandom. Side-by-side content. Short-form. The hook is the discovery itself. Never lecture. Never explain why she matters. Show them, and let the reaction be organic.",
-              risk: "Cringe. A 67-year-old trying to speak Gen Z language will alienate this cluster instantly. The content must be native to their platforms but authored with the confidence of someone who doesn't need their approval." },
-            { name: "The fashion and reinvention set", age: "20-45", color: Y, type: "Growth audience",
-              why: "They see Madonna as a style architect, not primarily a musician. The Gaultier cone bra. The Blond Ambition tour. The Saint Laurent and D&G appearances in 2025-26. They care about the intersection of music and fashion as co-authored cultural moments. For them, Madonna didn't wear fashion. She changed what fashion meant.",
-              need: "Craft content. Design detail. Archive-to-present continuity. The D&G relationship isn't a sponsorship. It's a 30-year creative dialogue. Show the thread across decades. Y2K vintage revival on Depop is her aesthetic being recycled. Own that conversation.",
-              risk: "Reducing fashion to 'looking good.' This cluster cares about design intentionality, not glamour. Focus on the creative relationship, not the red carpet." },
-            { name: "The feminist provocateurs", age: "25-45", color: AMBER, type: "Contested",
-              why: "This is the split cluster. Half see Madonna as a feminist hero: bodily autonomy, sexual agency, refusal to perform ageing on society's terms. Half see her cosmetic choices as undermining the message. Both positions are genuine. Both coexist in the same publications, the same comment sections, sometimes the same person.",
-              need: "The engine doesn't take sides in the debate. It reframes the terms. The question isn't 'has she had work done.' The question is 'why are we still policing women's faces in 2026.' The 'stick around' franchise handles this by making persistence the story, not appearance.",
-              risk: "Engaging the appearance discourse directly. Every response, even a righteous one, amplifies the frame. Flood with artistry. Change the ratio." },
-            { name: "The music purists", age: "30-60", color: GREEN, type: "Core base",
-              why: "They judge Madonna against her own peak. Ray of Light, Confessions, Music. They know the production credits. They know the William Orbit collaboration changed electronic music. They're sceptical of the 2010s output but excited about the Stuart Price reunion because they understand what that partnership means sonically.",
-              need: "Craft signals. Production diaries. Stuart Price in the studio. B-side drops. The Veronica Electronica material. This cluster doesn't want hype. They want evidence that the album is being made with the same care as the work they already love.",
-              risk: "Overpromising. If the album doesn't deliver, this cluster will be the harshest critics. The engine should build anticipation through craft, not through claims. Let the music speak." },
-          ].map((a, i) => (
-            <Card key={i} accent={a.color}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: a.color, margin: 0, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{a.name}</h3>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: `${a.color}22`, color: a.color, fontWeight: 600, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{a.type}</span>
-                  <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: `${MUTED}22`, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{a.age}</span>
-                </div>
-              </div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: WHITE, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Why they care</p>
-              <Insight text={a.why} color={DIM} />
-              <p style={{ fontSize: 13, fontWeight: 700, color: WHITE, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>What they need</p>
-              <Insight text={a.need} color={DIM} />
-              <p style={{ fontSize: 13, fontWeight: 700, color: RED, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Risk</p>
-              <Insight text={a.risk} color={`${RED}BB`} />
-            </Card>
-          ))}
-        </>}
-
-        {tab === "territories" && <>
-          <Sect title="Where to fight and where to walk away">
-            <Insight text="A cultural territory is a space in public discourse where Madonna has permission to show up and be taken seriously. Permission isn't about reach or budget. It's about whether the audience believes she belongs there. Some territories she built. Some she shares. Some she's lost. And some she should never enter." color={DIM} />
-          </Sect>
-
-          {[
-            { name: "Dance and club culture", score: 95, status: "Fortress", color: TEAL, franchise: "The floor remembers",
-              substance: "Madonna has 50 Dance Club number-one singles. Fifty. More than any artist on any single Billboard chart. Confessions on a Dance Floor was a continuous 50-minute DJ set before that was a streaming format. Hung Up topped charts in 41 countries. The new album is a sequel to that record, with the same producer. The entire current dance revival (Beyonce's Renaissance, Charli XCX's brat, the club culture resurgence) traces back to ground she broke. She doesn't enter the revival. She IS what's being revived.",
-              move: "Time the 'floor remembers' franchise to pre-album drop. The narrative isn't 'Madonna returns to dance music.' It's 'dance music returns to Madonna.'" },
-            { name: "Queer liberation and Pride", score: 92, status: "Fortress", color: PURPLE, franchise: "The first friend you had",
-              substance: "CNN's Anderson Cooper called her the ally who's had the biggest impact on LGBTQ+ acceptance. She put HIV education inside Like a Prayer album packaging during the Reagan era when the government was ignoring the crisis. Ellen DeGeneres credited Madonna with helping her come out. Truth or Dare documented gay lives when Hollywood wouldn't touch the subject. The Stonewall surprise performances aren't PR stunts. They're pilgrimages to a place that shaped her. The relationship started with Christopher Flynn, an openly gay dance teacher, when she was a teenager in Michigan. Before the career. Before the fame. Before there was anything to gain from allyship.",
-              move: "This isn't a campaign territory. It's a relationship. The 'first friend you had' franchise treats it accordingly: community-first, year-round, not just Pride month. Content must feel like testimony, not brand activation." },
-            { name: "Pop reinvention and eras", score: 82, status: "Strong", color: GREEN, franchise: "She did it first",
-              substance: "She invented the concept of the pop era as a distinct visual and sonic world. 14 studio albums, each with a completely different identity. Vanity Fair credited her as the origin of what Taylor Swift now calls 'eras.' But the lineage has been buried. Younger audiences associate the concept with Swift, not Madonna. This is a territory she built but is losing credit for. The intelligence data shows 'Madonna eras' searches declining while 'Taylor Swift eras' searches grow. The lineage is being erased in real time.",
-              move: "The 'she did it first' franchise addresses this through discovery, not argument. Never mention Swift. Never compare. Show the archive side by side with the artist she influenced. Let the audience connect the dots. The reaction 'wait, she did that FIRST?' is the conversion moment." },
-            { name: "Ageism and bodily autonomy", score: 50, status: "Contested", color: AMBER, franchise: "Stick around",
-              substance: "This is the hardest territory. It's also the most active conversation about Madonna in 2026. Search is dominated by cosmetic surgery speculation. Her own framing (ageism, misogyny) is accurate but the discourse is louder than the response. The feminist provocateur cluster is split. Some see her choices as undermining the message. Others (correctly) see the scrutiny itself as the problem. Both positions are genuine. The engine cannot resolve this debate. It can only change what dominates the conversation.",
-              move: "DO NOT ENGAGE THE APPEARANCE FRAME DIRECTLY. It's a trap. Every response amplifies it. Instead: flood the zone with artistry content. Production diaries. Fashion collaborations. Archive essays. The Stuart Price reunion. The Netflix series development. Make the narrative about the work so the ratio of 'artistry' content to 'appearance' content shifts over six months. The 'stick around' franchise reframes persistence as the story. Her own quote is the hook: 'The most controversial thing I ever did was stick around.'" },
-            { name: "Chart and streaming dominance", score: 25, status: "Ceded", color: RED, franchise: "None",
-              substance: "Her last Hot 100 top 10 was 2008. Popular (2023) with The Weeknd charted but didn't dominate. This is structural, not a failure. The streaming economy favours younger artists with TikTok-native release cycles. Madonna will not out-chart Sabrina Carpenter or Chappell Roan. But chart position is the wrong metric for brand heat. A critically acclaimed dance album that generates six months of cultural conversation is worth more than a chart-chasing pop single that dilutes the brand.",
-              move: "Accept this. Don't chase chart position with the new album. Measure success by cultural impact, critical reception, and whether it refreshes the brand narrative. Redefine what winning looks like for a legacy artist in 2026." },
-          ].map((t, i) => (
-            <Card key={i} accent={t.color}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <h3 style={{ fontSize: 17, fontWeight: 700, color: t.color, margin: 0, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{t.name}</h3>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 22, fontWeight: 800, color: t.color, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{t.score}%</span>
-                  <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 20, background: `${t.color}22`, color: t.color, fontWeight: 600, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{t.status}</span>
-                </div>
-              </div>
-              <div style={{ width: "100%", height: 4, background: "#2A2A2A", borderRadius: 2, marginBottom: 12 }}>
-                <div style={{ width: `${t.score}%`, height: "100%", background: t.color, borderRadius: 2 }} />
-              </div>
-              <Insight text={t.substance} color={DIM} />
-              <div style={{ background: `${t.color}08`, border: `1px solid ${t.color}22`, borderRadius: 8, padding: "10px 14px", marginTop: 8 }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: t.color, margin: "0 0 4px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Strategic move</p>
-                <Insight text={t.move} color={DIM} />
-              </div>
-            </Card>
-          ))}
-
-          <Card accent={RED}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: RED, margin: "0 0 8px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Territories killed</p>
-            {[
-              { name: "Wellness and longevity", reason: "Any celebrity over 60 could run this. Fails the distinctiveness test." },
-              { name: "AI and deepfake discourse", reason: "Makes her a subject of technology, not the icon herself." },
-              { name: "Intergenerational relationship content", reason: "Feeds the ageism frame. Let it exist organically, don't build a franchise." },
-            ].map((k, i) => (
-              <div key={i} style={{ padding: "6px 0", borderBottom: i < 2 ? `1px solid ${BORDER}` : "none" }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: WHITE }}>{k.name}</span>
-                <span style={{ fontSize: 12, color: MUTED, marginLeft: 8 }}>{k.reason}</span>
-              </div>
-            ))}
-          </Card>
-        </>}
-
-        {tab === "engine" && <>
-          <Sect title="The reactive nervous system">
-            <Pull text="The engine doesn't create cultural moments. It detects them, maps them to the right franchise, and responds before the window closes." />
-            <Insight text="Ten trigger types. Four speed tiers. Six era franchises as the content vocabulary. A five-rule kill filter before anything deploys. The intelligence layer (Apify social scraping, SimilarWeb digital footprint, sentiment classification) feeds signals into the system. The creative hierarchy decides what to say. The reactive framework decides when and how fast." color={DIM} />
-          </Sect>
-
-          <Sect title="The six content franchises" accent={CORAL}>
-            <Insight text="Each franchise connects a specific Madonna era to something happening in culture right now. The era is the proof. The present is the point. These aren't throwback posts. They're recurring, formatised content series with established hooks, proof chains, and platform-native executions." color={DIM} />
-            {[
-              { name: "She did it first", era: "1984-86", color: Y, tension: "The lineage has been erased. Younger audiences associate 'eras' and reinvention with Swift, not Madonna. This franchise makes the invisible visible through side-by-side discovery." },
-              { name: "Before you could say it", era: "1989-92", color: CORAL, tension: "Every conversation about female bodies, censorship, and sexual agency in 2026 was a conversation Madonna forced in 1989. The Pope condemned her. Pepsi dropped her. She did it anyway." },
-              { name: "The floor remembers", era: "1990 + 2005", color: TEAL, tension: "Dance culture is resurgent but the conversation starts at 2022, not 1990. Vogue took ballroom to the mainstream. Confessions was an unbroken DJ set before streaming existed. The new album is the sequel." },
-              { name: "When electronica was a risk", era: "1998", color: PURPLE, tension: "The biggest pop star alive abandoned pop for experimental electronica with William Orbit. The label thought she was finished. She won three Grammys. Veronica Electronica just resurfaced the unreleased material." },
-              { name: "The first friend you had", era: "1991-now", color: PINK, tension: "Before corporate Pride, before rainbow logos, before it was safe. HIV inserts in Like a Prayer packaging. Truth or Dare. Stonewall. GLAAD's greatest ally. Not a campaign. A 40-year relationship." },
-              { name: "Stick around", era: "1983-2026", color: WHITE, tension: "Her own words: 'The most controversial thing I ever did was stick around.' This franchise reframes persistence as provocation. In a culture that discards women after 40, she's still here. Still making. Still provoking." },
-            ].map((f, i) => (
-              <Card key={i} accent={f.color}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, color: f.color, margin: 0, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{f.name}</h3>
-                  <span style={{ fontSize: 12, color: MUTED }}>{f.era}</span>
-                </div>
-                <Insight text={f.tension} color={DIM} />
-              </Card>
-            ))}
-          </Sect>
-
-          <Sect title="How the triggers connect" accent={TEAL}>
-            <Insight text="When a cultural moment happens, the intelligence engine identifies which territory it touches, selects the right franchise, and produces content within the pre-assigned speed tier. The creative decisions are pre-made. The only decision in the moment is: deploy or don't." color={DIM} />
-            <Card>
-              {[
-                { trigger: "Artist references Madonna", speed: "2 hours", franchise: "She did it first", why: "The window is narrow. Miss it and you're commenting on old news." },
-                { trigger: "Appearance discourse spikes", speed: "24 hours", franchise: "Stick around", why: "DO NOT ENGAGE. Deploy artistry content. Change the ratio, not the argument." },
-                { trigger: "Pride or LGBTQ+ milestone", speed: "Planned", franchise: "First friend you had", why: "Predictable calendar. Pre-produce. Quality over speed." },
-                { trigger: "Dance culture trends", speed: "4-8 hours", franchise: "Floor remembers", why: "The new album makes every dance moment a content trigger." },
-                { trigger: "Fan content goes viral", speed: "2 hours", franchise: "Match to content", why: "This is the Gen Z acquisition engine. Stitch. Duet. Amplify with paid if 8%+ engagement holds." },
-              ].map((t, i) => (
-                <div key={i} style={{ padding: "12px 0", borderBottom: i < 4 ? `1px solid ${BORDER}` : "none" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: WHITE, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{t.trigger}</span>
-                    <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 20, background: `${Y}22`, color: Y, fontWeight: 600, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{t.speed}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: TEAL, marginBottom: 2, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{t.franchise}</div>
-                  <Insight text={t.why} color={MUTED} />
-                </div>
-              ))}
-            </Card>
-          </Sect>
-        </>}
-
-        {tab === "channels" && <>
-          <Sect title="Where human attention actually lives">
-            <Pull text="Not all reach is equal. A £2 CPM nobody remembers costs more than a £10 CPM that builds the brand." />
-            <Insight text="The channel architecture is weighted by attention, not by platform popularity. YouTube at $0.96 per thousand attentive seconds is the most efficient attention buy in the stack. The 60:40 Binet & Field split separates brand building (memory formation, long-term equity) from activation (conversation, velocity, cultural temperature). Every channel earns its place by delivering real human attention against the right audience cluster." color={DIM} />
-          </Sect>
-
-          <Sect title="Brand building — 60-65% of budget" accent={CORAL}>
-            <Insight text="These are the formats where you earn the 2.5+ seconds needed for memory encoding. The science is clear: below 2.5 seconds of attention, memory encoding is significantly weaker. Brand building requires formats that earn sustained attention and build emotional association over time." color={DIM} />
-            <Card>
-              {[
-                { ch: "YouTube", apm: "5,200", acpm: "$0.96", why: "Most efficient attention buy. Long-form essay and documentary content. Production diaries. 'Before you could say it' and 'When electronica was a risk' franchises live here." },
-                { ch: "Podcasts (host-read)", apm: "11,000", acpm: "$2.27", why: "Highest notice rate (82%). Music, culture, fashion podcast partnerships. Long-form storytelling. The 'first friend you had' franchise gets depth here that social can't provide." },
-                { ch: "CTV and BVOD", apm: "13,800", acpm: "$1.49", why: "TV-level attention in a digital wrapper. Archive-led brand films. Pre-album campaign. The kind of emotional, high-production content that builds memory structures." },
-                { ch: "OOH", apm: "—", acpm: "—", why: "Iconic moments around album launch. Fashion week adjacency. Physical presence signals scale and permanence. A billboard doesn't get scrolled past." },
-              ].map((c, i) => (
-                <div key={i} style={{ padding: "12px 0", borderBottom: i < 3 ? `1px solid ${BORDER}` : "none" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: WHITE, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{c.ch}</span>
-                    <div style={{ display: "flex", gap: 12 }}>
-                      <span style={{ fontSize: 12, color: CORAL }}>{c.apm} APM</span>
-                      <span style={{ fontSize: 12, color: GREEN, fontWeight: 600 }}>{c.acpm}</span>
-                    </div>
-                  </div>
-                  <Insight text={c.why} color={MUTED} />
-                </div>
-              ))}
-            </Card>
-          </Sect>
-
-          <Sect title="Activation — 35-40% of budget" accent={TEAL}>
-            <Insight text="These formats drive conversation, not memory. They feed the earned media machine. They're where the reactive triggers fire. The content is platform-native, lo-fi where appropriate, and designed for saves and shares (the only social metrics that predict cultural velocity)." color={DIM} />
-            <Card>
-              {[
-                { ch: "TikTok", role: "Gen Z discovery engine. Side-by-side content. 'She did it first' franchise. Fan content amplification. 3,400 APM." },
-                { ch: "Instagram Reels + Stories", role: "Fashion and style community. Archive-to-present carousels. Designer collaboration content. 2,100 APM." },
-                { ch: "X / Twitter", role: "Real-time cultural commentary. Archive images deployed during cultural triggers. Restraint as flex. Minimal captions." },
-                { ch: "Spotify", role: "Curated playlists. Algorithmic discovery. Pre-album playlist seeding. Catalogue positioning alongside current artists." },
-              ].map((c, i) => (
-                <div key={i} style={{ padding: "10px 0", borderBottom: i < 3 ? `1px solid ${BORDER}` : "none" }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: TEAL, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{c.ch}</span>
-                  <Insight text={c.role} color={MUTED} />
-                </div>
-              ))}
-            </Card>
-          </Sect>
-
-          <Sect title="The paid-earned-owned loop" accent={PURPLE}>
-            <Card accent={PURPLE}>
-              <Insight text="Owned builds the base: madonna.com as a living cultural archive (not a merch store), email and SMS for superfan community, streaming profiles as curated brand experiences. This is the always-on layer." color={DIM} />
-              <Insight text="Earned is generated by the reactive content system. When the trigger-response framework fires fast enough and sharp enough, publications pick it up. The goal: Madonna's team should be the fastest, sharpest cultural commentator in the music space. Earned becomes predictable, not hoped for." color={DIM} />
-              <Insight text="Paid amplifies winners only. Nothing gets paid budget until it proves organic engagement first (the 8-12% engagement threshold from the virality skill). Paid seeds to adjacent audiences who don't currently follow Madonna. The feedback loop: performance data from paid informs the intelligence engine, which updates territory scores and trigger sensitivity." color={DIM} />
-            </Card>
-          </Sect>
-
-          <Card accent={Y}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: Y, margin: "0 0 6px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Measurement principles</p>
-            <Insight text="Save rate and share rate are the primary social metrics. They predict cultural velocity where views and likes measure activity without impact. Brand lift studies run quarterly to track unprompted association shifts. Incrementality testing (geo holdouts where budget allows) validates that paid activity is driving genuine uplift, not claiming organic demand. Every channel is evaluated on cost per attentive second, not raw CPM, because attention is the gateway to memory and memory is the gateway to brand equity." color={MUTED} />
-          </Card>
-        </>}
-
-        {tab === "britishgas" && <>
+        {tab === "_removed_britishgas" && <>
           <Sect title="What people are actually saying">
             <Pull text="We scraped 50 TikTok videos, PopJustice forum threads, Reddit fan communities, and Instagram comments. Here's what the data reveals about how people talk about Madonna in April 2026." />
             <Insight text="The intelligence engine doesn't start with what Madonna wants to say. It starts with what people are already feeling, sharing, and saving. The Pulse methodology: scrape what's trending, score by save rate and share rate, classify the emotional territory, and build content back from the human truth underneath." color={DIM} />
@@ -508,11 +1287,184 @@ export default function Dashboard() {
           </Sect>
         </>}
 
-        <div style={{ marginTop: 48, paddingTop: 16, borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 10, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media × Cultural intelligence</span>
-          <span style={{ fontSize: 10, color: MUTED, fontStyle: "italic" }}>The original. Not the comeback.</span>
+        {tab === "research" && <>
+          <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
+            {[{ id: "library", label: "Research Library" }, { id: "bearhunt", label: "Bear Hunt" }].map(st => (
+              <button key={st.id} onClick={() => setResearchSubTab(st.id)} style={{
+                padding: "6px 14px", fontSize: 11, fontWeight: researchSubTab === st.id ? 700 : 600,
+                color: researchSubTab === st.id ? BG : WHITE, background: researchSubTab === st.id ? TEAL : "transparent",
+                border: researchSubTab === st.id ? "none" : `1px solid rgba(237,237,232,0.55)`, borderRadius: 6, cursor: "pointer",
+                fontFamily: "'Inter Tight', system-ui, sans-serif"
+              }}>{st.label}</button>
+            ))}
+          </div>
+
+          {researchSubTab === "bearhunt" && <DocUploader apiEndpoint="/api/bear-hunt" title="Bear Hunt" description="Upload market research Word documents for analysis and reference." />}
+
+          {researchSubTab === "library" && <>
+          <Sect title="The Imperial Phase">
+            <Card accent={Y}>
+              <Pull text="No artist before or since has sustained that kind of totalising dominance for so long, across so many simultaneous verticals." color={Y} />
+              <Insight text="Between 1984 and 1993, Madonna placed seventeen singles in the US Billboard Hot 100 top five. Seven reached number one. On the UK Singles Chart, she accumulated thirty-five consecutive top ten entries. True Blue debuted at number one in over twenty-eight countries simultaneously in 1986." color={DIM} />
+              <div style={{ background: CARD, borderRadius: 8, padding: 16, margin: "16px 0", border: `1px solid ${BORDER}` }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: Y, margin: "0 0 10px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Album-by-Album Commercial Anatomy</p>
+                {[
+                  { album: "Madonna", year: "1983", peak: "#8", sales: "10M+", singles: "Holiday, Borderline, Lucky Star" },
+                  { album: "Like a Virgin", year: "1984", peak: "#1", sales: "21M+", singles: "Like a Virgin, Material Girl" },
+                  { album: "True Blue", year: "1986", peak: "#1", sales: "25M+", singles: "Live to Tell, Papa Don't Preach" },
+                  { album: "Like a Prayer", year: "1989", peak: "#1", sales: "15M+", singles: "Like a Prayer, Express Yourself" },
+                  { album: "Immaculate Collection", year: "1990", peak: "#2", sales: "30M+", singles: "Justify My Love" },
+                  { album: "Erotica", year: "1992", peak: "#2", sales: "6M+", singles: "Erotica, Deeper and Deeper, Rain" },
+                ].map((a, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: i < 5 ? `1px solid ${BORDER}` : "none", fontSize: 13 }}>
+                    <span style={{ color: WHITE, fontWeight: 600, flex: 1 }}>{a.album} <span style={{ color: MUTED, fontWeight: 400 }}>({a.year})</span></span>
+                    <span style={{ color: Y, fontWeight: 700, width: 40, textAlign: "center" }}>{a.peak}</span>
+                    <span style={{ color: TEAL, width: 50, textAlign: "right" }}>{a.sales}</span>
+                  </div>
+                ))}
+              </div>
+              <Insight text="The Blond Ambition World Tour in 1990 grossed nearly $63 million, setting a new commercial benchmark. The Immaculate Collection remains the best-selling compilation album by a solo artist ever, with certified sales exceeding 30 million units globally." color={DIM} />
+            </Card>
+            <Card accent={PURPLE}>
+              <Pull text="She understood that the music video was not a supplement to the song. It was a parallel text, operating on its own semiotic register." color={PURPLE} />
+              <Insight text="Madonna grasped, earlier and more completely than any of her contemporaries, that in the MTV era, a pop star was fundamentally a visual proposition. 'Express Yourself' drew on Fritz Lang's Metropolis. 'Like a Prayer' layered Catholic iconography with civil rights symbolism. 'Vogue' translated underground ballroom culture into a mass-market visual language." color={DIM} />
+              <Insight text="The Jean Paul Gaultier cone bra for the Blond Ambition Tour remains, more than thirty-five years later, one of the most recognisable garments in the history of popular culture. Her fashion strategy was about perpetual reinvention at a pace that kept the press and public in constant anticipation." color={DIM} />
+            </Card>
+            <Card accent={CORAL}>
+              <Pull text="She grasped that outrage was an attention-generation mechanism, and that attention, regardless of its valence, was the fundamental currency of pop stardom." color={CORAL} />
+              <Insight text="The 1989 Pepsi deal: Madonna signed $5 million, the 'Like a Prayer' video provoked outrage, Pepsi withdrew the ad, Madonna retained the fee and received incalculable free media coverage. The album debuted at number one. This template would be replicated by every major pop act for three decades." color={DIM} />
+            </Card>
+            <Card accent={GREEN}>
+              <Pull text="She built an infrastructure of cultural authority that survived the inevitable cooling of her chart dominance." color={GREEN} />
+              <Insight text="Maverick Records (1992) was not a vanity label. It signed Alanis Morissette. Madonna positioned herself as an owner with equity, infrastructure, and a seat at the table. Multi-platform brand architecture across film, publishing, fashion, and endorsements ensured no single vertical's decline would be existential." color={DIM} />
+            </Card>
+          </Sect>
+
+          <Sect title="The Cathedral and the Dancefloor" accent={PINK}>
+            <Card accent={PINK}>
+              <Pull text="She emerged from the sweat-drenched, racially mixed, overwhelmingly queer nightclubs of lower Manhattan. That origin story is the skeleton key to her entire artistic project." color={PINK} />
+              <Insight text="The Mudd Club and Club 57 (1978-80): downtown art-world haunts where she mingled with Keith Haring and Jean-Michel Basquiat. The Fun House (1981-83): DJ Jellybean Benitez held 14-hour sets, playing freestyle that became the rhythmic backbone of her early recordings. Danceteria (1982-83): her first solo live performance, 16 December 1982. Sade tended bar; Keith Haring was a busboy." color={DIM} />
+              <p style={{ fontSize: 12, fontWeight: 700, color: PINK, margin: "16px 0 8px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>The Underground-to-Mainstream Pipeline</p>
+              {[
+                { name: "Jellybean Benitez", era: "1983-84", note: "Fun House DJ. Co-produced 'Holiday.' Freestyle sensibility defined the debut era." },
+                { name: "Shep Pettibone", era: "1990-92", note: "Club DJ elevated to co-producer on 'Vogue' and the entire Erotica album." },
+                { name: "William Orbit", era: "1998", note: "Unknown British electronic producer. Ray of Light won three Grammys and introduced electronica to mainstream pop." },
+                { name: "Stuart Price", era: "2005, 2026", note: "Confessions on a Dance Floor structured like a DJ set. Now reunited for the sequel." },
+                { name: "Honey Dijon / SOPHIE / Arca", era: "2010s-20s", note: "Continued pattern with openly queer, gender-nonconforming electronic artists." },
+              ].map((c, i) => (
+                <div key={i} style={{ padding: "8px 0", borderBottom: i < 4 ? `1px solid ${BORDER}` : "none" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: TEAL }}>{c.name}</span>
+                    <span style={{ fontSize: 11, color: MUTED }}>{c.era}</span>
+                  </div>
+                  <Insight text={c.note} color={DIM} />
+                </div>
+              ))}
+            </Card>
+            <Card accent={TEAL}>
+              <Pull text="50 number-one Dance Club Songs singles. The remix catalogue reads as a four-decade survey of underground dance music." color={TEAL} />
+              <Insight text="In the pre-streaming era, Madonna's remix singles served as a mass-distribution vehicle for dancefloor aesthetics. Many young ears around the world were first introduced to house, techno, and other electronic genres through a Madonna remix rather than through a club." color={DIM} />
+            </Card>
+          </Sect>
+
+          <Sect title="Advocacy, Visibility and Allyship" accent={PURPLE}>
+            <Card accent={PURPLE}>
+              <Pull text="No single ally has been a better friend or had a bigger impact on acceptance for the LGBTQ community than Madonna." color={PURPLE} />
+              <Insight text="CNN's Anderson Cooper, introducing her GLAAD Advocate for Change Award in 2019 — only the second person ever honoured." color={MUTED} />
+              <p style={{ fontSize: 12, fontWeight: 700, color: PURPLE, margin: "12px 0 8px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Key moments</p>
+              {[
+                { year: "1989", event: "Inserted HIV/AIDS education leaflet into Like a Prayer album packaging during the Reagan era." },
+                { year: "1990", event: "Blond Ambition Tour: 6 of 7 male dancers were gay. 3 were HIV-positive. Truth or Dare showed 'being gay when it was not cool.'" },
+                { year: "1990", event: "'Vogue' brought Harlem ballroom culture to global mainstream. Dancers from the House of Xtravaganza choreographed the video." },
+                { year: "1992", event: "'In This Life' (Erotica) — one of the few mainstream pop songs to address AIDS directly and by name." },
+                { year: "2018", event: "Surprise performance at the Stonewall Inn on New Year's Eve." },
+                { year: "2023-24", event: "Celebration Tour: described as her most radical queer statement since Blond Ambition. 'Live to Tell' performed surrounded by photos of friends lost to AIDS." },
+              ].map((m, i) => (
+                <div key={i} style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: i < 5 ? `1px solid ${BORDER}` : "none" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: PURPLE, minWidth: 48, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{m.year}</span>
+                  <Insight text={m.event} color={DIM} />
+                </div>
+              ))}
+            </Card>
+          </Sect>
+
+          <Sect title="Saints, Sinners & Sequins" accent={AMBER}>
+            <Card accent={AMBER}>
+              <Pull text="The icon's suffering is not voyeuristically consumed; it is recognised as structurally analogous to one's own. Her survival becomes proof that survival is possible." />
+              <Insight text="The sociological relationship between the gay community and female pop icons rests on seven attributes: suffering and survival, performative excess, vocal authenticity, sexual agency, loyalty to the community, reinvention, and camp sensibility. Madonna scores maximally on every dimension." color={DIM} />
+            </Card>
+            <Card accent={CORAL}>
+              <Pull text="The dancefloor was never merely a sonic environment. It was a political space — a space of liberation, of bodily autonomy, of queer survival." color={CORAL} />
+              <Insight text="House music's name was literally derived from a safe space for queer Black community — The Warehouse in Chicago. The gay community's aesthetic judgement became the unofficial A&R department of the global music industry. The club-to-radio pipeline: tracks that worked on gay dancefloors were refined and released to the mainstream." color={DIM} />
+            </Card>
+          </Sect>
+
+          <Sect title="The Postmodern Revolution" accent={TEAL}>
+            <Card accent={TEAL}>
+              <Insight text="Academic analysis from the Journal of Literature and Art Studies confirms Madonna used postmodern strategies to challenge foundational truths of sex and gender, promote gender deconstruction, create political sites of resistance, and question Catholic dissociation between the physical and the divine." color={DIM} />
+              <Insight text="Her interaction with queer subcultures shows rejection of hegemonic heteronormative constructions and results in fluidity through appropriation. From voguing to the Like a Prayer controversy to the American Life anti-war statement, she created what scholars call 'political sites of resistance' within mass pop culture." color={DIM} />
+            </Card>
+          </Sect>
+
+          <Sect title="Fandom in the 2020s" accent={GREEN}>
+            <Card accent={GREEN}>
+              <Pull text="45.2 million monthly Spotify listeners. 10 billion+ total streams. The catalog is undergoing simultaneous institutional consolidation and grassroots rediscovery." color={GREEN} />
+              <div style={{ background: CARD, borderRadius: 8, padding: 16, margin: "16px 0", border: `1px solid ${BORDER}` }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: GREEN, margin: "0 0 10px", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>The Generational Map</p>
+                {[
+                  { seg: "Gen Jones (1954-65)", format: "Vinyl/CD collectors", channel: "Reissues, word-of-mouth", mode: "Archival completionism", color: PURPLE },
+                  { seg: "Gen X (1965-80)", format: "Streaming playlists", channel: "Spotify; Celebration Tour", mode: "Nostalgia-driven hits", color: CORAL },
+                  { seg: "Millennials (1981-96)", format: "Streaming primary", channel: "Club/DJ culture", mode: "Event-driven spikes", color: PINK },
+                  { seg: "Gen Z (1997-2012)", format: "Streaming-only", channel: "TikTok algorithm", mode: "Viral deep-catalog exploration", color: TEAL },
+                ].map((s, i) => (
+                  <div key={i} style={{ padding: "8px 0", borderBottom: i < 3 ? `1px solid ${BORDER}` : "none" }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: s.color, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>{s.seg}</span>
+                    <div style={{ display: "flex", gap: 16, fontSize: 11, color: MUTED, marginTop: 4 }}>
+                      <span>{s.format}</span><span>{s.channel}</span><span style={{ color: DIM }}>{s.mode}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Insight text="The Celebration Tour (2023-24) grossed $225.4 million across 80 shows, including the largest standalone concert audience in history — 1.6 million at Copacabana Beach. Deep-catalog tracks from Erotica, Bedtime Stories, and Ray of Light are registering all-time peak streaming numbers in 2026, driven by TikTok-originated discovery loops." color={DIM} />
+            </Card>
+          </Sect>
+
+          <Sect title="From the Underground to the Mainstream" accent={Y}>
+            <Card accent={Y}>
+              <Pull text="Every dominant genre in contemporary pop music traces its DNA to underground clubs in the 1970s and 1980s in New York and Chicago. The underground won." color={Y} />
+              <Insight text="Disco Demolition Night (1979) forced the sound underground, where it mutated into house and techno. Frankie Knuckles at The Warehouse gave house music its name. Paradise Garage's 'Saturday Mass' defined garage music. Madonna's debut single was tested on a club dancefloor, signed because a club DJ believed in it." color={DIM} />
+              <Insight text="The current revival: Dua Lipa's Future Nostalgia, Beyonce's Renaissance (dedicated to her late gay uncle Johnny), Chappell Roan's Grammy-winning queer club artistry, Charli xcx's BRAT — each draws directly from the traditions forged in Black gay clubs. The trajectory from David Mancuso's Loft in 1970 to Chappell Roan's Grammy in 2025 is a case study in how marginalised communities built cultural infrastructure that consumed the mainstream." color={DIM} />
+            </Card>
+          </Sect>
+          </>}
+        </>}
+
+        {tab === "youtube" && <YouTubeIntelligence comments={comments} fullThemeCounts={fullThemeCounts} totalCommentCount={totalCommentCount} />}
+
+        {tab === "gwi" && <AudienceIntelligence gwiData={gwiData} />}
+
+        {tab === "strategy" && <StrategyRecommendations />}
+        {tab === "tactics" && <TacticsBoard />}
+        {tab === "streetmap" && <StreetArtMap murals={murals} venues={venues} sites={sites} />}
+
+        {tab === "culturalfeed" && <CulturalFeed />}
+
+        {tab === "socialpulse" && <SocialDashboard />}
+
+        {tab === "music" && <MusicIntelligence />}
+
+        {tab === "ideas" && <IdeasBoard />}
+        {tab === "calendar" && <CampaignCalendar />}
+        </motion.div>
+
+        <MasterRefresh />
+
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid rgba(237,237,232,0.45)`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 10, color: WHITE, opacity: 0.75, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
+          <span style={{ fontSize: 10, color: WHITE, opacity: 0.75, fontStyle: "italic" }}>The original. Not the comeback.</span>
         </div>
       </div>
     </div>
+    </>
   );
 }

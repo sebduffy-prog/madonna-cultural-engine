@@ -1,0 +1,179 @@
+// Tactics Board API — CRUD + reactions (like/dislike/comment)
+// Stores tactics in Vercel Blob via kv layer
+
+import { kvGet, kvSet } from "../../lib/kv";
+
+const CACHE_KEY = "tactics_data";
+
+function uuid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
+}
+
+export default async function handler(req, res) {
+  if (req.method === "GET") {
+    const tactics = await kvGet(CACHE_KEY) || [];
+    return res.status(200).json({ tactics });
+  }
+
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+  const { action } = body;
+
+  let tactics = await kvGet(CACHE_KEY) || [];
+
+  if (action === "create") {
+    const { title, channel, pillar, status, objective, kpi, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes, createdBy } = body;
+    if (!title || !title.trim()) return res.status(400).json({ error: "Title is required" });
+    if (!channel) return res.status(400).json({ error: "Channel is required" });
+
+    const tactic = {
+      id: uuid(),
+      title: title.trim(),
+      channel,
+      pillar: pillar || "",
+      status: status || "Proposed",
+      objective: objective || "",
+      kpi: kpi || "",
+      roleOfChannel: roleOfChannel || "",
+      audience: audience || [],
+      audienceDetail: audienceDetail || "",
+      format: format || "",
+      phase: phase || "",
+      budget: budget || "",
+      startDate: startDate || "",
+      endDate: endDate || "",
+      notes: notes || "",
+      order: Date.now(),
+      likes: 0,
+      dislikes: 0,
+      likedBy: [],
+      dislikedBy: [],
+      comments: [],
+      createdAt: new Date().toISOString(),
+      createdBy: createdBy || "Anonymous",
+    };
+    tactics.unshift(tactic);
+    await kvSet(CACHE_KEY, tactics);
+    return res.status(200).json({ ok: true, tactic });
+  }
+
+  if (action === "update") {
+    const { tacticId, title, channel, pillar, status, objective, kpi, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes, order, editedBy } = body;
+    const tactic = tactics.find(t => t.id === tacticId);
+    if (!tactic) return res.status(404).json({ error: "Tactic not found" });
+
+    // Push a revision snapshot of the fields that are changing
+    const tracked = ["title", "channel", "pillar", "status", "objective", "kpi", "roleOfChannel", "audience", "audienceDetail", "format", "phase", "budget", "startDate", "endDate", "notes"];
+    const incoming = { title, channel, pillar, status, objective, kpi, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes };
+    const changes = [];
+    for (const k of tracked) {
+      const next = incoming[k];
+      if (next === undefined) continue;
+      const prev = tactic[k];
+      const same = JSON.stringify(prev ?? "") === JSON.stringify(next ?? "");
+      if (!same) changes.push({ field: k, from: prev ?? "", to: next });
+    }
+    if (changes.length > 0) {
+      tactic.revisions = [
+        { date: new Date().toISOString(), editedBy: editedBy || "Anonymous", changes },
+        ...(tactic.revisions || []),
+      ].slice(0, 50);
+    }
+
+    if (title !== undefined) tactic.title = title;
+    if (channel !== undefined) tactic.channel = channel;
+    if (pillar !== undefined) tactic.pillar = pillar;
+    if (status !== undefined) tactic.status = status;
+    if (objective !== undefined) tactic.objective = objective;
+    if (kpi !== undefined) tactic.kpi = kpi;
+    if (roleOfChannel !== undefined) tactic.roleOfChannel = roleOfChannel;
+    if (audience !== undefined) tactic.audience = audience;
+    if (audienceDetail !== undefined) tactic.audienceDetail = audienceDetail;
+    if (format !== undefined) tactic.format = format;
+    if (phase !== undefined) tactic.phase = phase;
+    if (budget !== undefined) tactic.budget = budget;
+    if (startDate !== undefined) tactic.startDate = startDate;
+    if (endDate !== undefined) tactic.endDate = endDate;
+    if (notes !== undefined) tactic.notes = notes;
+    if (order !== undefined) tactic.order = order;
+    tactic.updatedAt = new Date().toISOString();
+    await kvSet(CACHE_KEY, tactics);
+    return res.status(200).json({ ok: true, tactic });
+  }
+
+  if (action === "reorder") {
+    // Bulk order update: [{id, order}]
+    const { items } = body;
+    if (!Array.isArray(items)) return res.status(400).json({ error: "items required" });
+    const byId = new Map(items.map((i) => [i.id, i.order]));
+    for (const t of tactics) if (byId.has(t.id)) t.order = byId.get(t.id);
+    await kvSet(CACHE_KEY, tactics);
+    return res.status(200).json({ ok: true });
+  }
+
+  if (action === "like" || action === "dislike") {
+    const { tacticId, userId } = body;
+    const tactic = tactics.find(t => t.id === tacticId);
+    if (!tactic) return res.status(404).json({ error: "Tactic not found" });
+
+    const user = userId || "anonymous";
+
+    if (action === "like") {
+      if (tactic.dislikedBy?.includes(user)) {
+        tactic.dislikedBy = tactic.dislikedBy.filter(u => u !== user);
+        tactic.dislikes = Math.max(0, (tactic.dislikes || 0) - 1);
+      }
+      if (tactic.likedBy?.includes(user)) {
+        tactic.likedBy = tactic.likedBy.filter(u => u !== user);
+        tactic.likes = Math.max(0, (tactic.likes || 0) - 1);
+      } else {
+        tactic.likedBy = [...(tactic.likedBy || []), user];
+        tactic.likes = (tactic.likes || 0) + 1;
+      }
+    } else {
+      if (tactic.likedBy?.includes(user)) {
+        tactic.likedBy = tactic.likedBy.filter(u => u !== user);
+        tactic.likes = Math.max(0, (tactic.likes || 0) - 1);
+      }
+      if (tactic.dislikedBy?.includes(user)) {
+        tactic.dislikedBy = tactic.dislikedBy.filter(u => u !== user);
+        tactic.dislikes = Math.max(0, (tactic.dislikes || 0) - 1);
+      } else {
+        tactic.dislikedBy = [...(tactic.dislikedBy || []), user];
+        tactic.dislikes = (tactic.dislikes || 0) + 1;
+      }
+    }
+
+    await kvSet(CACHE_KEY, tactics);
+    return res.status(200).json({ ok: true, tactic });
+  }
+
+  if (action === "comment") {
+    const { tacticId, author, text } = body;
+    const tactic = tactics.find(t => t.id === tacticId);
+    if (!tactic) return res.status(404).json({ error: "Tactic not found" });
+    if (!text) return res.status(400).json({ error: "Comment text required" });
+
+    const comment = {
+      id: uuid(),
+      author: author || "Anonymous",
+      text,
+      date: new Date().toISOString(),
+    };
+    tactic.comments = [...(tactic.comments || []), comment];
+    await kvSet(CACHE_KEY, tactics);
+    return res.status(200).json({ ok: true, comment });
+  }
+
+  if (action === "delete") {
+    const { tacticId } = body;
+    tactics = tactics.filter(t => t.id !== tacticId);
+    await kvSet(CACHE_KEY, tactics);
+    return res.status(200).json({ ok: true });
+  }
+
+  res.status(400).json({ error: "Unknown action" });
+}
