@@ -474,9 +474,9 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
           >
             <defs>
               {layout.root && (
-                <radialGradient id="g-root" cx="50%" cy="45%" r="65%">
-                  <stop offset="0%"   stopColor={layout.root.color} stopOpacity={0.18} />
-                  <stop offset="100%" stopColor={layout.root.color} stopOpacity={0.04} />
+                <radialGradient id="g-root" cx="50%" cy="40%" r="60%">
+                  <stop offset="0%"   stopColor={layout.root.color} stopOpacity={0.85} />
+                  <stop offset="100%" stopColor={layout.root.color} stopOpacity={0.30} />
                 </radialGradient>
               )}
               {layout.segments.map((n) => (
@@ -488,16 +488,6 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
             </defs>
 
             <g transform={`translate(${view.tx},${view.ty}) scale(${view.s})`}>
-              {/* Root fill — sits behind segments as a gentle universe backdrop */}
-              {layout.root && (
-                <g opacity={focus && focus !== layout.root.id ? 0.55 : 1} pointerEvents="none">
-                  <circle
-                    cx={layout.root.x} cy={layout.root.y} r={layout.root.r}
-                    fill="url(#g-root)"
-                  />
-                </g>
-              )}
-
               {/* Segment circles */}
               {layout.segments.map((n) => (
                 <g key={n.id} opacity={focus && focus !== n.id ? 0.22 : segOpacity}>
@@ -513,6 +503,25 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                   />
                 </g>
               ))}
+
+              {/* Madonna Fans universe — same style as segments (radial
+                  gradient fill + solid stroke), layered on top so it sits
+                  over the segments. Categories / statements are rendered
+                  after it so they still show through when zoomed in. */}
+              {layout.root && (
+                <g opacity={focus && focus !== layout.root.id ? 0.55 : 1}>
+                  <circle
+                    cx={layout.root.x} cy={layout.root.y} r={layout.root.r}
+                    fill="url(#g-root)"
+                    stroke={layout.root.color}
+                    strokeWidth={focus === layout.root.id ? 2.5 / view.s : 1 / view.s}
+                    onClick={(e) => { e.stopPropagation(); focusNode(layout.root); }}
+                    onPointerEnter={() => setHover(layout.root.id)}
+                    onPointerLeave={() => setHover(null)}
+                    style={{ cursor: "pointer", transition: "stroke-width 0.2s" }}
+                  />
+                </g>
+              )}
 
               {/* Category layer */}
               {catOpacity > 0.01 && layout.segments.map((n) => (
@@ -589,25 +598,6 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                   )}
                 </g>
               ))}
-
-              {/* Root outline overlay — sits on TOP of the segments so the
-                  Madonna Fans universe is always clearly framed. */}
-              {layout.root && (
-                <g opacity={focus && focus !== layout.root.id ? 0.55 : 1}>
-                  <circle
-                    cx={layout.root.x} cy={layout.root.y} r={layout.root.r}
-                    fill="none"
-                    stroke={layout.root.color}
-                    strokeOpacity={0.7}
-                    strokeWidth={1.6 / view.s}
-                    strokeDasharray={`${6 / view.s} ${4 / view.s}`}
-                    onClick={(e) => { e.stopPropagation(); focusNode(layout.root); }}
-                    onPointerEnter={() => setHover(layout.root.id)}
-                    onPointerLeave={() => setHover(null)}
-                    style={{ cursor: "pointer" }}
-                  />
-                </g>
-              )}
 
               {/* Root label — prominent when zoomed out, fades as we dive in */}
               {layout.root && rootLabelOpacity > 0.02 && (
