@@ -156,8 +156,8 @@ function CircularAlbumCarousel({
   const vsMedianPct = median > 0 ? Math.round(((frontPlays - median) / median) * 1000) / 10 : null;
   const totalPlays = albums.reduce((s, a) => s + (a.playcount || 0), 0);
   const sharePct = totalPlays > 0 ? Math.round((frontPlays / totalPlays) * 1000) / 10 : null;
-  const UP_COLOR = "#EF4444";   // user spec: red = up
-  const DOWN_COLOR = "#34D399"; // user spec: green = down
+  const UP_COLOR = "#34D399";   // + change → green
+  const DOWN_COLOR = "#EF4444"; // − change → red
   const vsColor = vsMedianPct == null ? WHITE : vsMedianPct > 0 ? UP_COLOR : vsMedianPct < 0 ? DOWN_COLOR : WHITE;
 
   function onPointerDown(e) {
@@ -256,7 +256,10 @@ function CircularAlbumCarousel({
           position: "absolute",
           left: "50%", top: "50%",
           width: itemW, height: itemH,
-          marginLeft: -itemW / 2, marginTop: -itemH / 2,
+          // Offset vertically to compensate for the tilt pushing front covers
+          // below the midline. offsetY = radius · sin(|tilt|), in screen-up.
+          marginLeft: -itemW / 2,
+          marginTop: -itemH / 2 - Math.round(radius * Math.sin(Math.abs(tilt) * Math.PI / 180) * Math.sign(-tilt) * 0.9),
           transformStyle: "preserve-3d",
           transform: `rotateX(${tilt}deg) rotateY(${angle}deg)`,
         }}>
