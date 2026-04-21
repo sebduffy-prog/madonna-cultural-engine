@@ -142,6 +142,37 @@ export default function TacticsBoard() {
   const [editForm, setEditForm] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
 
+  const [filterChannel, setFilterChannel] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
+
+  const channelGroups = (() => {
+    const map = new Map();
+    tactics.forEach(t => {
+      const raw = (t.channel || "").trim();
+      if (!raw) return;
+      const key = raw.toLowerCase();
+      if (!map.has(key)) map.set(key, { key, label: raw, count: 0 });
+      map.get(key).count += 1;
+    });
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  })();
+
+  const activeFilterExists = filterChannel && channelGroups.some(c => c.key === filterChannel);
+  const effectiveFilter = activeFilterExists ? filterChannel : "";
+
+  const sortComparators = {
+    newest: (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+    oldest: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+    "channel-asc": (a, b) => (a.channel || "").localeCompare(b.channel || "") || (new Date(b.createdAt) - new Date(a.createdAt)),
+    "channel-desc": (a, b) => (b.channel || "").localeCompare(a.channel || "") || (new Date(b.createdAt) - new Date(a.createdAt)),
+  };
+
+  const displayedTactics = [
+    ...(effectiveFilter
+      ? tactics.filter(t => (t.channel || "").trim().toLowerCase() === effectiveFilter)
+      : tactics),
+  ].sort(sortComparators[sortBy] || sortComparators.newest);
+
   function openEdit(t) {
     setEditForm({
       channel: t.channel || "",
@@ -324,8 +355,60 @@ export default function TacticsBoard() {
           <p style={{ fontSize: 13, color: DIM }}>Click "+ New Tactic" to add the first one</p>
         </div>
       ) : (
+        <>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center", marginBottom: 16, padding: "12px 14px", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: "0.08em", textTransform: "uppercase", marginRight: 4, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Channel</span>
+              {[{ key: "", label: "All", count: tactics.length }, ...channelGroups].map(c => {
+                const on = (effectiveFilter || "") === c.key;
+                return (
+                  <button
+                    key={c.key || "__all__"}
+                    type="button"
+                    onClick={() => setFilterChannel(c.key)}
+                    style={{
+                      padding: "4px 10px", fontSize: 11, fontWeight: 700,
+                      color: on ? BG : WHITE,
+                      background: on ? Y : "transparent",
+                      border: `1px solid ${on ? Y : BORDER}`,
+                      borderRadius: 999, cursor: "pointer",
+                      fontFamily: "'Inter Tight', system-ui, sans-serif",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    {c.label} <span style={{ opacity: 0.65, fontWeight: 500 }}>({c.count})</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Sort</span>
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value)}
+                style={{
+                  padding: "6px 28px 6px 10px", fontSize: 12, fontWeight: 600, color: WHITE, background: BG,
+                  border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none",
+                  fontFamily: "'Inter Tight', system-ui, sans-serif", cursor: "pointer",
+                  appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
+                  backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path fill='${encodeURIComponent(MUTED)}' d='M1 3l4 4 4-4z'/></svg>")`,
+                  backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center",
+                }}
+              >
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="channel-asc">Channel A–Z</option>
+                <option value="channel-desc">Channel Z–A</option>
+              </select>
+            </div>
+          </div>
+          {displayedTactics.length === 0 ? (
+            <div style={{ background: CARD, borderRadius: 10, padding: "40px 24px", border: `1px solid ${BORDER}`, textAlign: "center" }}>
+              <p style={{ fontSize: 13, color: MUTED, margin: 0 }}>No tactics match this filter.</p>
+            </div>
+          ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-          {tactics.map(tactic => (
+          {displayedTactics.map(tactic => (
             <div key={tactic.id} style={{ background: CARD, borderRadius: 10, border: `1px solid ${BORDER}`, overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s" }}
               onMouseEnter={e => e.currentTarget.style.borderColor = Y}
               onMouseLeave={e => e.currentTarget.style.borderColor = BORDER}>
@@ -398,6 +481,8 @@ export default function TacticsBoard() {
             </div>
           ))}
         </div>
+          )}
+        </>
       )}
 
       {activeTactic && (
