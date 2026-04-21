@@ -1046,7 +1046,9 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
         </div>
-        <h1 style={{ fontSize: 64, fontWeight: 800, color: WHITE, lineHeight: 1, margin: "0 0 6px", letterSpacing: "-0.03em", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Pulse</h1>
+        <div aria-label="Pulse" style={{ lineHeight: 1, margin: "0 0 6px" }}>
+          <PulseParticleText text="Pulse" fontSize={64} color={WHITE} particleSize={2} particleDensity={3} mouseRadius={90} padding={18} />
+        </div>
         <div style={{ height: 3, background: Y, borderRadius: 2, margin: "16px 0 24px" }} />
 
         <MentionsTicker />
