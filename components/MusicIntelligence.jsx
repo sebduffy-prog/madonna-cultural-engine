@@ -67,6 +67,92 @@ function HorizontalBar({ value, max, color, height = 8 }) {
   );
 }
 
+// Curved ticker — albums scroll horizontally while bobbing along a sine wave.
+// Each item: cover + name + weekly playcount, all moving together. Hover pauses.
+function CurvedAlbumTicker({ albums = [], height: panelHeight = 200, itemSize = 72, speed = 32, amplitude = 28 }) {
+  const ref = useRef(null);
+  const [width, setWidth] = useState(800);
+  const [offset, setOffset] = useState(0);
+  const pausedRef = useRef(false);
+
+  useEffect(() => {
+    if (!ref.current || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([e]) => setWidth(Math.max(360, Math.floor(e.contentRect.width))));
+    ro.observe(ref.current);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    let last = performance.now();
+    let raf;
+    const loop = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      if (!pausedRef.current) setOffset((o) => o + dt * speed);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [speed]);
+
+  if (!albums.length) return null;
+
+  const spacing = itemSize + 72;
+  const totalLen = albums.length * spacing;
+  const freq = (Math.PI * 2) / Math.max(width, 320);
+  // Repeat enough times to keep the screen populated at all offsets
+  const copies = Math.max(3, Math.ceil(width / totalLen) + 2);
+  const items = [];
+  for (let c = 0; c < copies; c++) for (let i = 0; i < albums.length; i++) items.push({ a: albums[i], i: c * albums.length + i });
+
+  return (
+    <div
+      ref={ref}
+      onMouseEnter={() => { pausedRef.current = true; }}
+      onMouseLeave={() => { pausedRef.current = false; }}
+      style={{ position: "relative", width: "100%", height: panelHeight, overflow: "hidden" }}
+    >
+      {items.map(({ a, i }) => {
+        const rawX = i * spacing - offset;
+        const x = ((rawX % totalLen) + totalLen) % totalLen;
+        if (x < -itemSize || x > width + itemSize) return null;
+        const y = panelHeight / 2 - itemSize / 2 - 20 + Math.sin(x * freq) * amplitude;
+        const rank = a.rank || 0;
+        const trend = rank > 0 && rank <= 3 ? "↑" : rank > 0 && rank <= 7 ? "→" : "";
+        const trendColor = trend === "↑" ? GREEN : WHITE;
+        return (
+          <a
+            key={`${a.name}-${i}`}
+            href={a.url || "#"}
+            target="_blank"
+            rel="noreferrer noopener"
+            style={{
+              position: "absolute", left: x, top: y, width: itemSize,
+              textDecoration: "none", color: WHITE,
+              transition: "transform 0.25s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.08)")}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+          >
+            {a.image ? (
+              <img src={a.image} alt="" style={{ width: itemSize, height: itemSize, borderRadius: 6, display: "block", objectFit: "cover", boxShadow: "0 4px 10px rgba(0,0,0,0.4)" }} />
+            ) : (
+              <div style={{ width: itemSize, height: itemSize, borderRadius: 6, background: CARD, border: `1px solid ${BORDER}` }} />
+            )}
+            <div style={{ fontSize: 9, color: WHITE, marginTop: 6, textAlign: "center", fontFamily: FONT, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: itemSize }}>
+              {a.name}
+            </div>
+            <div style={{ fontSize: 9, color: trendColor, textAlign: "center", fontFamily: FONT, fontWeight: 700, letterSpacing: "0.02em" }}>
+              {trend ? <span style={{ marginRight: 3 }}>{trend}</span> : null}
+              {fmt(a.playcount)} plays
+            </div>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 function Sparkline({ data, color = WHITE, width = 120, height = 32 }) {
   if (!data || data.length < 2) return <div style={{ width, height }} />;
   // Scale to the actual min/max of the series so small deltas on huge baselines
@@ -787,18 +873,10 @@ export default function MusicIntelligence() {
         </Panel>
       )}
 
-      {/* Top albums */}
+      {/* Top albums — curved ticker (hover to pause) */}
       {(lastfm?.topAlbums || []).length > 0 && (
-        <Panel title="Top albums on Last.fm" subtitle="By playcount" accent={CORAL}>
-          <div className="kpi-grid-5" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
-            {(lastfm.topAlbums || []).slice(0, 10).map((a, i) => (
-              <a key={a.name} href={a.url} target="_blank" rel="noreferrer noopener" style={{ textDecoration: "none", color: WHITE }}>
-                {a.image && <img src={a.image} alt="" style={{ width: "100%", aspectRatio: "1/1", borderRadius: 6, display: "block" }} />}
-                <div style={{ fontSize: 11, color: WHITE, marginTop: 6, fontFamily: FONT, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</div>
-                <div style={{ fontSize: 10, color: DIM, fontFamily: FONT }}>{fmt(a.playcount)} plays</div>
-              </a>
-            ))}
-          </div>
+        <Panel title="Top albums on Last.fm" subtitle="Covers scroll on a curve · hover to pause · ↑ top 3, → top 7" accent={CORAL}>
+          <CurvedAlbumTicker albums={(lastfm.topAlbums || []).slice(0, 12)} />
         </Panel>
       )}
 
