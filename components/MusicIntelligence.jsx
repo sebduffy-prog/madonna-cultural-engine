@@ -359,6 +359,17 @@ export default function MusicIntelligence() {
   const spotifyStreamSpark = [...(kworb?.history || [])].reverse().map(h => h.totalStreams).concat([kworb?.totalStreams]).filter(v => v != null);
   const appleHitSpark = [...(apple?.history || [])].reverse().map(h => h.totalSongHits).concat([songHits]).filter(v => v != null);
 
+  // Only show a sparkline once there's enough history AND actual movement;
+  // flat / near-empty lines made the Trend panel look meaningless.
+  function sparkHasMovement(spark) {
+    if (!Array.isArray(spark) || spark.length < 5) return false;
+    const valid = spark.filter(v => typeof v === "number" && v > 0);
+    if (valid.length < 5) return false;
+    return Math.max(...valid) - Math.min(...valid) > 0;
+  }
+  const showSpotifySpark = sparkHasMovement(spotifyStreamSpark);
+  const showAppleSpark = sparkHasMovement(appleHitSpark);
+
   const maxTrackPlaycount = Math.max(1, ...((lastfm?.topTracks || []).map(t => t.playcount || 0)));
 
   return (
@@ -391,11 +402,11 @@ export default function MusicIntelligence() {
         <Kpi label="Apple album chart hits" value={albumHits != null ? albumHits : "—"} sub={apple?.albumAggregate?.length != null ? `${apple.albumAggregate.length} albums in charts` : ""} color={CORAL} delta={apple?.momentum?.totalAlbumHitsChange} />
       </div>
 
-      {/* Trends */}
-      {(spotifyStreamSpark.length > 2 || appleHitSpark.length > 2) && (
+      {/* Trends — only render once we have enough days AND actual movement */}
+      {(showSpotifySpark || showAppleSpark) && (
         <Panel title="Trend" subtitle="Daily snapshots since first refresh" accent={PURPLE}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            {spotifyStreamSpark.length > 2 && (
+          <div style={{ display: "grid", gridTemplateColumns: (showSpotifySpark && showAppleSpark) ? "1fr 1fr" : "1fr", gap: 20 }}>
+            {showSpotifySpark && (
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                   <span style={{ fontSize: 10, color: GREEN, textTransform: "uppercase", fontFamily: FONT, letterSpacing: "0.05em" }}>Spotify streams</span>
@@ -404,7 +415,7 @@ export default function MusicIntelligence() {
                 <Sparkline data={spotifyStreamSpark} color={GREEN} width={380} height={60} />
               </div>
             )}
-            {appleHitSpark.length > 2 && (
+            {showAppleSpark && (
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                   <span style={{ fontSize: 10, color: GREEN, textTransform: "uppercase", fontFamily: FONT, letterSpacing: "0.05em" }}>Apple song chart hits</span>

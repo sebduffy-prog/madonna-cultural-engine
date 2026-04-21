@@ -133,7 +133,24 @@ export default async function handler(req, res) {
     }
   } catch {}
 
-  // Build query-level breakdown from news items (keyword matching)
+  // Pull the most recent history snapshot from a previous day (≥ 20h old) so
+  // multiple same-day refreshes don't pollute the day-on-day compare.
+  let prevSnapshot = null;
+  try {
+    const recent = await kvListGet(HISTORY_KEY, 0, 30);
+    const nowMs = Date.now();
+    prevSnapshot = (recent || []).find((h) => h?.date && nowMs - new Date(h.date).getTime() >= 20 * 3600 * 1000) || null;
+  } catch {}
+  const prevCountByLabel = new Map();
+  if (Array.isArray(prevSnapshot?.queryScores)) {
+    for (const q of prevSnapshot.queryScores) {
+      prevCountByLabel.set(q.label, q.count ?? q.todayCount ?? 0);
+    }
+  }
+
+  // Build query-level breakdown from news items (keyword matching).
+  // dailyChange is the % move vs. the previous day's stored count from memory;
+  // pctChange remains the static-baseline reading.
   const queryScores = QUERIES.map((q) => {
     const qLower = q.q.replace(/"/g, "").toLowerCase();
     const count = newsFeedItems.filter((item) => {
@@ -142,7 +159,18 @@ export default async function handler(req, res) {
     }).length;
     const perQueryBaseline = MENTION_BASELINE / QUERIES.length;
     const pct = Math.round(((count - perQueryBaseline) / perQueryBaseline) * 1000) / 10;
-    return { label: q.label, todayCount: count, baselineCount: perQueryBaseline, pctChange: pct };
+    const prevCount = prevCountByLabel.get(q.label);
+    const dailyChange = (prevCount != null && prevCount > 0)
+      ? Math.round(((count - prevCount) / prevCount) * 1000) / 10
+      : null;
+    return {
+      label: q.label,
+      todayCount: count,
+      baselineCount: perQueryBaseline,
+      pctChange: pct,
+      dailyChange,
+      prevCount: prevCount ?? null,
+    };
   });
 
   // Feed pool = news feed items (already deduped by news endpoint)
@@ -195,15 +223,11 @@ export default async function handler(req, res) {
   }
   const sentTotal = Math.max(pos + neg + neu, 1);
 
-  // Daily change: compare to previous history entry
+  // Overall day-on-day change against the same previous-day snapshot
   let dailyChange = null;
-  try {
-    const prevHistory = await kvListGet(HISTORY_KEY, 0, 0);
-    if (prevHistory?.length > 0 && prevHistory[0].totalToday > 0) {
-      const prev = prevHistory[0].totalToday;
-      dailyChange = Math.round(((totalToday - prev) / prev) * 1000) / 10;
-    }
-  } catch {}
+  if (prevSnapshot?.totalToday > 0) {
+    dailyChange = Math.round(((totalToday - prevSnapshot.totalToday) / prevSnapshot.totalToday) * 1000) / 10;
+  }
 
   const result = {
     fetchedAt: new Date().toISOString(),
@@ -239,6 +263,7 @@ export default async function handler(req, res) {
     totalBaseline,
     newItems: newItems.length,
     sentiment: result.sentiment,
+    queryScores: queryScores.map((q) => ({ label: q.label, count: q.todayCount })),
   }, 365);
 
   result.history = await kvListGet(HISTORY_KEY, 0, 364);

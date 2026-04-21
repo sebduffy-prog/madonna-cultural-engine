@@ -62,19 +62,56 @@ export default function StrategyRecommendations() {
 
   return (
     <div>
-      {/* Strategy brief */}
-      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${Y}`, borderRadius: 8, padding: "18px 22px", marginBottom: 20 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: Y, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: "'Inter Tight', sans-serif" }}>The strategy</div>
+      {/* Strategy brief — Media That Strikes A Pose */}
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderLeft: `4px solid ${Y}`, borderRadius: 10, padding: "22px 26px", marginBottom: 14 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: Y, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10, fontFamily: "'Inter Tight', sans-serif" }}>Distinctive media behaviour</div>
+        <h2 style={{ fontSize: 34, fontWeight: 800, color: WHITE, margin: "0 0 14px", fontFamily: "'Inter Tight', system-ui, sans-serif", letterSpacing: "-0.02em", lineHeight: 1.05 }}>
+          Media That Strikes <span style={{ color: Y }}>A&nbsp;Pose</span>
+        </h2>
         <p style={{ fontSize: 14, color: WHITE, margin: "0 0 10px", lineHeight: 1.55, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
           Position Madonna not as a legacy act making a comeback, but as the <b style={{ color: Y }}>Source Code</b> — the originator still writing the playbook for club culture. For <i>Confessions on a Dance Floor 2</i> we're chasing three KPIs: UK No.1 physical sales, growth in first-party fan data, and cultural belonging inside LGBTQ+ and club communities.
         </p>
-        <p style={{ fontSize: 13, color: DIM, margin: "0 0 10px", lineHeight: 1.55, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
-          Distinctive media behaviour: <b style={{ color: WHITE }}>Media That Strikes A Pose</b> — high-fashion, unapologetically bold, curated for the right environment. Three pillars carry the campaign: <span style={{ color: PINK }}>Own the Dancefloor</span> (grassroots club takeover) · <span style={{ color: TEAL }}>Own the Feed</span> (premium paid social surrounding earned hype) · <span style={{ color: CORAL }}>Own Haute-Culture</span> (the D&G film, cinema, fashion-district OOH).
-        </p>
-        <p style={{ fontSize: 12, color: MUTED, margin: 0, lineHeight: 1.5, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
-          Recommendations below are generated weekly against this brief, grounded in the week's intelligence data (media, social, YouTube, Spotify). Full brief lives in <code style={{ color: WHITE, background: BG, padding: "1px 6px", borderRadius: 3 }}>strategy-prompt.md</code>.
+        <p style={{ fontSize: 13, color: DIM, margin: 0, lineHeight: 1.55, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+          High-fashion, unapologetically bold, curated for the right environment. Three pillars carry the campaign.
         </p>
       </div>
+
+      {/* Three pillars */}
+      <div className="pillar-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+        {[
+          { num: "01", color: PINK,  title: "Own the Dancefloor",  tagline: "Grassroots club takeover",                description: "Seed the record through the clubs that define taste — underground residencies, Resident Advisor reviews, DJ-led validation before pop media arrives." },
+          { num: "02", color: TEAL,  title: "Own the Feed",        tagline: "Premium paid social surrounding earned hype", description: "Premium paid social that wraps earned cultural conversation — amplify the moments fans and tastemakers create, don't interrupt them." },
+          { num: "03", color: CORAL, title: "Own Haute-Culture",   tagline: "D&G film, cinema & fashion-district OOH",    description: "Luxury-grade storytelling across the Dolce & Gabbana film, cinema pre-rolls, and fashion-district OOH that places Madonna back at the centre of high culture." },
+        ].map((p) => (
+          <div key={p.num} style={{
+            background: CARD, border: `1px solid ${BORDER}`, borderTop: `3px solid ${p.color}`,
+            borderRadius: 10, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10,
+            position: "relative", overflow: "hidden",
+          }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+              <span style={{
+                fontSize: 11, fontWeight: 700, color: p.color, background: `${p.color}18`,
+                border: `1px solid ${p.color}55`, borderRadius: 4, padding: "2px 8px",
+                letterSpacing: "0.12em", fontFamily: "'Inter Tight', sans-serif",
+              }}>{p.num}</span>
+              <span style={{ fontSize: 10, color: p.color, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, fontFamily: "'Inter Tight', sans-serif" }}>Pillar</span>
+            </div>
+            <h3 style={{ fontSize: 20, fontWeight: 800, color: WHITE, margin: 0, fontFamily: "'Inter Tight', system-ui, sans-serif", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
+              {p.title}
+            </h3>
+            <p style={{ fontSize: 12, color: p.color, margin: 0, fontWeight: 700, lineHeight: 1.4, fontFamily: "'Inter Tight', sans-serif" }}>
+              {p.tagline}
+            </p>
+            <p style={{ fontSize: 12, color: DIM, margin: 0, lineHeight: 1.55, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+              {p.description}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <p style={{ fontSize: 11, color: MUTED, margin: "0 0 20px", lineHeight: 1.5, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+        Recommendations below are generated weekly against this brief, grounded in the week's intelligence data (media, social, YouTube, Spotify). Full brief lives in <code style={{ color: WHITE, background: BG, padding: "1px 6px", borderRadius: 3 }}>strategy-prompt.md</code>.
+      </p>
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>

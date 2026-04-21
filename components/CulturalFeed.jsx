@@ -349,20 +349,36 @@ export default function CulturalFeed() {
                 </div>
               </div>
               <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {(mediaIndex.queryScores || []).map((q) => (
-                  <div key={q.label} style={{
-                    background: BG, border: `1px solid ${BORDER}`, borderRadius: 5, padding: "4px 10px",
-                    fontSize: 10, fontFamily: "'Inter Tight', sans-serif",
-                  }}>
-                    <span style={{ color: DIM }}>{q.label} </span>
-                    <span style={{
-                      fontWeight: 700,
-                      color: mediaIndex.isFirstRun ? MUTED : q.pctChange > 0 ? GREEN : q.pctChange < 0 ? "#EF4444" : WHITE,
+                {(mediaIndex.queryScores || []).map((q) => {
+                  const dod = q.dailyChange;
+                  const hasDoD = dod != null;
+                  const deltaLabel = mediaIndex.isFirstRun
+                    ? q.todayCount
+                    : hasDoD
+                      ? `${dod > 0 ? "+" : ""}${dod}%`
+                      : `${q.pctChange > 0 ? "+" : ""}${q.pctChange}%`;
+                  const deltaColor = mediaIndex.isFirstRun
+                    ? MUTED
+                    : (hasDoD ? dod : q.pctChange) > 0 ? GREEN
+                    : (hasDoD ? dod : q.pctChange) < 0 ? "#EF4444"
+                    : WHITE;
+                  const tooltip = hasDoD
+                    ? `Today ${q.todayCount} vs yesterday ${q.prevCount} (${deltaLabel} DoD) · baseline ${q.pctChange > 0 ? "+" : ""}${q.pctChange}%`
+                    : `Today ${q.todayCount} · baseline ${q.pctChange > 0 ? "+" : ""}${q.pctChange}% (no prior day yet)`;
+                  return (
+                    <div key={q.label} title={tooltip} style={{
+                      background: BG, border: `1px solid ${BORDER}`, borderRadius: 5, padding: "4px 10px",
+                      fontSize: 10, fontFamily: "'Inter Tight', sans-serif",
+                      display: "flex", alignItems: "baseline", gap: 6,
                     }}>
-                      {mediaIndex.isFirstRun ? q.todayCount : `${q.pctChange > 0 ? "+" : ""}${q.pctChange}%`}
-                    </span>
-                  </div>
-                ))}
+                      <span style={{ color: DIM }}>{q.label}</span>
+                      <span style={{ fontWeight: 700, color: deltaColor }}>{deltaLabel}</span>
+                      {hasDoD && !mediaIndex.isFirstRun && (
+                        <span style={{ color: MUTED, fontSize: 8, letterSpacing: "0.06em", textTransform: "uppercase" }}>DoD</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

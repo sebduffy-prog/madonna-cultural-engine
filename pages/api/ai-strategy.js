@@ -48,7 +48,10 @@ async function gatherIntelligence() {
     parts.push(`Overall index: ${mediaIndex.index}% vs baseline`);
     if (mediaIndex.queryScores) {
       mediaIndex.queryScores.forEach((q) => {
-        parts.push(`- ${q.label}: ${q.todayCount} results (${q.pctChange > 0 ? "+" : ""}${q.pctChange}%)`);
+        const dod = q.dailyChange != null
+          ? ` · DoD ${q.dailyChange > 0 ? "+" : ""}${q.dailyChange}% (was ${q.prevCount})`
+          : "";
+        parts.push(`- ${q.label}: ${q.todayCount} results (${q.pctChange > 0 ? "+" : ""}${q.pctChange}% vs baseline${dod})`);
       });
     }
   }
