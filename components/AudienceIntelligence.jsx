@@ -513,7 +513,7 @@ export default function AudienceIntelligence({ gwiData }) {
 
       {topTab === "gwi" && <>
       {/* segment sizing — sits above the statement finder */}
-      <AudienceSegmentVenn />
+      <AudienceSegmentVenn gwiData={gwiData} />
       {/* metric + category filter row */}
       <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ fontSize: 11, color: WHITE, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Inter Tight', sans-serif", fontWeight: 600 }}>
