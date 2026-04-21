@@ -2,20 +2,26 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 
 // Full-corpus, zoomable audience sizing map.
 //
-// Hierarchy (three levels, all driven from GWI):
-//   Root  : UK Progressives
-//   L1    : Audience segments (Gen Z, Gay Community, …)
+// Hierarchy (four levels, all driven from GWI):
+//   L0    : Madonna Fans — the universe (UK adult reach)
+//   L1    : Audience segments (Gen Z, Gay Community, …) packed INSIDE the root
 //   L2    : Statement categories (from GWI `question` field)
 //   L3    : Individual statements within each category
 //
-// Sizing is mathematically accurate within each branch:
-//   • Segment size   = fixed UK population estimate (millions)
+// Sizing is mathematically accurate at every level:
+//   • Root size      = UK adult reach of Madonna (union of all segments)
+//   • Segment size   = UK population estimate for that segment (millions)
 //   • Category size  = segment_size × (category_responses / segment_responses)
 //   • Statement size = category_size × (statement_responses / category_responses)
 //
+// Because Σ(segment areas) > root area, segments are forced to overlap
+// inside the root universe — overlap amount is then tuned by GWI affinity.
+//
 // Layout:
-//   • Segments placed via force sim with pair affinity — circles overlap
-//     in proportion to shared-audience affinity.
+//   • Root positioned at viewport centre, radius derived from its reach.
+//   • Segments placed via force sim with pair affinity AND a boundary
+//     constraint that keeps their centres inside the root, so they overlap
+//     in proportion to their shared-audience affinity.
 //   • Categories ring-packed inside each segment.
 //   • Statements ring-packed inside each category.
 //
@@ -43,6 +49,18 @@ const SEGMENT_DEFS = [
   { id: "nightlife",  key: "nightlife",  label: "General Nightlife", color: "#34D399", pop: 15.0 },
 ];
 const SEGMENT_BY_KEY = Object.fromEntries(SEGMENT_DEFS.map((s) => [s.key, s]));
+
+// Root universe — Madonna's UK adult reach. Mathematically it's the union
+// of all segments; since the four generational segments partition UK adults
+// (12.5 + 13 + 14 + 13 ≈ 52.5m) and the lifestyle segments overlap with
+// them, the union is bounded by UK adult population (~54m).
+const UK_ADULT_POP = 54;
+const MADONNA_ROOT = {
+  id: "madonnaFans",
+  label: "Madonna Fans",
+  color: "#E879F9",
+  pop: UK_ADULT_POP,
+};
 
 // Pairwise affinity — how tightly two segments co-occur. Range 0–1.
 const AFFINITY = {
@@ -188,42 +206,74 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
 
   // ─── Layout (world coords) ──────────────────────────────────────────────
   const layout = useMemo(() => {
-    if (!segments.length) return { segments: [], k: 1 };
-    const maxSize = Math.max(...segments.map((s) => s.size));
-    const targetMax = Math.min(w, h) * 0.32;
-    const k = targetMax / Math.sqrt(maxSize / Math.PI);
+    if (!segments.length) return { root: null, segments: [], k: 1 };
 
-    // 1. Force-lay segments with affinity-driven overlaps
-    const R0 = Math.min(w, h) * 0.26;
+    // Scale factor k: area = size × k². Fix k so the root (Madonna Fans) circle
+    // comfortably fits in the viewport. Every other circle (segments,
+    // categories, statements) shares the same k so areas are comparable.
+    const rRootTarget = Math.min(w, h) * 0.44;
+    const k = rRootTarget / Math.sqrt(MADONNA_ROOT.pop / Math.PI);
+    const rRoot = rRootTarget;
+    const root = {
+      ...MADONNA_ROOT,
+      x: cx,
+      y: cy,
+      r: rRoot,
+      size: MADONNA_ROOT.pop,
+    };
+
+    // 1. Seed segments on a ring inside the root, then force-lay with
+    //    affinity-driven overlap + a boundary constraint that keeps each
+    //    segment centre inside the root. Since Σ(segment areas) > root area,
+    //    the constraint itself forces substantial overlap; affinity then
+    //    tunes who overlaps with whom.
     const nodes = segments.map((s, i) => {
       const a = (i / segments.length) * Math.PI * 2 - Math.PI / 2;
+      const r = Math.sqrt(s.size / Math.PI) * k;
+      const seedR = Math.max(0, rRoot - r) * 0.55;
       return {
         ...s,
-        r: Math.sqrt(s.size / Math.PI) * k,
-        x: cx + Math.cos(a) * R0,
-        y: cy + Math.sin(a) * R0,
+        r,
+        x: cx + Math.cos(a) * seedR,
+        y: cy + Math.sin(a) * seedR,
         vx: 0, vy: 0,
       };
     });
-    for (let step = 0; step < 340; step++) {
+    for (let step = 0; step < 480; step++) {
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
-        a.vx = (a.vx || 0) * 0.8 + (cx - a.x) * 0.015;
-        a.vy = (a.vy || 0) * 0.8 + (cy - a.y) * 0.015;
+        // Gentle pull toward the root centre
+        a.vx = (a.vx || 0) * 0.82 + (cx - a.x) * 0.012;
+        a.vy = (a.vy || 0) * 0.82 + (cy - a.y) * 0.012;
+        // Pair forces — tighter target means more overlap; affinity adds extra pull
         for (let j = 0; j < nodes.length; j++) {
           if (i === j) continue;
           const b = nodes[j];
           const dx = b.x - a.x, dy = b.y - a.y;
           const d = Math.hypot(dx, dy) || 0.001;
           const aff = affinityFor(a.id, b.id);
-          const target = (a.r + b.r) * (1.02 - aff * 0.5);
+          const target = (a.r + b.r) * (0.72 - aff * 0.42);
           const diff = d - target;
-          const kf = diff > 0 ? 0.04 : 0.18;
+          const kf = diff > 0 ? 0.05 : 0.14;
           a.vx += (dx / d) * diff * kf;
           a.vy += (dy / d) * diff * kf;
         }
         a.x += a.vx;
         a.y += a.vy;
+        // Boundary constraint: keep the segment's centre inside the root.
+        // Allow the centre to approach the root edge minus ~18% of the
+        // segment radius, so the segment overlaps the root boundary only
+        // slightly and nothing escapes the universe.
+        const distFromCentre = Math.hypot(a.x - cx, a.y - cy);
+        const maxDist = rRoot - a.r * 0.18;
+        if (distFromCentre > maxDist && distFromCentre > 0) {
+          const nx = (a.x - cx) / distFromCentre;
+          const ny = (a.y - cy) / distFromCentre;
+          a.x = cx + nx * maxDist;
+          a.y = cy + ny * maxDist;
+          a.vx *= 0.35;
+          a.vy *= 0.35;
+        }
       }
     }
 
@@ -262,7 +312,7 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
       n.packedCategories = catNodes;
     }
 
-    return { segments: nodes, k };
+    return { root, segments: nodes, k };
   }, [segments, w, h, cx, cy]);
 
   // ─── View helpers ───────────────────────────────────────────────────────
@@ -330,18 +380,21 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
   }
 
   // ─── Fade bands per zoom level ──────────────────────────────────────────
-  // Categories fade in 1.3→1.8×; statements fade in 3→5×; statement labels 5→7×
+  // Root label prominent ≤1.1×, fades out by 1.5× as segments take over.
+  // Categories fade in 1.6→2.1×; statements fade in 3.4→5.2×.
   function bandFade(z, lo, hi) { return Math.max(0, Math.min(1, (z - lo) / (hi - lo))); }
+  const rootLabelOpacity  = 1 - bandFade(view.s, 1.1, 1.5);
   const segOpacity        = 1;
-  const segLabelOpacity   = 1 - bandFade(view.s, 3.2, 4.6);  // fade segment labels as we go deep
-  const catOpacity        = bandFade(view.s, 1.3, 1.8);
-  const catLabelOpacity   = bandFade(view.s, 1.9, 2.4) * (1 - bandFade(view.s, 4.8, 6.2));
-  const stmtOpacity       = bandFade(view.s, 3.0, 5.0);
-  const stmtLabelOpacity  = bandFade(view.s, 5.0, 7.0);
+  const segLabelOpacity   = bandFade(view.s, 0.95, 1.35) * (1 - bandFade(view.s, 3.4, 4.8));
+  const catOpacity        = bandFade(view.s, 1.6, 2.1);
+  const catLabelOpacity   = bandFade(view.s, 2.2, 2.7) * (1 - bandFade(view.s, 5.0, 6.4));
+  const stmtOpacity       = bandFade(view.s, 3.4, 5.2);
+  const stmtLabelOpacity  = bandFade(view.s, 5.2, 7.0);
 
   // Resolve hovered node across the full tree
   const hoverNode = useMemo(() => {
     if (!hover) return null;
+    if (layout.root && layout.root.id === hover) return { kind: "root", node: layout.root };
     for (const n of layout.segments) {
       if (n.id === hover) return { kind: "segment", node: n };
       for (const c of (n.packedCategories || [])) {
@@ -374,7 +427,7 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
           Segment sizing · full corpus
         </h3>
         <span style={{ fontSize: 11, color: WHITE, fontFamily: FONT }}>
-          {totalStatements} statements across {segments.length} segments · drag · scroll · click to dive
+          Madonna Fans ({UK_ADULT_POP}m) · {segments.length} segments · {totalStatements} statements · drag · scroll · click to dive
         </span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
           <ZoomButton label="−" onClick={() => {
@@ -417,6 +470,12 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
             style={{ display: "block", fontFamily: FONT, userSelect: "none", touchAction: "none" }}
           >
             <defs>
+              {layout.root && (
+                <radialGradient id="g-root" cx="50%" cy="45%" r="65%">
+                  <stop offset="0%"   stopColor={layout.root.color} stopOpacity={0.18} />
+                  <stop offset="100%" stopColor={layout.root.color} stopOpacity={0.04} />
+                </radialGradient>
+              )}
               {layout.segments.map((n) => (
                 <radialGradient key={`g-${n.id}`} id={`g-${n.id}`} cx="50%" cy="40%" r="60%">
                   <stop offset="0%"   stopColor={n.color} stopOpacity={0.85} />
@@ -426,6 +485,24 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
             </defs>
 
             <g transform={`translate(${view.tx},${view.ty}) scale(${view.s})`}>
+              {/* Root circle — Madonna Fans universe */}
+              {layout.root && (
+                <g opacity={focus && focus !== layout.root.id ? 0.55 : 1}>
+                  <circle
+                    cx={layout.root.x} cy={layout.root.y} r={layout.root.r}
+                    fill="url(#g-root)"
+                    stroke={layout.root.color}
+                    strokeOpacity={0.55}
+                    strokeWidth={1.4 / view.s}
+                    strokeDasharray={`${6 / view.s} ${4 / view.s}`}
+                    onClick={(e) => { e.stopPropagation(); focusNode(layout.root); }}
+                    onPointerEnter={() => setHover(layout.root.id)}
+                    onPointerLeave={() => setHover(null)}
+                    style={{ cursor: "pointer" }}
+                  />
+                </g>
+              )}
+
               {/* Segment circles */}
               {layout.segments.map((n) => (
                 <g key={n.id} opacity={focus && focus !== n.id ? 0.22 : segOpacity}>
@@ -518,6 +595,34 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                 </g>
               ))}
 
+              {/* Root label — prominent when zoomed out, fades as we dive in */}
+              {layout.root && rootLabelOpacity > 0.02 && (
+                <g pointerEvents="none" opacity={rootLabelOpacity}>
+                  <text
+                    x={layout.root.x}
+                    y={layout.root.y - layout.root.r * 0.78}
+                    textAnchor="middle"
+                    fontSize={34 / Math.max(1, view.s * 0.7)}
+                    fontWeight={800}
+                    fill={WHITE}
+                    style={{ paintOrder: "stroke", stroke: "rgba(12,12,12,0.8)", strokeWidth: 4 / view.s, letterSpacing: "-0.01em" }}
+                  >
+                    {layout.root.label}
+                  </text>
+                  <text
+                    x={layout.root.x}
+                    y={layout.root.y - layout.root.r * 0.78 + 22 / Math.max(1, view.s * 0.7)}
+                    textAnchor="middle"
+                    fontSize={13 / Math.max(1, view.s * 0.7)}
+                    fontWeight={600}
+                    fill={WHITE}
+                    fillOpacity={0.7}
+                  >
+                    {layout.root.size.toFixed(0)}m UK adults · zoom in for segments
+                  </text>
+                </g>
+              )}
+
               {/* Segment labels — kept on top, fade out as we drill past them */}
               {segLabelOpacity > 0.02 && layout.segments.map((n) => {
                 const base = Math.max(10, Math.min(n.r * 0.22, 28));
@@ -559,15 +664,19 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
               ? "Statements · zoom out to collapse"
               : catOpacity > 0.5
                 ? "Categories · keep zooming for statements"
-                : "Segments · zoom in to reveal categories"}
+                : segLabelOpacity > 0.5
+                  ? "Segments · zoom in to reveal categories"
+                  : "Madonna Fans · zoom in to see the 7 segments"}
           </div>
         </div>
 
         {/* Side panel */}
         <div style={{ borderLeft: `1px solid ${BORDER}`, paddingLeft: 14, fontFamily: FONT, maxHeight: h, overflowY: "auto" }}>
           {hoverNode ? (
-            hoverNode.kind === "segment" ? (
-              <SegmentPanel node={hoverNode.node} allNodes={layout.segments} />
+            hoverNode.kind === "root" ? (
+              <RootPanel node={hoverNode.node} segments={layout.segments} totalStatements={totalStatements} />
+            ) : hoverNode.kind === "segment" ? (
+              <SegmentPanel node={hoverNode.node} allNodes={layout.segments} root={layout.root} />
             ) : hoverNode.kind === "category" ? (
               <CategoryPanel node={hoverNode.node} parent={hoverNode.parent} />
             ) : (
@@ -579,16 +688,16 @@ export default function AudienceSegmentVenn({ gwiData = [] }) {
                 Overview
               </div>
               <div style={{ fontSize: 20, fontWeight: 800, color: WHITE, letterSpacing: "-0.01em", marginTop: 4 }}>
-                UK Progressives
+                {layout.root ? layout.root.label : "Madonna Fans"}
               </div>
               <div style={{ fontSize: 12, color: WHITE, marginTop: 2, opacity: 0.7 }}>
-                {segments.length} segments · {totalStatements} statements
+                {layout.root ? `${layout.root.size.toFixed(0)}m UK adults · ` : ""}{segments.length} segments · {totalStatements} statements
               </div>
               <p style={{ fontSize: 12, color: WHITE, lineHeight: 1.55, marginTop: 12, opacity: 0.9 }}>
-                Circle area tracks UK reach in millions at every level: segments at the top, GWI categories inside each segment, individual statements inside each category.
+                The outer dashed ring is the Madonna Fans universe — all UK adult reach. Every inner circle is sized by GWI: segment area = UK population, category area = share of segment responses, statement area = share of category responses.
               </p>
               <p style={{ fontSize: 12, color: WHITE, lineHeight: 1.55, marginTop: 10, opacity: 0.9 }}>
-                Categories fade in around <b>1.6×</b>, statement labels around <b>5×</b>. Click any circle to fly into it.
+                Segments overlap inside the universe by shared-audience affinity. Categories fade in around <b>1.8×</b>, statement labels around <b>5×</b>. Click any circle to fly into it.
               </p>
             </div>
           )}
@@ -613,14 +722,45 @@ function truncate(s, n) {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
-function SegmentPanel({ node, allNodes }) {
+function RootPanel({ node, segments, totalStatements }) {
+  const segTotal = segments.reduce((s, x) => s + x.size, 0);
+  return (
+    <div>
+      <div style={{ fontSize: 9, color: node.color, textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 700 }}>Universe</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: WHITE, letterSpacing: "-0.01em" }}>{node.label}</div>
+      <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+        <Stat label="Reach" value={`${node.size.toFixed(0)}m`} color={node.color} />
+        <Stat label="Segments" value={String(segments.length)} color={WHITE} />
+        <Stat label="Statements" value={String(totalStatements)} color={WHITE} />
+      </div>
+      <p style={{ fontSize: 12, color: WHITE, lineHeight: 1.55, marginTop: 12, opacity: 0.9 }}>
+        The root is UK adult population ({node.size.toFixed(0)}m). Segments sum to {segTotal.toFixed(1)}m before overlap — the {(segTotal / node.size).toFixed(2)}× excess is exactly what forces them to overlap inside the universe.
+      </p>
+      <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 14 }}>
+        Segment sizes
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
+        {[...segments].sort((a, b) => b.size - a.size).map((s) => (
+          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: WHITE }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: s.color }} />
+            <span style={{ flex: 1 }}>{s.label}</span>
+            <span style={{ color: s.color, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{s.size.toFixed(1)}m</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SegmentPanel({ node, allNodes, root }) {
+  const universe = root ? root.size : 54;
   return (
     <div>
       <div style={{ fontSize: 9, color: node.color, textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 700 }}>Segment</div>
       <div style={{ fontSize: 20, fontWeight: 800, color: WHITE, letterSpacing: "-0.01em" }}>{node.label}</div>
       <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
         <Stat label="Reach" value={`${node.size.toFixed(1)}m`} color={node.color} />
-        <Stat label="% UK adult" value={`${((node.size / 54) * 100).toFixed(1)}%`} color={WHITE} />
+        <Stat label="% UK adult" value={`${((node.size / universe) * 100).toFixed(1)}%`} color={WHITE} />
         <Stat label="Statements" value={String(node.statementsCount || 0)} color={WHITE} />
       </div>
       <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 14 }}>
