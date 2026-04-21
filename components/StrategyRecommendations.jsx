@@ -127,10 +127,10 @@ export default function StrategyRecommendations() {
             key={t.id}
             onClick={() => setActiveTab(t.id)}
             style={{
-              padding: "8px 16px", fontSize: 12, fontWeight: activeTab === t.id ? 700 : 400,
-              color: activeTab === t.id ? BG : DIM,
+              padding: "8px 16px", fontSize: 12, fontWeight: activeTab === t.id ? 700 : 500,
+              color: activeTab === t.id ? BG : WHITE,
               background: activeTab === t.id ? t.color : "transparent",
-              border: activeTab === t.id ? "none" : `1px solid ${BORDER}`,
+              border: activeTab === t.id ? "none" : `1px solid ${WHITE}`,
               borderRadius: 6, cursor: "pointer",
               fontFamily: "'Inter Tight', sans-serif",
             }}

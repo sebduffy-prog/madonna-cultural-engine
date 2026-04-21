@@ -494,9 +494,9 @@ export default function AudienceIntelligence({ gwiData }) {
       <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
         {[{ id: "gwi", label: "GWI Data" }, { id: "bridge", label: "Audience Bridge" }].map(st => (
           <button key={st.id} onClick={() => setTopTab(st.id)} style={{
-            padding: "6px 14px", fontSize: 11, fontWeight: topTab === st.id ? 700 : 400,
-            color: topTab === st.id ? BG : MUTED, background: topTab === st.id ? TEAL : "transparent",
-            border: topTab === st.id ? "none" : `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+            padding: "6px 14px", fontSize: 11, fontWeight: topTab === st.id ? 700 : 500,
+            color: topTab === st.id ? BG : WHITE, background: topTab === st.id ? TEAL : "transparent",
+            border: topTab === st.id ? "none" : `1px solid ${WHITE}`, borderRadius: 6, cursor: "pointer",
             fontFamily: "'Inter Tight', sans-serif",
           }}>{st.label}</button>
         ))}

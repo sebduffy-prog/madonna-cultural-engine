@@ -635,7 +635,7 @@ export default function StreetArtMap({ murals, venues, sites = {} }) {
             style={{
               background: "none",
               color: COLORS.WHITE,
-              border: `1px solid ${COLORS.BORDER}`,
+              border: `1px solid ${COLORS.WHITE}`,
               borderRadius: 6,
               padding: "8px 18px",
               fontSize: 13,
@@ -655,7 +655,7 @@ export default function StreetArtMap({ murals, venues, sites = {} }) {
             style={{
               background: "none",
               color: COLORS.WHITE,
-              border: `1px solid ${COLORS.BORDER}`,
+              border: `1px solid ${COLORS.WHITE}`,
               borderRadius: 6,
               padding: "8px 18px",
               fontSize: 13,

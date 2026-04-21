@@ -80,6 +80,237 @@ function StatRow({ label, value, sub, color = WHITE }) {
   );
 }
 
+// Shape data coming out of /api/export into a list of well-named tables
+// that are suitable for XLSX sheets or CSV files. Each dataset = one sheet / one CSV.
+function formatCell(v) {
+  if (v == null) return "";
+  if (typeof v === "object") {
+    if (Array.isArray(v)) {
+      return v.length > 0 && typeof v[0] !== "object"
+        ? v.join(" | ")
+        : `[${v.length} items]`;
+    }
+    try { return JSON.stringify(v).slice(0, 500); } catch { return ""; }
+  }
+  return v;
+}
+
+function sanitizeSheetName(name) {
+  // Excel sheet name: max 31 chars, no / \ ? * [ ] :
+  return name.replace(/[\/\\?*\[\]:]/g, "_").slice(0, 31);
+}
+
+function sanitizeFileName(name) {
+  return name.replace(/[^\w\-]+/g, "_").replace(/_+/g, "_").slice(0, 60);
+}
+
+function toCSV(columns, rows) {
+  const esc = (v) => {
+    if (v == null) return "";
+    const s = String(v);
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+  return [columns.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))].join("\r\n");
+}
+
+function buildDatasets(exportData) {
+  const datasets = [];
+  const add = (name, columns, rows) => {
+    if (!columns || columns.length === 0 || !rows || rows.length === 0) return;
+    datasets.push({ name: sanitizeSheetName(name), columns, rows });
+  };
+
+  const cd = exportData?.cacheData || {};
+  const hd = exportData?.historyData || {};
+
+  // Ideas + Ideas Comments
+  const ideas = cd.ideas_data?.data;
+  if (Array.isArray(ideas)) {
+    const cols = ["id", "name", "description", "createdBy", "createdAt", "likes", "dislikes", "tactics", "commentsCount", "updatedAt"];
+    add("Ideas", cols, ideas.map((i) => [
+      i.id, i.name, i.description, i.createdBy, i.createdAt,
+      i.likes || 0, i.dislikes || 0,
+      (i.tactics || []).join(" | "),
+      (i.comments || []).length,
+      i.updatedAt || "",
+    ]));
+    const commentRows = ideas.flatMap((i) => (i.comments || []).map((c) => [i.id, i.name, c.author, c.date, c.text]));
+    add("Ideas Comments", ["ideaId", "ideaName", "author", "date", "text"], commentRows);
+  }
+
+  // Tactics + Tactics Comments
+  const tactics = cd.tactics_data?.data;
+  if (Array.isArray(tactics)) {
+    const cols = ["id", "title", "channel", "roleOfChannel", "audience", "audienceDetail", "format", "phase", "budget", "startDate", "endDate", "notes", "likes", "dislikes", "createdBy", "createdAt", "updatedAt"];
+    add("Tactics", cols, tactics.map((t) => [
+      t.id, t.title || "", t.channel || "", t.roleOfChannel || "",
+      Array.isArray(t.audience) ? t.audience.join(" | ") : (t.audience || ""),
+      t.audienceDetail || "", t.format || "", t.phase || "", t.budget || "",
+      t.startDate || "", t.endDate || "", t.notes || "",
+      t.likes || 0, t.dislikes || 0,
+      t.createdBy || "", t.createdAt || "", t.updatedAt || "",
+    ]));
+    const commentRows = tactics.flatMap((t) => (t.comments || []).map((c) => [t.id, t.title || t.channel || "", c.author, c.date, c.text]));
+    add("Tactics Comments", ["tacticId", "tacticTitle", "author", "date", "text"], commentRows);
+  }
+
+  // Calendar
+  const cal = cd.calendar_data?.data;
+  const calEvents = Array.isArray(cal) ? cal : (Array.isArray(cal?.events) ? cal.events : null);
+  if (calEvents) {
+    const cols = ["id", "title", "description", "channel", "audience", "start", "end", "status", "createdBy", "createdAt", "sourceType", "sourceId"];
+    add("Calendar", cols, calEvents.map((e) => cols.map((c) => formatCell(e[c]))));
+  }
+
+  // Map Pins
+  const pins = cd.custom_map_pins?.data;
+  if (Array.isArray(pins)) {
+    const cols = ["id", "title", "description", "lat", "lng", "color", "city", "createdBy", "createdAt"];
+    add("Map Pins", cols, pins.map((p) => cols.map((c) => formatCell(p[c]))));
+  }
+
+  // News feeds
+  for (const key of ["feeds:madonna", "feeds:fashion", "feeds:gay", "feeds:culture"]) {
+    const items = cd[key]?.data?.items;
+    if (!Array.isArray(items) || items.length === 0) continue;
+    const cat = key.split(":")[1];
+    const label = `Feed - ${cat.charAt(0).toUpperCase() + cat.slice(1)}`;
+    const cols = ["title", "source", "type", "date", "url", "description"];
+    add(label, cols, items.map((i) => cols.map((c) => formatCell(i[c]))));
+  }
+
+  // Media Trend
+  const mti = cd.media_trend_cache?.data;
+  if (mti) {
+    if (Array.isArray(mti.queryScores)) {
+      const cols = ["label", "todayCount", "baselineCount", "pctChange"];
+      add("Media Trend - Queries", cols, mti.queryScores.map((q) => cols.map((c) => formatCell(q[c]))));
+    }
+    const sumCols = ["fetchedAt", "isFirstRun", "baselineDate", "baseline", "index", "totalMentions", "dailyChange", "totalToday", "totalBaseline"];
+    add("Media Trend - Summary", sumCols, [sumCols.map((c) => formatCell(mti[c]))]);
+  }
+
+  // Media Feed Pool
+  const mfp = cd.media_feed_pool?.data;
+  const mfpItems = Array.isArray(mfp) ? mfp : (Array.isArray(mfp?.items) ? mfp.items : null);
+  if (mfpItems && mfpItems.length) {
+    const sample = mfpItems[0] || {};
+    const cols = Object.keys(sample).slice(0, 10);
+    add("Media Feed Pool", cols, mfpItems.map((i) => cols.map((c) => formatCell(i[c]))));
+  }
+
+  // Brand24 (7d / 14d / 30d)
+  for (const key of ["brand24_data", "brand24_data_14d", "brand24_data_30d"]) {
+    const d = cd[key]?.data;
+    if (!d) continue;
+    const mentions = Array.isArray(d) ? d : (d.mentions || d.items);
+    if (!Array.isArray(mentions) || mentions.length === 0) continue;
+    const sample = mentions[0] || {};
+    const cols = Object.keys(sample).slice(0, 12);
+    const label = key === "brand24_data" ? "Brand24 (7d)" : key === "brand24_data_14d" ? "Brand24 (14d)" : "Brand24 (30d)";
+    add(label, cols, mentions.map((m) => cols.map((c) => formatCell(m[c]))));
+  }
+
+  // Social Dashboard
+  const sd = cd.social_dashboard?.data;
+  if (sd && typeof sd === "object") {
+    if (Array.isArray(sd.reddit) && sd.reddit.length) {
+      const sample = sd.reddit[0] || {};
+      const cols = Object.keys(sample).slice(0, 12);
+      add("Social - Reddit", cols, sd.reddit.map((r) => cols.map((c) => formatCell(r[c]))));
+    }
+    if (Array.isArray(sd.youtube) && sd.youtube.length) {
+      const sample = sd.youtube[0] || {};
+      const cols = Object.keys(sample).slice(0, 12);
+      add("Social - YouTube", cols, sd.youtube.map((r) => cols.map((c) => formatCell(r[c]))));
+    }
+  }
+
+  // Social Composite
+  const sc = cd.social_composite?.data;
+  if (sc && typeof sc === "object" && !Array.isArray(sc)) {
+    const cols = Object.keys(sc).filter((k) => typeof sc[k] !== "object");
+    if (cols.length) add("Social Composite", cols, [cols.map((c) => formatCell(sc[c]))]);
+  }
+
+  // YouTube RAG
+  const ytv = cd.youtube_rag_videos?.data;
+  if (Array.isArray(ytv) && ytv.length) {
+    const sample = ytv[0] || {};
+    const cols = Object.keys(sample).slice(0, 12);
+    add("YouTube Videos", cols, ytv.map((v) => cols.map((c) => formatCell(v[c]))));
+  }
+  const ytc = cd.youtube_rag_comments?.data;
+  if (Array.isArray(ytc) && ytc.length) {
+    const sample = ytc[0] || {};
+    const cols = Object.keys(sample).slice(0, 12);
+    add("YouTube Comments", cols, ytc.map((c) => cols.map((k) => formatCell(c[k]))));
+  }
+  const ytt = cd.youtube_rag_themes?.data;
+  if (Array.isArray(ytt) && ytt.length) {
+    const sample = ytt[0] || {};
+    const cols = Object.keys(sample).slice(0, 12);
+    add("YouTube Themes", cols, ytt.map((t) => cols.map((c) => formatCell(t[c]))));
+  }
+
+  // AI Recommendations (flattened by category)
+  const air = cd.ai_recommendations?.data;
+  if (air && air.recommendations) {
+    const rows = [];
+    for (const [cat, recs] of Object.entries(air.recommendations)) {
+      if (!Array.isArray(recs)) continue;
+      recs.forEach((r) => rows.push([cat, r.type || "", r.title || "", r.description || ""]));
+    }
+    add("AI Recommendations", ["category", "type", "title", "description"], rows);
+  }
+
+  // Audience Bridge / Bear Hunt docs (drop raw content to keep sheets clean)
+  for (const [key, label] of [["audience_bridge_docs", "Audience Bridge Docs"], ["bear_hunt_docs", "Bear Hunt Docs"]]) {
+    const arr = cd[key]?.data;
+    if (!Array.isArray(arr) || arr.length === 0) continue;
+    const sample = arr[0] || {};
+    const cols = Object.keys(sample).filter((k) => k !== "content" && k !== "body").slice(0, 10);
+    add(label, cols, arr.map((d) => cols.map((c) => formatCell(d[c]))));
+  }
+
+  // Spotify (best-effort across common shapes)
+  const sp = cd.spotify_data?.data;
+  if (sp && typeof sp === "object") {
+    for (const subKey of ["tracks", "playlists", "artists", "items"]) {
+      const arr = sp[subKey];
+      if (!Array.isArray(arr) || arr.length === 0) continue;
+      const sample = arr[0] || {};
+      const cols = Object.keys(sample).slice(0, 12);
+      add(`Spotify - ${subKey.charAt(0).toUpperCase() + subKey.slice(1)}`, cols, arr.map((r) => cols.map((c) => formatCell(r[c]))));
+    }
+  }
+
+  // Historical time-series
+  const histLabels = {
+    media_trend_history: "Hist - Media Trend",
+    brand24_history: "Hist - Brand24",
+    social_composite_history: "Hist - Social Composite",
+    youtube_rag_history: "Hist - YouTube RAG",
+    spotify_popularity_history: "Hist - Spotify Popularity",
+    wikipedia_history: "Hist - Wikipedia",
+  };
+  for (const [key, entries] of Object.entries(hd)) {
+    if (!Array.isArray(entries) || entries.length === 0) continue;
+    const label = histLabels[key] || key;
+    const sample = entries.find((e) => e && typeof e === "object") || {};
+    const cols = typeof sample === "object" && sample !== null && Object.keys(sample).length
+      ? Object.keys(sample).slice(0, 15)
+      : ["value"];
+    const rows = entries.map((e) =>
+      e && typeof e === "object" ? cols.map((c) => formatCell(e[c])) : [formatCell(e)]
+    );
+    add(label, cols, rows);
+  }
+
+  return datasets;
+}
+
 function MasterRefresh() {
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState(null);
@@ -146,16 +377,17 @@ function MasterRefresh() {
     let doc = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>Pulse — Full Data Export ${tsStr}</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>body{font-family:'Inter Tight',system-ui,-apple-system,sans-serif;color:#222;max-width:900px;margin:0 auto;padding:40px;background:#fff}
-    h1{font-size:28px;border-bottom:3px solid #FFD500;padding-bottom:8px}
-    h2{font-size:20px;color:#333;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:30px}
-    h3{font-size:15px;color:#555;margin-top:16px}
-    h4{font-size:13px;color:#777;margin-top:12px}
-    table{border-collapse:collapse;width:100%;margin:8px 0}
-    th,td{border:1px solid #ddd;padding:6px 10px;font-size:11px;text-align:left;vertical-align:top}
-    th{background:#f5f5f5;font-weight:700}
-    .ts{color:#999;font-size:10px}
-    .meta{color:#888;font-size:11px;margin:4px 0}
+    <style>body{font-family:'Inter Tight',system-ui,-apple-system,sans-serif;color:#222;margin:0;padding:0;background:#fff}
+    h1{font-size:24px;border-bottom:3px solid #FFD500;padding-bottom:8px}
+    h2{font-size:18px;color:#333;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:24px}
+    h3{font-size:14px;color:#555;margin-top:14px}
+    h4{font-size:12px;color:#777;margin-top:10px}
+    p{margin:6px 0;line-height:1.45;word-wrap:break-word;overflow-wrap:break-word}
+    table{border-collapse:collapse;width:100%;margin:8px 0;table-layout:fixed}
+    th,td{border:1px solid #ddd;padding:4px 6px;font-size:9px;text-align:left;vertical-align:top;word-wrap:break-word;overflow-wrap:break-word;word-break:break-word}
+    th{background:#f5f5f5;font-weight:700;font-size:9px}
+    .ts{color:#999;font-size:9px}
+    .meta{color:#888;font-size:10px;margin:4px 0}
     .section{page-break-inside:avoid}
     </style></head><body>`;
 
@@ -164,28 +396,31 @@ function MasterRefresh() {
     doc += `<p class="meta">VCCP Media Cultural Intelligence — All database records</p>`;
     doc += `<p class="meta">Export timestamp: ${exportData.exportedAt}</p>`;
 
-    // Helper to render any data object as a readable table
-    function renderObject(obj, depth = 0) {
+    // Helper to render any data object as a readable table.
+    // inCell=true tightens string length so table cells never overflow the page.
+    function renderObject(obj, depth = 0, inCell = false) {
+      const strCap = inCell ? 200 : 800;
       if (obj === null || obj === undefined) return "<em>null</em>";
-      if (typeof obj === "string") return esc(obj).slice(0, 500);
+      if (typeof obj === "string") return esc(obj).slice(0, strCap);
       if (typeof obj === "number" || typeof obj === "boolean") return String(obj);
       if (Array.isArray(obj)) {
         if (obj.length === 0) return "<em>empty</em>";
-        if (typeof obj[0] !== "object") return obj.map(v => esc(String(v))).join(", ");
+        if (typeof obj[0] !== "object") return obj.map(v => esc(String(v))).join(", ").slice(0, strCap);
         if (depth > 1) return `[${obj.length} items]`;
-        // Render array of objects as table
-        const keys = [...new Set(obj.flatMap(item => typeof item === "object" && item ? Object.keys(item) : []))].slice(0, 12);
+        // Render array of objects as table — max 10 columns to avoid page overflow
+        const keys = [...new Set(obj.flatMap(item => typeof item === "object" && item ? Object.keys(item) : []))].slice(0, 10);
         if (keys.length === 0) return `[${obj.length} items]`;
-        let t = `<table><tr>${keys.map(k => `<th>${esc(k)}</th>`).join("")}</tr>`;
+        const colWidth = `${Math.floor(100 / keys.length)}%`;
+        let t = `<table><tr>${keys.map(k => `<th style="width:${colWidth}">${esc(k)}</th>`).join("")}</tr>`;
         obj.forEach(item => {
-          t += `<tr>${keys.map(k => `<td>${typeof item === "object" && item ? renderObject(item[k], depth + 1) : esc(String(item))}</td>`).join("")}</tr>`;
+          t += `<tr>${keys.map(k => `<td>${typeof item === "object" && item ? renderObject(item[k], depth + 1, true) : esc(String(item)).slice(0, 200)}</td>`).join("")}</tr>`;
         });
         t += "</table>";
         return t;
       }
       if (typeof obj === "object") {
         if (depth > 2) return "{...}";
-        return Object.entries(obj).map(([k, v]) => `<b>${esc(k)}:</b> ${renderObject(v, depth + 1)}`).join("<br/>");
+        return Object.entries(obj).map(([k, v]) => `<b>${esc(k)}:</b> ${renderObject(v, depth + 1, inCell)}`).join("<br/>");
       }
       return esc(String(obj));
     }
@@ -296,13 +531,26 @@ function MasterRefresh() {
     doc += `<p class="meta">Pulse — VCCP Media Cultural Intelligence</p>`;
     doc += `</body></html>`;
 
-    // Export as real HTML rather than fake .doc (Word's HTML-in-.doc rendering is unreliable).
-    // The output file opens perfectly in any browser and can also be imported by Word / Pages.
-    const blob = new Blob([doc], { type: "text/html;charset=utf-8" });
+    // Build a real .docx from the same HTML so Word / Pages render headings,
+    // tables, lists, and <br/> line breaks natively. html-docx-js is loaded
+    // on demand so it never runs at build/SSR time.
+    let blob;
+    let filename;
+    try {
+      const mod = await import("html-docx-js/dist/html-docx");
+      const htmlDocx = mod.default || mod;
+      // Landscape + tight margins keep wide tables on the page.
+      blob = htmlDocx.asBlob(doc, { orientation: "landscape", margins: { top: 540, right: 540, bottom: 540, left: 540 } });
+      filename = `Pulse-Full-Export-${tsStr}.docx`;
+    } catch (err) {
+      // Fallback: ship the HTML directly if the converter fails to load.
+      blob = new Blob([doc], { type: "text/html;charset=utf-8" });
+      filename = `Pulse-Full-Export-${tsStr}.html`;
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Pulse-Full-Export-${tsStr}.html`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -314,24 +562,112 @@ function MasterRefresh() {
     setTimeout(() => setStatus(null), 5000);
   }
 
+  async function fetchExportData() {
+    const r = await fetch("/api/export");
+    return await r.json();
+  }
+
+  async function downloadXlsx() {
+    setDownloading(true);
+    setStatus("Building XLSX workbook...");
+    try {
+      const exportData = await fetchExportData();
+      const datasets = buildDatasets(exportData);
+      if (datasets.length === 0) {
+        setStatus("No data to export");
+        return;
+      }
+      const XLSX = await import("xlsx");
+      const wb = XLSX.utils.book_new();
+      for (const ds of datasets) {
+        const aoa = [ds.columns, ...ds.rows];
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        // Column widths derived from content — cap at 50 so nothing runs wild
+        ws["!cols"] = ds.columns.map((col, i) => {
+          const sampleLen = Math.max(
+            String(col).length,
+            ...ds.rows.slice(0, 200).map((r) => String(r[i] ?? "").length)
+          );
+          return { wch: Math.min(50, Math.max(10, sampleLen + 2)) };
+        });
+        ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+        XLSX.utils.book_append_sheet(wb, ws, ds.name);
+      }
+      const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+      XLSX.writeFile(wb, `Pulse-Full-Export-${ts}.xlsx`);
+      setStatus("Download complete");
+    } catch (err) {
+      setStatus("XLSX export failed: " + err.message);
+    } finally {
+      setDownloading(false);
+      setTimeout(() => setStatus(null), 5000);
+    }
+  }
+
+  async function downloadCsvs() {
+    setDownloading(true);
+    setStatus("Building CSV bundle...");
+    try {
+      const exportData = await fetchExportData();
+      const datasets = buildDatasets(exportData);
+      if (datasets.length === 0) {
+        setStatus("No data to export");
+        return;
+      }
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      for (const ds of datasets) {
+        zip.file(`${sanitizeFileName(ds.name)}.csv`, toCSV(ds.columns, ds.rows));
+      }
+      const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Pulse-Full-Export-${ts}-csvs.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setStatus("Download complete");
+    } catch (err) {
+      setStatus("CSV export failed: " + err.message);
+    } finally {
+      setDownloading(false);
+      setTimeout(() => setStatus(null), 5000);
+    }
+  }
+
+  const dlBtn = {
+    padding: "10px 18px", fontSize: 12, fontWeight: 700,
+    color: "#EDEDE8", background: "transparent",
+    border: "1px solid #222", borderRadius: 8,
+    fontFamily: "'Inter Tight', system-ui, sans-serif",
+    transition: "all 0.15s",
+  };
+  const disabledBtn = { ...dlBtn, color: "#777", background: "#222", cursor: "wait" };
+
   return (
-    <div style={{ marginTop: 32, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-      <button onClick={downloadMemory} disabled={downloading || running} style={{
-        padding: "10px 24px", fontSize: 12, fontWeight: 700,
-        color: downloading ? "#777" : "#EDEDE8",
-        background: downloading ? "#222" : "transparent",
-        border: "1px solid #222",
-        borderRadius: 8, cursor: downloading ? "wait" : "pointer",
-        fontFamily: "'Inter Tight', system-ui, sans-serif",
-        transition: "all 0.15s",
-      }}>
-        {downloading ? "Collecting..." : "Download Memory"}
-      </button>
-      {status && (
-        <span style={{ fontSize: 10, color: running || downloading ? "#A78BFA" : status.includes("failed") ? "#EF4444" : "#34D399", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
-          {status}
-        </span>
-      )}
+    <div style={{ marginTop: 32, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <button onClick={downloadMemory} disabled={downloading || running}
+          style={{ ...(downloading ? disabledBtn : dlBtn), cursor: downloading ? "wait" : "pointer" }}>
+          {downloading ? "Collecting..." : "Download as DOCX"}
+        </button>
+        <button onClick={downloadXlsx} disabled={downloading || running}
+          style={{ ...(downloading ? disabledBtn : dlBtn), cursor: downloading ? "wait" : "pointer" }}>
+          Download as XLSX
+        </button>
+        <button onClick={downloadCsvs} disabled={downloading || running}
+          style={{ ...(downloading ? disabledBtn : dlBtn), cursor: downloading ? "wait" : "pointer" }}>
+          Download as CSVs
+        </button>
+        {status && (
+          <span style={{ fontSize: 10, color: running || downloading ? "#A78BFA" : status.includes("failed") ? "#EF4444" : "#34D399", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
+            {status}
+          </span>
+        )}
+      </div>
       <button onClick={refreshAll} disabled={running || downloading} style={{
         padding: "10px 24px", fontSize: 12, fontWeight: 700,
         color: running ? "#777" : "#0C0C0C",

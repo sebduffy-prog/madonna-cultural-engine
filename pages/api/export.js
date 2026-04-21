@@ -21,6 +21,7 @@ const ALL_CACHE_KEYS = [
   "youtube_rag_themes",
   "ai_recommendations",
   "ideas_data",
+  "tactics_data",
   "calendar_data",
   "custom_map_pins",
   "audience_bridge_docs",

@@ -43,11 +43,12 @@ function formatTacticDates(t) {
 const Y = "#FFD500", BG = "#0C0C0C", CARD = "rgba(21,21,21,0.68)", BORDER = "#222", WHITE = "#EDEDE8", MUTED = "#777", DIM = "#999", GREEN = "#34D399", RED = "#EF4444", TEAL = "#2DD4BF";
 
 const CHANNEL_OPTIONS = [
-  { key: "Social", label: "Social", color: TEAL },
-  { key: "OOH",    label: "OOH",    color: Y },
-  { key: "PPC",    label: "PPC",    color: GREEN },
-  { key: "Audio",  label: "Audio",  color: "#A78BFA" },
-  { key: "Video",  label: "Video",  color: "#FB7185" },
+  { key: "Social",        label: "Social",        color: TEAL },
+  { key: "OOH",           label: "OOH",           color: Y },
+  { key: "PPC",           label: "PPC",           color: GREEN },
+  { key: "Audio",         label: "Audio",         color: "#A78BFA" },
+  { key: "Video",         label: "Video",         color: "#FB7185" },
+  { key: "Experiential",  label: "Experiential",  color: "#F59E0B" },
 ];
 const CHANNEL_KEYS = CHANNEL_OPTIONS.map(c => c.key);
 const CHANNEL_BY_KEY = Object.fromEntries(CHANNEL_OPTIONS.map(c => [c.key, c]));
