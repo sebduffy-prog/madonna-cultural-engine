@@ -1,30 +1,33 @@
 import { useEffect, useRef, useState } from "react";
 
-// Text rendered as a cloud of particles. Cursor repels nearby particles and
-// each one springs back to its anchor. The canvas is sized larger than the
-// glyphs (via `bleed`) so particles can travel well outside the text bounds
-// without being clipped; the canvas is absolutely positioned inside a sized
-// wrapper so the outer layout only reserves the text-visual footprint and
-// particles can drift behind neighbouring UI.
+// Text rendered as a cloud of particles — one per physical pixel of the
+// rasterised glyphs, each carrying its source alpha. At rest the canvas
+// is pixel-identical to the native font; in motion the physics move the
+// particles (with subpixel-accurate putImageData blending) so the glyphs
+// dissolve and reform smoothly instead of flickering between chunky blocks.
+//
+// The canvas is sized `textW + 2·bleed` × `textH + 2·bleed`, anchored so the
+// glyphs sit in the middle. Bleed is derived from the repel physics so a
+// particle can always reach its physical maximum before clipping. The canvas
+// is absolutely positioned inside a wrapper sized only to the text's visible
+// footprint, so layout isn't pushed around.
 export default function PulseParticleText({
   text = "Pulse",
   fontSize = 64,
   fontWeight = 900,
   color = "#EDEDE8",
-  particleSize = 2,
-  particleDensity = 2,   // px stride between samples — must be ≤ particleSize to avoid a visible grid
   mouseRadius = 90,
   returnSpeed = 0.08,
   damping = 0.86,
   repelStrength = 5.5,
-  bleed = 160,           // px of canvas area around the text for particles to travel through
-  alphaThreshold = 190,  // pixel alpha cutoff — higher = tighter glyph silhouettes
+  alphaThreshold = 8,       // capture every faint edge pixel
+  bleed,                    // overridable; otherwise derived from physics
 }) {
   const canvasRef = useRef(null);
   const particlesRef = useRef([]);
   const mouseRef = useRef({ x: -99999, y: -99999, active: false });
   const rafRef = useRef(0);
-  const [size, setSize] = useState({ w: 0, h: 0, tW: 0, tH: 0, baseX: 0, baseY: 0 });
+  const [size, setSize] = useState({ tW: 0, tH: 0, anchorX: 0, anchorY: 0 });
 
   useEffect(() => {
     let cancelled = false;
@@ -34,8 +37,11 @@ export default function PulseParticleText({
     const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1;
     const fontCSS = `${fontWeight} ${fontSize}px 'Inter Tight', system-ui, sans-serif`;
 
+    const steadyStateReach = repelStrength / returnSpeed;   // spring v/k
+    const autoBleed = Math.ceil(mouseRadius + steadyStateReach * 1.2 + 40);
+    const effBleed = bleed != null ? bleed : autoBleed;
+
     async function build() {
-      // Wait for the font to be ready, otherwise the glyph metrics are wrong.
       if (typeof document !== "undefined" && document.fonts?.ready) {
         try { await document.fonts.ready; } catch {}
       }
@@ -46,43 +52,51 @@ export default function PulseParticleText({
       const m = measure.measureText(text);
       const tW = Math.ceil(m.width);
       const tH = Math.ceil(fontSize * 1.15);
-      const w = tW + bleed * 2;
-      const h = tH + bleed * 2;
-      // Anchor the glyphs at (bleed, bleed) within the canvas — gives equal
-      // travel room in every direction.
-      const baseX = bleed;
-      const baseY = bleed;
+      const w = tW + effBleed * 2;
+      const h = tH + effBleed * 2;
+      const anchorX = effBleed;
+      const anchorY = effBleed;
+      const pw = w * dpr;
+      const ph = h * dpr;
 
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
+      canvas.width = pw;
+      canvas.height = ph;
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
 
+      // Render glyphs once to an offscreen canvas at full DPR, then sample
+      // every physical pixel whose alpha clears the threshold.
       const off = document.createElement("canvas");
-      off.width = w * dpr;
-      off.height = h * dpr;
+      off.width = pw;
+      off.height = ph;
       const oc = off.getContext("2d");
       oc.scale(dpr, dpr);
       oc.font = fontCSS;
       oc.fillStyle = "#ffffff";
       oc.textBaseline = "top";
       oc.textAlign = "left";
-      oc.fillText(text, baseX, baseY);
+      oc.fillText(text, anchorX, anchorY);
 
-      const data = oc.getImageData(0, 0, w * dpr, h * dpr).data;
-      const stride = Math.max(1, Math.round(particleDensity * dpr));
+      const src = oc.getImageData(0, 0, pw, ph).data;
       const ps = [];
-      for (let y = 0; y < h * dpr; y += stride) {
-        for (let x = 0; x < w * dpr; x += stride) {
-          if (data[(y * w * dpr + x) * 4 + 3] > alphaThreshold) {
+      // Store positions in CSS coords so physics + cursor math stays simple.
+      for (let y = 0; y < ph; y++) {
+        for (let x = 0; x < pw; x++) {
+          const a = src[(y * pw + x) * 4 + 3];
+          if (a > alphaThreshold) {
             const bx = x / dpr;
             const by = y / dpr;
-            ps.push({ x: bx, y: by, baseX: bx, baseY: by, vx: 0, vy: 0 });
+            ps.push({ x: bx, y: by, baseX: bx, baseY: by, vx: 0, vy: 0, a });
           }
         }
       }
       particlesRef.current = ps;
-      setSize({ w, h, tW, tH, baseX, baseY });
+      setSize({ tW, tH, anchorX, anchorY });
+
+      // Reusable ImageData buffer — allocated once, cleared per frame.
+      const frame = ctx.createImageData(pw, ph);
+      const out = frame.data;
+      const parsed = parseHex(color);
 
       function onMove(e) {
         const rect = canvas.getBoundingClientRect();
@@ -98,16 +112,21 @@ export default function PulseParticleText({
       document.addEventListener("mousemove", onMove, { passive: true });
       window.addEventListener("blur", onBlur);
 
+      const R = parsed.r, G = parsed.g, B = parsed.b;
+
       function tick() {
         const mouse = mouseRef.current;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, w, h);
-        ctx.fillStyle = color;
+        // Zero the output buffer — clear each frame so stale particle
+        // positions don't leave trails.
+        out.fill(0);
         const r = mouseRadius;
         const r2 = r * r;
         const arr = particlesRef.current;
+
         for (let i = 0; i < arr.length; i++) {
           const p = arr[i];
+
+          // --- physics ---
           if (mouse.active) {
             const dx = p.x - mouse.x;
             const dy = p.y - mouse.y;
@@ -125,8 +144,29 @@ export default function PulseParticleText({
           p.vy *= damping;
           p.x += p.vx;
           p.y += p.vy;
-          ctx.fillRect(p.x, p.y, particleSize, particleSize);
+
+          // --- subpixel-accurate render to the ImageData buffer ---
+          const fx = p.x * dpr;
+          const fy = p.y * dpr;
+          const ix = Math.floor(fx);
+          const iy = Math.floor(fy);
+          if (ix < 0 || iy < 0 || ix >= pw - 1 || iy >= ph - 1) continue;
+          const sx = fx - ix;
+          const sy = fy - iy;
+          const w00 = (1 - sx) * (1 - sy);
+          const w10 = sx * (1 - sy);
+          const w01 = (1 - sx) * sy;
+          const w11 = sx * sy;
+          const srcA = p.a;
+          const row = pw * 4;
+          const base = iy * row + ix * 4;
+          putPixel(out, base,               R, G, B, srcA * w00);
+          putPixel(out, base + 4,           R, G, B, srcA * w10);
+          putPixel(out, base + row,         R, G, B, srcA * w01);
+          putPixel(out, base + row + 4,     R, G, B, srcA * w11);
         }
+
+        ctx.putImageData(frame, 0, 0);
         rafRef.current = requestAnimationFrame(tick);
       }
       rafRef.current = requestAnimationFrame(tick);
@@ -146,11 +186,8 @@ export default function PulseParticleText({
       if (cleanup) cleanup();
       cancelAnimationFrame(rafRef.current);
     };
-  }, [text, fontSize, fontWeight, color, particleSize, particleDensity, mouseRadius, returnSpeed, damping, repelStrength, bleed, alphaThreshold]);
+  }, [text, fontSize, fontWeight, color, mouseRadius, returnSpeed, damping, repelStrength, alphaThreshold, bleed]);
 
-  // Outer wrapper takes up exactly the text's visual footprint so layout
-  // flow is unchanged; the canvas itself bleeds outside that box so
-  // particles can drift over adjacent UI.
   return (
     <div
       style={{
@@ -166,8 +203,8 @@ export default function PulseParticleText({
         ref={canvasRef}
         style={{
           position: "absolute",
-          left: -(size.baseX || 0),
-          top: -(size.baseY || 0),
+          left: -(size.anchorX || 0),
+          top: -(size.anchorY || 0),
           display: "block",
           pointerEvents: "none",
           zIndex: 0,
@@ -175,4 +212,28 @@ export default function PulseParticleText({
       />
     </div>
   );
+}
+
+// "Nearest particle wins" pixel accumulator — keeps edges sharp when
+// particles cluster back to rest (a lighter particle doesn't darken a
+// heavier one behind it).
+function putPixel(out, idx, r, g, b, a) {
+  if (a <= 0.5) return;
+  const A = a > 255 ? 255 : a | 0;
+  if (A > out[idx + 3]) {
+    out[idx] = r;
+    out[idx + 1] = g;
+    out[idx + 2] = b;
+    out[idx + 3] = A;
+  }
+}
+
+function parseHex(hex) {
+  const s = (hex || "#ffffff").replace("#", "");
+  const full = s.length === 3 ? s.split("").map((c) => c + c).join("") : s;
+  return {
+    r: parseInt(full.slice(0, 2), 16) || 255,
+    g: parseInt(full.slice(2, 4), 16) || 255,
+    b: parseInt(full.slice(4, 6), 16) || 255,
+  };
 }
