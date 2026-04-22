@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 // is absolutely positioned inside a wrapper sized only to the text's visible
 // footprint, so layout isn't pushed around.
 export default function PulseParticleText({
-  text = "Pulse",
+  text = "The Recording Studio",
   fontSize = 64,
   fontWeight = 900,
   color = "#EDEDE8",
