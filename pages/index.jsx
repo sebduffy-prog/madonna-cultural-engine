@@ -381,7 +381,7 @@ function MasterRefresh() {
     const esc = (s) => (s || "").toString().replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
     let doc = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>Pulse — Full Data Export ${tsStr}</title>
+<html lang="en"><head><meta charset="utf-8"><title>The Recording Studio — Full Data Export ${tsStr}</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>body{font-family:'Inter Tight',system-ui,-apple-system,sans-serif;color:#222;margin:0;padding:0;background:#fff}
     h1{font-size:24px;border-bottom:3px solid #FFD500;padding-bottom:8px}
@@ -397,7 +397,7 @@ function MasterRefresh() {
     .section{page-break-inside:avoid}
     </style></head><body>`;
 
-    doc += `<h1>Pulse — Full Data Export</h1>`;
+    doc += `<h1>The Recording Studio — Full Data Export</h1>`;
     doc += `<p class="meta">Exported: ${tsDisplay}</p>`;
     doc += `<p class="meta">VCCP Media Cultural Intelligence — All database records</p>`;
     doc += `<p class="meta">Export timestamp: ${exportData.exportedAt}</p>`;
@@ -534,7 +534,7 @@ function MasterRefresh() {
     }
 
     doc += `<hr/><p class="meta">End of full data export — ${Object.keys(exportData.cacheData || {}).length} data stores, ${Object.keys(exportData.historyData || {}).length} history series</p>`;
-    doc += `<p class="meta">Pulse — VCCP Media Cultural Intelligence</p>`;
+    doc += `<p class="meta">The Recording Studio — VCCP Media Cultural Intelligence</p>`;
     doc += `</body></html>`;
 
     // Build a real .docx from the same HTML so Word / Pages render headings,
@@ -547,11 +547,11 @@ function MasterRefresh() {
       const htmlDocx = mod.default || mod;
       // Landscape + tight margins keep wide tables on the page.
       blob = htmlDocx.asBlob(doc, { orientation: "landscape", margins: { top: 540, right: 540, bottom: 540, left: 540 } });
-      filename = `Pulse-Full-Export-${tsStr}.docx`;
+      filename = `The-Recording-Studio-Full-Export-${tsStr}.docx`;
     } catch (err) {
       // Fallback: ship the HTML directly if the converter fails to load.
       blob = new Blob([doc], { type: "text/html;charset=utf-8" });
-      filename = `Pulse-Full-Export-${tsStr}.html`;
+      filename = `The-Recording-Studio-Full-Export-${tsStr}.html`;
     }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -600,7 +600,7 @@ function MasterRefresh() {
         XLSX.utils.book_append_sheet(wb, ws, ds.name);
       }
       const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
-      XLSX.writeFile(wb, `Pulse-Full-Export-${ts}.xlsx`);
+      XLSX.writeFile(wb, `The-Recording-Studio-Full-Export-${ts}.xlsx`);
       setStatus("Download complete");
     } catch (err) {
       setStatus("XLSX export failed: " + err.message);
@@ -630,7 +630,7 @@ function MasterRefresh() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Pulse-Full-Export-${ts}-csvs.zip`;
+      a.download = `The-Recording-Studio-Full-Export-${ts}-csvs.zip`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -1009,7 +1009,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         <div style={{ textAlign: "center", position: "relative", zIndex: 1 }}>
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
           <div style={{ margin: "12px 0 8px" }}>
-            <PulseParticleText text="Pulse" fontSize={140} color={WHITE} mouseRadius={130} />
+            <PulseParticleText text="The Recording Studio" fontSize={140} color={WHITE} mouseRadius={130} />
           </div>
           <div style={{ height: 3, width: 180, background: Y, borderRadius: 2, margin: "14px auto 32px" }} />
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: "rgba(21,21,21,0.8)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif", backdropFilter: "blur(10px)" }} autoFocus />
@@ -1051,9 +1051,9 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: Y, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>VCCP Media Cultural Intelligence</span>
         </div>
-        <div aria-label="Pulse" style={{ lineHeight: 1, margin: "0 0 4px", textAlign: "left", position: "relative", zIndex: 0 }}>
+        <div aria-label="The Recording Studio" style={{ lineHeight: 1, margin: "0 0 4px", textAlign: "left", position: "relative", zIndex: 0 }}>
           <PulseParticleText
-            text="Pulse"
+            text="The Recording Studio"
             fontSize={36}
             color={WHITE}
             mouseRadius={70}

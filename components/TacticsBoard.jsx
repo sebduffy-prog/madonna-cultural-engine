@@ -87,7 +87,7 @@ const FIELDS = [
   { key: "status", label: "Status", type: "status-select", hint: "Proposed · Approved · Booked" },
   { key: "objective", label: "Objective", placeholder: "What this tactic is here to achieve" },
   { key: "kpi", label: "Optimised KPI", placeholder: "e.g. view-through rate, completion, ticket sales" },
-  { key: "roleOfChannel", label: "Role of Channel", placeholder: "What this channel is doing in the mix (reach, reappraisal, proof, depth...)" },
+  { key: "roleOfChannel", label: "Tactic", placeholder: "What this channel is doing in the mix (reach, reappraisal, proof, depth...)" },
   { key: "audience", label: "Audience", type: "multi-audience", hint: "Pick one or more — click to toggle" },
   { key: "audienceDetail", label: "Audience Detail", placeholder: "Specific mindset, behaviour, sub-cohort — freeform" },
   { key: "format", label: "Format", placeholder: "Specific executional format (15s vertical, 6-sheet, native article...)" },
