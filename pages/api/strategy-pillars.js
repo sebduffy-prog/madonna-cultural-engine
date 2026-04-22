@@ -1,10 +1,13 @@
-// Strategy Pillars API — stores channels attached to each pillar
-// Shape: { tease: [{id, channel, role, approach, budget}], launch: [...], sustain: [...] }
+// Strategy Pillars API — stores channels and editable meta for each pillar
+// Channels shape: { tease: [{id, channel, role, approach, budget}], launch: [...], sustain: [...] }
+// Meta shape:     { tease: {title, tagline, description}, launch: {...}, sustain: {...} }
 
 import { kvGet, kvSet } from "../../lib/kv";
 
 const CACHE_KEY = "strategy_pillar_channels";
+const META_KEY = "strategy_pillar_meta";
 const PILLARS = ["tease", "launch", "sustain"];
+const META_FIELDS = ["title", "tagline", "description"];
 
 function uuid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
@@ -14,17 +17,42 @@ function emptyShape() {
   return Object.fromEntries(PILLARS.map((p) => [p, []]));
 }
 
+function emptyMeta() {
+  return Object.fromEntries(PILLARS.map((p) => [p, {}]));
+}
+
+async function loadMeta() {
+  const meta = (await kvGet(META_KEY)) || emptyMeta();
+  for (const p of PILLARS) {
+    if (!meta[p] || typeof meta[p] !== "object") meta[p] = {};
+  }
+  return meta;
+}
+
 export default async function handler(req, res) {
   if (req.method === "GET") {
     const data = (await kvGet(CACHE_KEY)) || emptyShape();
     for (const p of PILLARS) if (!Array.isArray(data[p])) data[p] = [];
-    return res.status(200).json({ pillars: data });
+    const meta = await loadMeta();
+    return res.status(200).json({ pillars: data, meta });
   }
 
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
   const { action } = body;
+
+  if (action === "update-meta") {
+    const { pillar } = body;
+    if (!PILLARS.includes(pillar)) return res.status(400).json({ error: "Invalid pillar" });
+    const meta = await loadMeta();
+    for (const f of META_FIELDS) {
+      if (body[f] !== undefined) meta[pillar][f] = String(body[f]);
+    }
+    await kvSet(META_KEY, meta);
+    return res.status(200).json({ ok: true, meta });
+  }
+
   const data = (await kvGet(CACHE_KEY)) || emptyShape();
   for (const p of PILLARS) if (!Array.isArray(data[p])) data[p] = [];
 
