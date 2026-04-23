@@ -547,11 +547,11 @@ function MasterRefresh() {
       const htmlDocx = mod.default || mod;
       // Landscape + tight margins keep wide tables on the page.
       blob = htmlDocx.asBlob(doc, { orientation: "landscape", margins: { top: 540, right: 540, bottom: 540, left: 540 } });
-      filename = `TheRecordingStudio-Full-Export-${tsStr}.docx`;
+      filename = `The-Recording-Studio-Full-Export-${tsStr}.docx`;
     } catch (err) {
       // Fallback: ship the HTML directly if the converter fails to load.
       blob = new Blob([doc], { type: "text/html;charset=utf-8" });
-      filename = `TheRecordingStudio-Full-Export-${tsStr}.html`;
+      filename = `The-Recording-Studio-Full-Export-${tsStr}.html`;
     }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -600,7 +600,7 @@ function MasterRefresh() {
         XLSX.utils.book_append_sheet(wb, ws, ds.name);
       }
       const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
-      XLSX.writeFile(wb, `TheRecordingStudio-Full-Export-${ts}.xlsx`);
+      XLSX.writeFile(wb, `The-Recording-Studio-Full-Export-${ts}.xlsx`);
       setStatus("Download complete");
     } catch (err) {
       setStatus("XLSX export failed: " + err.message);
@@ -630,7 +630,7 @@ function MasterRefresh() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `TheRecordingStudio-Full-Export-${ts}-csvs.zip`;
+      a.download = `The-Recording-Studio-Full-Export-${ts}-csvs.zip`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -872,11 +872,21 @@ export async function getStaticProps() {
   } catch(e) {}
 
   // Warner Sites (flyposting, Manchester murals, London Underground, Heathrow corridor)
-  let sites = { flyposting: [], manchesterMurals: [], londonUnderground: [], heathrowSites: [] };
+  let sites = { flyposting: [], manchesterMurals: [], londonUnderground: [], heathrowSites: [], plannedSites: [] };
   try {
     const raw = fs.readFileSync(path.join(dir, "warner-sites.json"), "utf-8");
     sites = JSON.parse(raw);
   } catch (e) {}
+
+  // Planned Sites — actual confirmed/planned locations imported from
+  // "Planned sites for warner.xlsx". Overlays on the map as a toggleable layer.
+  try {
+    const plannedRaw = fs.readFileSync(path.join(dir, "planned-sites.json"), "utf-8");
+    const planned = JSON.parse(plannedRaw);
+    if (Array.isArray(planned)) sites.plannedSites = planned;
+    else if (Array.isArray(planned?.plannedSites)) sites.plannedSites = planned.plannedSites;
+  } catch (e) {}
+  if (!Array.isArray(sites.plannedSites)) sites.plannedSites = [];
 
   return { props: { comments: allComments, gwiData, murals, venues, sites, fullThemeCounts, totalCommentCount } };
 }
@@ -1009,7 +1019,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         <div style={{ textAlign: "center", position: "relative", zIndex: 1 }}>
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: Y }}>VCCP Media Cultural Intelligence</span>
           <div style={{ margin: "12px 0 8px" }}>
-            <PulseParticleText text="Pulse" fontSize={140} color={WHITE} mouseRadius={130} />
+            <PulseParticleText text="The Recording Studio" fontSize={140} color={WHITE} mouseRadius={130} />
           </div>
           <div style={{ height: 3, width: 180, background: Y, borderRadius: 2, margin: "14px auto 32px" }} />
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: "rgba(21,21,21,0.8)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif", backdropFilter: "blur(10px)" }} autoFocus />
@@ -1054,7 +1064,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
         <div aria-label="The Recording Studio" style={{ lineHeight: 1, margin: "0 0 4px", textAlign: "left", position: "relative", zIndex: 0 }}>
           <PulseParticleText
             text="The Recording Studio"
-            fontSize={20}
+            fontSize={36}
             color={WHITE}
             mouseRadius={70}
           />
