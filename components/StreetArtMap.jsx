@@ -159,6 +159,8 @@ export default function StreetArtMap({ murals, venues, sites = {} }) {
       popup: (v) => `<div><strong style="color:${COLORS.PINK}">${esc(v.name)}</strong>${v.address ? `<br/><span style="color:${COLORS.MUTED}">${esc(v.address)}</span>` : ""}${v._city ? `<br/><span style="color:${COLORS.MUTED}">${esc(v._city)}</span>` : ""}</div>` },
     { key: "flyposting", label: "Flyposting Sites", color: COLORS.TEAL, radius: 4, data: sites.flyposting || [],
       popup: (f) => `<div><strong style="color:${COLORS.TEAL}">${esc(f.site)}</strong><br/><span style="color:${COLORS.MUTED}">${esc(f.address || f.region)}</span>${f.postcode ? `<br/><span style="color:${COLORS.MUTED}">${esc(f.postcode)}</span>` : ""}${f.structure ? `<br/><span style="color:${COLORS.MUTED};font-size:10px">${esc(f.structure)}${f.posterSize ? ` · ${esc(f.posterSize)}` : ""}</span>` : ""}</div>` },
+    { key: "planned", label: "Planned Sites", color: COLORS.CORAL, radius: 6, data: sites.plannedSites || [],
+      popup: (p) => `<div><strong style="color:${COLORS.CORAL}">${esc(p.site || p.name || "Planned site")}</strong>${p.address || p.region ? `<br/><span style="color:${COLORS.MUTED}">${esc(p.address || p.region)}</span>` : ""}${p.postcode ? `<br/><span style="color:${COLORS.MUTED}">${esc(p.postcode)}</span>` : ""}${p.structure || p.posterSize ? `<br/><span style="color:${COLORS.MUTED};font-size:10px">${esc(p.structure || "")}${p.structure && p.posterSize ? " · " : ""}${esc(p.posterSize || "")}</span>` : ""}${p.displayWeeks ? `<br/><span style="color:${COLORS.MUTED};font-size:10px">${esc(String(p.displayWeeks))} weeks</span>` : ""}<br/><span style="color:${COLORS.CORAL};font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase">Confirmed · Planned</span></div>` },
     { key: "tube", label: "Tube Station Sites", color: COLORS.BLUE, radius: 8, data: sites.londonUnderground || [],
       popup: (t) => `<div><strong style="color:${COLORS.BLUE}">${esc(t.station)}</strong><br/><span style="color:${COLORS.MUTED}">London Underground</span></div>` },
     { key: "heathrow", label: "Heathrow Corridor", color: COLORS.PURPLE, radius: 8, data: sites.heathrowSites || [],
@@ -166,7 +168,7 @@ export default function StreetArtMap({ murals, venues, sites = {} }) {
   ], [allMurals, allVenues, sites]);
 
   const [visibleLayers, setVisibleLayers] = useState(
-    () => new Set(["murals", "venues", "flyposting", "tube", "heathrow", "connections", "custom"])
+    () => new Set(["murals", "venues", "flyposting", "planned", "tube", "heathrow", "connections", "custom"])
   );
   function toggleLayer(key) {
     setVisibleLayers(prev => {
@@ -607,7 +609,7 @@ export default function StreetArtMap({ murals, venues, sites = {} }) {
             opacity: 0.85,
           }}
         >
-          Murals, LGBTQ+ venues, Warner flyposting sites, London Underground activations, and the Heathrow corridor. Use the city selector to jump between locations and toggle pin types with the controls below.
+          Murals, LGBTQ+ venues, Warner flyposting sites, confirmed planned sites, London Underground activations, and the Heathrow corridor. Use the city selector to jump between locations and toggle pin types with the controls below.
         </p>
 
         {/* Add Location buttons */}
