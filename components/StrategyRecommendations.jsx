@@ -179,6 +179,9 @@ export default function StrategyRecommendations() {
 // / Budget. "+ Channel" opens an inline mini-form.
 function PillarGrid() {
   const [pillars, setPillars] = useState(() => Object.fromEntries(PILLAR_KEYS.map((k) => [k, []])));
+  const [meta, setMeta] = useState(() =>
+    Object.fromEntries(PILLAR_DEFS.map((p) => [p.key, { title: p.title, tagline: p.tagline, description: p.description }]))
+  );
   const [adding, setAdding] = useState(null);       // pillar key currently adding
   const [form, setForm] = useState({ channel: "", role: "", approach: "", budget: "" });
   const [hoverId, setHoverId] = useState(null);
@@ -189,9 +192,29 @@ function PillarGrid() {
       const r = await fetch("/api/strategy-pillars");
       const d = await r.json();
       if (d?.pillars) setPillars(d.pillars);
+      if (d?.meta) {
+        setMeta((prev) => {
+          const next = { ...prev };
+          for (const k of PILLAR_KEYS) {
+            const stored = d.meta[k] || {};
+            next[k] = { ...prev[k], ...Object.fromEntries(Object.entries(stored).filter(([, v]) => typeof v === "string" && v.length > 0)) };
+          }
+          return next;
+        });
+      }
     } catch {}
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  async function updateMeta(pillarKey, patch) {
+    setMeta((prev) => ({ ...prev, [pillarKey]: { ...(prev[pillarKey] || {}), ...patch } }));
+    try {
+      await fetch("/api/strategy-pillars", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update-meta", pillar: pillarKey, ...patch }),
+      });
+    } catch {}
+  }
 
   async function addChannel(pillarKey) {
     if (!form.channel.trim()) return;
@@ -245,13 +268,26 @@ function PillarGrid() {
               )}
             </div>
             <h3 style={{ fontSize: 20, fontWeight: 800, color: WHITE, margin: 0, fontFamily: "'Inter Tight', system-ui, sans-serif", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
-              {p.title}
+              <EditableText
+                value={meta[p.key]?.title ?? p.title}
+                onSave={(v) => updateMeta(p.key, { title: v })}
+                placeholder="Pillar title"
+              />
             </h3>
             <p style={{ fontSize: 12, color: p.color, margin: 0, fontWeight: 700, lineHeight: 1.4, fontFamily: "'Inter Tight', sans-serif" }}>
-              {p.tagline}
+              <EditableText
+                value={meta[p.key]?.tagline ?? p.tagline}
+                onSave={(v) => updateMeta(p.key, { tagline: v })}
+                placeholder="Tagline"
+              />
             </p>
             <p style={{ fontSize: 12, color: DIM, margin: 0, lineHeight: 1.55, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>
-              {p.description}
+              <EditableText
+                value={meta[p.key]?.description ?? p.description}
+                onSave={(v) => updateMeta(p.key, { description: v })}
+                placeholder="Description"
+                multiline
+              />
             </p>
 
             {/* Channels strip */}
@@ -294,6 +330,87 @@ function PillarGrid() {
         );
       })}
     </div>
+  );
+}
+
+function EditableText({ value, onSave, placeholder, multiline = false }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  useEffect(() => { if (!editing) setDraft(value); }, [value, editing]);
+
+  if (editing) {
+    const commit = () => {
+      setEditing(false);
+      const next = draft.trim();
+      if (next !== value) onSave(next);
+    };
+    const cancel = () => {
+      setEditing(false);
+      setDraft(value);
+    };
+    const sharedStyle = {
+      font: "inherit",
+      color: "inherit",
+      lineHeight: "inherit",
+      letterSpacing: "inherit",
+      width: "100%",
+      boxSizing: "border-box",
+      background: "rgba(12,12,12,0.92)",
+      border: `1px solid ${BORDER}`,
+      borderRadius: 4,
+      padding: "2px 6px",
+      outline: "none",
+      margin: 0,
+      display: "block",
+    };
+    if (multiline) {
+      return (
+        <textarea
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === "Escape") cancel(); }}
+          rows={4}
+          style={{ ...sharedStyle, resize: "vertical", minHeight: 72 }}
+        />
+      );
+    }
+    return (
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") cancel();
+          if (e.key === "Enter") { e.preventDefault(); commit(); }
+        }}
+        style={sharedStyle}
+      />
+    );
+  }
+
+  const display = value && value.length > 0 ? value : null;
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={() => setEditing(true)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditing(true); } }}
+      title="Click to edit"
+      style={{
+        cursor: "text",
+        display: "inline-block",
+        width: "100%",
+        borderRadius: 3,
+        transition: "background 0.15s",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,213,0,0.06)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+    >
+      {display || <span style={{ color: MUTED, fontStyle: "italic" }}>{placeholder}</span>}
+    </span>
   );
 }
 
