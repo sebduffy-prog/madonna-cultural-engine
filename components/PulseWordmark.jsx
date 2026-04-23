@@ -5,7 +5,7 @@ import { useRef, useEffect, useState } from "react";
 // (inside its bounding box + a small halo). Outside the halo, the wordmark
 // springs back to rest.
 
-const WORD = "Pulse";
+const WORD = "The Recording Studio";
 const WHITE = "#EDEDE8";
 
 // How far outside the wordmark bounds still counts as "near"
