@@ -872,11 +872,21 @@ export async function getStaticProps() {
   } catch(e) {}
 
   // Warner Sites (flyposting, Manchester murals, London Underground, Heathrow corridor)
-  let sites = { flyposting: [], manchesterMurals: [], londonUnderground: [], heathrowSites: [] };
+  let sites = { flyposting: [], manchesterMurals: [], londonUnderground: [], heathrowSites: [], plannedSites: [] };
   try {
     const raw = fs.readFileSync(path.join(dir, "warner-sites.json"), "utf-8");
     sites = JSON.parse(raw);
   } catch (e) {}
+
+  // Planned Sites — actual confirmed/planned locations imported from
+  // "Planned sites for warner.xlsx". Overlays on the map as a toggleable layer.
+  try {
+    const plannedRaw = fs.readFileSync(path.join(dir, "planned-sites.json"), "utf-8");
+    const planned = JSON.parse(plannedRaw);
+    if (Array.isArray(planned)) sites.plannedSites = planned;
+    else if (Array.isArray(planned?.plannedSites)) sites.plannedSites = planned.plannedSites;
+  } catch (e) {}
+  if (!Array.isArray(sites.plannedSites)) sites.plannedSites = [];
 
   return { props: { comments: allComments, gwiData, murals, venues, sites, fullThemeCounts, totalCommentCount } };
 }

@@ -63,6 +63,7 @@ const PILLAR_BY_KEY = Object.fromEntries(PILLAR_OPTIONS.map(p => [p.key, p]));
 
 const STATUS_OPTIONS = [
   { key: "Proposed", color: MUTED },
+  { key: "Planned",  color: TEAL },
   { key: "Approved", color: GREEN },
   { key: "Booked",   color: Y },
 ];
@@ -84,7 +85,7 @@ const FIELDS = [
   { key: "title", label: "Title", placeholder: "e.g. TikTok launch film, OOH takeover, Spotify sponsorship" },
   { key: "channel", label: "Channel", type: "channel-select", hint: "Pick one" },
   { key: "pillar", label: "Pillar", type: "pillar-select", hint: "Where does this sit in the campaign story?" },
-  { key: "status", label: "Status", type: "status-select", hint: "Proposed · Approved · Booked" },
+  { key: "status", label: "Status", type: "status-select", hint: "Proposed · Planned · Approved · Booked" },
   { key: "objective", label: "Objective", placeholder: "What this tactic is here to achieve" },
   { key: "kpi", label: "Optimised KPI", placeholder: "e.g. view-through rate, completion, ticket sales" },
   { key: "roleOfChannel", label: "Tactic", placeholder: "What this channel is doing in the mix (reach, reappraisal, proof, depth...)" },
