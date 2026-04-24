@@ -1082,7 +1082,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "youtube", label: "YouTube" },
             { id: "gwi", label: "Audience" },
             { id: "strategy", label: "Strategy" },
-            { id: "tactics", label: "Tactics" },
+            { id: "tactics", label: "Tactics", badge: "Archived" },
             { id: "streetmap", label: "Locations" },
             { id: "ideas", label: "Ideas" },
             { id: "calendar", label: "Calendar" },
@@ -1092,8 +1092,19 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
               padding: "8px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 600,
               color: tab === t.id ? BG : WHITE, background: tab === t.id ? Y : "transparent",
               border: tab === t.id ? "none" : `1px solid rgba(237,237,232,0.55)`, borderRadius: 6, cursor: "pointer",
-              fontFamily: "'Inter Tight', system-ui, sans-serif", transition: "all 0.15s"
-            }}>{t.label}</button>
+              fontFamily: "'Inter Tight', system-ui, sans-serif", transition: "all 0.15s",
+              display: "inline-flex", alignItems: "center", gap: 8
+            }}>
+              {t.label}
+              {t.badge && (
+                <span style={{
+                  fontSize: 9, fontWeight: 700, color: MUTED,
+                  background: `${MUTED}18`, border: `1px solid ${MUTED}66`,
+                  borderRadius: 4, padding: "2px 6px", letterSpacing: "0.08em",
+                  textTransform: "uppercase", fontFamily: "'Inter Tight', system-ui, sans-serif"
+                }}>{t.badge}</span>
+              )}
+            </button>
           ))}
         </div>
 
