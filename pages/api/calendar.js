@@ -12,14 +12,14 @@ function uuid() {
 const CAMPAIGN_EVENTS = [
   { id: "ce1", date: "2026-04-15", title: "Album Announce & Beta Phase", detail: "Tease OOH. Pre-order: Media Mths - Vinyl/CD for ticket access", type: "campaign", category: "madonna" },
   { id: "ce2", date: "2026-04-17", title: "Big event appearance", detail: "", type: "campaign", category: "madonna" },
-  { id: "ce3", date: "2026-04-29", title: "'I feel so free' Single", detail: "First single release", type: "campaign", category: "madonna" },
+  { id: "ce3", date: "2026-04-30", title: "'I feel so free' Single Release", detail: "First single release", type: "campaign", category: "madonna" },
   { id: "ce4", date: "2026-05-01", title: "David Wears Prada Premiere", detail: "30 sec clip with Anna Wintour", type: "campaign", category: "madonna" },
   { id: "ce5", date: "2026-05-13", title: "Bizarre TBC", detail: "", type: "campaign", category: "madonna" },
   { id: "ce6", date: "2026-05-15", title: "NYC Listening Party", detail: "", type: "campaign", category: "madonna" },
   { id: "ce7", date: "2026-05-20", title: "NYC Listening Party (General)", detail: "", type: "campaign", category: "madonna" },
   { id: "ce8", date: "2026-06-08", title: "London Film Screening & M Q&A", detail: "8 min D&G film", type: "campaign", category: "madonna" },
-  { id: "ce9", date: "2026-06-19", title: "'Bring Your Love' Big Single", detail: "Major single release", type: "campaign", category: "madonna" },
-  { id: "ce10", date: "2026-06-26", title: "Album Release - Dancefloria (UK)", detail: "Alternative date: July 3", type: "campaign", category: "madonna" },
+  { id: "ce9", date: "2026-06-19", title: "'Bring Your Love' Single Release", detail: "Major single release", type: "campaign", category: "madonna" },
+  { id: "ce10", date: "2026-07-03", title: "Album Release - Confessions on a Dance Floor II (UK)", detail: "", type: "campaign", category: "madonna" },
   { id: "ce11", date: "2026-07-02", title: "Warehouse Project Manchester", detail: "Alternative date: July 3", type: "campaign", category: "madonna" },
   { id: "ce12", date: "2026-07-04", title: "Pride", detail: "Route map on website", type: "campaign", category: "madonna" },
 ];
