@@ -19,7 +19,7 @@ const CAMPAIGN_EVENTS = [
   { id: "ce7", date: "2026-05-20", title: "NYC Listening Party (General)", detail: "", type: "campaign", category: "madonna" },
   { id: "ce8", date: "2026-06-08", title: "London Film Screening & M Q&A", detail: "8 min D&G film", type: "campaign", category: "madonna" },
   { id: "ce9", date: "2026-06-19", title: "'Bring Your Love' Single Release", detail: "Major single release", type: "campaign", category: "madonna" },
-  { id: "ce10", date: "2026-07-03", title: "Album Release - Dancefloria (UK)", detail: "", type: "campaign", category: "madonna" },
+  { id: "ce10", date: "2026-07-03", title: "Album Release - Confessions on a Dance Floor II (UK)", detail: "", type: "campaign", category: "madonna" },
   { id: "ce11", date: "2026-07-02", title: "Warehouse Project Manchester", detail: "Alternative date: July 3", type: "campaign", category: "madonna" },
   { id: "ce12", date: "2026-07-04", title: "Pride", detail: "Route map on website", type: "campaign", category: "madonna" },
 ];
