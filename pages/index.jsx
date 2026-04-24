@@ -1082,7 +1082,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             { id: "youtube", label: "YouTube" },
             { id: "gwi", label: "Audience" },
             { id: "strategy", label: "Strategy" },
-            { id: "tactics", label: "Tactics", badge: "Archived" },
+            { id: "tactics", label: "Tactics" },
             { id: "streetmap", label: "Locations" },
             { id: "ideas", label: "Ideas" },
             { id: "calendar", label: "Calendar" },
