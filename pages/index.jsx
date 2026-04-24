@@ -871,10 +871,27 @@ export async function getStaticProps() {
     }
   } catch(e) {}
 
-  return { props: { comments: allComments, gwiData, murals, venues, fullThemeCounts, totalCommentCount } };
+  // Warner Sites (flyposting, Manchester murals, London Underground, Heathrow corridor)
+  let sites = { flyposting: [], manchesterMurals: [], londonUnderground: [], heathrowSites: [], plannedSites: [] };
+  try {
+    const raw = fs.readFileSync(path.join(dir, "warner-sites.json"), "utf-8");
+    sites = JSON.parse(raw);
+  } catch (e) {}
+
+  // Planned Sites — actual confirmed/planned locations imported from
+  // "Planned sites for warner.xlsx". Overlays on the map as a toggleable layer.
+  try {
+    const plannedRaw = fs.readFileSync(path.join(dir, "planned-sites.json"), "utf-8");
+    const planned = JSON.parse(plannedRaw);
+    if (Array.isArray(planned)) sites.plannedSites = planned;
+    else if (Array.isArray(planned?.plannedSites)) sites.plannedSites = planned.plannedSites;
+  } catch (e) {}
+  if (!Array.isArray(sites.plannedSites)) sites.plannedSites = [];
+
+  return { props: { comments: allComments, gwiData, murals, venues, sites, fullThemeCounts, totalCommentCount } };
 }
 
-export default function Dashboard({ comments = [], gwiData = [], murals = [], venues = [], fullThemeCounts = {}, totalCommentCount = 0 }) {
+export default function Dashboard({ comments = [], gwiData = [], murals = [], venues = [], sites = {}, fullThemeCounts = {}, totalCommentCount = 0 }) {
   const [tab, setTab] = useState("dashboard");
   const [authed, setAuthed] = useState(false);
   const [pw, setPw] = useState("");
@@ -1449,7 +1466,7 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
 
         {tab === "strategy" && <StrategyRecommendations />}
         {tab === "tactics" && <TacticsBoard />}
-        {tab === "streetmap" && <StreetArtMap />}
+        {tab === "streetmap" && <StreetArtMap murals={murals} venues={venues} sites={sites} />}
 
         {tab === "culturalfeed" && <CulturalFeed />}
 
