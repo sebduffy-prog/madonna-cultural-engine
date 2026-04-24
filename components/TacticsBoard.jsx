@@ -99,7 +99,26 @@ const FIELDS = [
   { key: "notes", label: "Notes", placeholder: "Anything else — rationale, dependencies, references" },
 ];
 
-const EMPTY_FORM = { title: "", channel: "", pillar: "", status: "Proposed", objective: "", kpi: "", roleOfChannel: "", audience: [], audienceDetail: "", format: "", phase: "", budget: "", startDate: "", endDate: "", notes: "" };
+const EMPTY_FORM = { title: "", channel: "", pillar: "", status: "Proposed", objective: "", kpi: "", roleOfChannel: "", audience: [], audienceDetail: "", format: "", phase: "", budget: "", startDate: "", endDate: "", notes: "", imageUrl: "" };
+
+// Shrink oversized data URIs so we don't balloon storage / request size.
+async function compressDataUri(src) {
+  if (!src || !src.startsWith("data:") || src.length <= 500000) return src;
+  try {
+    const img = new Image();
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = src; });
+    const maxDim = 1200;
+    let w = img.width, h = img.height;
+    if (w > maxDim || h > maxDim) {
+      const scale = maxDim / Math.max(w, h);
+      w = Math.round(w * scale); h = Math.round(h * scale);
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", 0.8);
+  } catch { return src; }
+}
 
 function getUserId() {
   let id = localStorage.getItem("sweettooth_user");
@@ -116,6 +135,7 @@ export default function TacticsBoard() {
   const [showForm, setShowForm] = useState(false);
   const [commentTexts, setCommentTexts] = useState({});
   const [commentNames, setCommentNames] = useState({});
+  const [dragOver, setDragOver] = useState(false);
 
   const [form, setForm] = useState({ ...EMPTY_FORM });
 
@@ -140,9 +160,10 @@ export default function TacticsBoard() {
   async function handleCreate(e) {
     e.preventDefault();
     const userId = getUserId();
+    const imageUrl = await compressDataUri(form.imageUrl);
     const r = await fetch("/api/tactics", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "create", ...form, createdBy: userId }),
+      body: JSON.stringify({ action: "create", ...form, imageUrl, createdBy: userId }),
     });
     const data = await r.json();
     if (data.ok) {
@@ -276,8 +297,25 @@ export default function TacticsBoard() {
       startDate: t.startDate || "",
       endDate: t.endDate || "",
       notes: t.notes || "",
+      imageUrl: t.imageUrl || "",
     });
     setEditMode(true);
+  }
+
+  function pickEditImage() {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = (ev) => {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (re) => {
+        const out = await compressDataUri(re.target.result);
+        setEditForm(f => ({ ...f, imageUrl: out }));
+      };
+      reader.readAsDataURL(file);
+    };
+    inp.click();
   }
 
   function toggleEditAudience(key) {
@@ -291,9 +329,10 @@ export default function TacticsBoard() {
   async function saveEdit(tacticId) {
     setEditSaving(true);
     try {
+      const imageUrl = await compressDataUri(editForm.imageUrl);
       const r = await fetch("/api/tactics", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "update", tacticId, editedBy: getUserId(), ...editForm }),
+        body: JSON.stringify({ action: "update", tacticId, editedBy: getUserId(), ...editForm, imageUrl }),
       });
       const d = await r.json();
       if (!d.ok) { alert("Failed to save: " + (d.error || r.status)); return; }
@@ -509,6 +548,101 @@ export default function TacticsBoard() {
               </div>
             );
           })}
+          <div style={{ marginBottom: 20 }}>
+            <label style={labelStyle}>Image</label>
+            <div
+              tabIndex={0}
+              onClick={() => { const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.onchange = (ev) => { const file = ev.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = (re) => setForm(fr => ({ ...fr, imageUrl: re.target.result })); reader.readAsDataURL(file); } }; inp.click(); }}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); const file = e.dataTransfer.files[0]; if (file && file.type.startsWith("image/")) { const reader = new FileReader(); reader.onload = (re) => setForm(fr => ({ ...fr, imageUrl: re.target.result })); reader.readAsDataURL(file); } }}
+              style={{
+                width: "100%", minHeight: 120, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                border: `2px dashed ${dragOver ? Y : BORDER}`, borderRadius: 8, background: dragOver ? `${Y}08` : BG,
+                cursor: "pointer", transition: "border-color 0.2s, background 0.2s", boxSizing: "border-box", padding: 16,
+                outline: "none",
+              }}
+            >
+              {form.imageUrl ? (
+                <div style={{ position: "relative", width: "100%", textAlign: "center" }}>
+                  <img src={form.imageUrl} alt="Preview" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 6, objectFit: "contain" }} />
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setForm(fr => ({ ...fr, imageUrl: "" })); }} style={{
+                    position: "absolute", top: 4, right: 4, width: 24, height: 24, borderRadius: 12, background: RED,
+                    color: WHITE, border: "none", cursor: "pointer", fontSize: 14, lineHeight: "24px", padding: 0,
+                  }}>&times;</button>
+                </div>
+              ) : (
+                <>
+                  <span style={{ fontSize: 28, color: MUTED, marginBottom: 8 }}>&#128247;</span>
+                  <span style={{ fontSize: 12, color: MUTED, fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Drop, paste, or click to upload image</span>
+                </>
+              )}
+            </div>
+            <div
+              contentEditable
+              suppressContentEditableWarning
+              onPaste={(e) => {
+                const items = e.clipboardData?.items;
+                if (items) {
+                  for (const item of items) {
+                    if (item.type.startsWith("image/")) {
+                      e.preventDefault();
+                      const file = item.getAsFile();
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (re) => setForm(fr => ({ ...fr, imageUrl: re.target.result }));
+                        reader.readAsDataURL(file);
+                      }
+                      return;
+                    }
+                  }
+                }
+                const target = e.currentTarget;
+                setTimeout(() => {
+                  const img = target.querySelector("img");
+                  if (img && img.src) {
+                    if (img.src.startsWith("data:")) {
+                      setForm(fr => ({ ...fr, imageUrl: img.src }));
+                    } else {
+                      const canvas = document.createElement("canvas");
+                      const naturalImg = new Image();
+                      naturalImg.crossOrigin = "anonymous";
+                      naturalImg.onload = () => {
+                        canvas.width = naturalImg.naturalWidth || naturalImg.width;
+                        canvas.height = naturalImg.naturalHeight || naturalImg.height;
+                        canvas.getContext("2d").drawImage(naturalImg, 0, 0);
+                        try {
+                          setForm(fr => ({ ...fr, imageUrl: canvas.toDataURL("image/png") }));
+                        } catch {
+                          setForm(fr => ({ ...fr, imageUrl: img.src }));
+                        }
+                      };
+                      naturalImg.onerror = () => setForm(fr => ({ ...fr, imageUrl: img.src }));
+                      naturalImg.src = img.src;
+                    }
+                    target.innerHTML = "";
+                    return;
+                  }
+                  const html = e.clipboardData?.getData("text/html") || target.innerHTML;
+                  const imgMatch = html?.match(/<img[^>]+src=["']([^"']+)["']/i);
+                  if (imgMatch?.[1] && imgMatch[1].startsWith("data:")) {
+                    setForm(fr => ({ ...fr, imageUrl: imgMatch[1] }));
+                  }
+                  target.innerHTML = "";
+                }, 100);
+              }}
+              style={{
+                marginTop: 8, padding: "10px 20px", fontSize: 12, fontWeight: 600,
+                color: TEAL, background: "transparent", border: `1px solid ${TEAL}`,
+                borderRadius: 6, cursor: "text", fontFamily: "'Inter Tight', system-ui, sans-serif",
+                width: "100%", boxSizing: "border-box", textAlign: "center",
+                outline: "none", minHeight: 38, lineHeight: "18px",
+                caretColor: "transparent",
+              }}
+              onFocus={(e) => { e.target.textContent = "Now press Ctrl+V / Cmd+V"; e.target.style.borderColor = Y; }}
+              onBlur={(e) => { setTimeout(() => { e.target.textContent = "Click here, then Ctrl+V to paste image"; e.target.style.borderColor = TEAL; }, 200); }}
+            >Click here, then Ctrl+V to paste image</div>
+          </div>
           <button type="submit" disabled={!form.title?.trim() || !form.channel} style={{
             padding: "10px 28px", fontSize: 13, fontWeight: 700, color: BG, background: Y,
             border: "none", borderRadius: 6, cursor: (!form.title?.trim() || !form.channel) ? "not-allowed" : "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif",
@@ -594,6 +728,12 @@ export default function TacticsBoard() {
             <div key={tactic.id} style={{ background: CARD, borderRadius: 10, border: `1px solid ${BORDER}`, overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s" }}
               onMouseEnter={e => e.currentTarget.style.borderColor = Y}
               onMouseLeave={e => e.currentTarget.style.borderColor = BORDER}>
+              {tactic.imageUrl && (
+                <div onClick={() => { setSelectedTactic(tactic.id); setConfirmDelete(false); }} style={{ width: "100%", height: 160, overflow: "hidden", borderBottom: `1px solid ${BORDER}` }}>
+                  <img src={tactic.imageUrl} alt={displayTitle(tactic)} style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    onError={e => { e.target.style.display = "none"; }} />
+                </div>
+              )}
               <div onClick={() => { setSelectedTactic(tactic.id); setConfirmDelete(false); }} style={{ padding: "16px 16px 8px" }}>
                 {(() => {
                   const ch = displayChannel(tactic);
@@ -718,6 +858,32 @@ export default function TacticsBoard() {
 
             {showHistory && (
               <RevisionLog revisions={activeTactic.revisions || []} onClose={() => setShowHistory(false)} />
+            )}
+
+            {(editMode ? editForm?.imageUrl : activeTactic.imageUrl) && (
+              <div style={{ width: "100%", maxHeight: 360, overflow: "hidden", borderRadius: "12px 12px 0 0", position: "relative" }}>
+                <img src={editMode ? editForm.imageUrl : activeTactic.imageUrl} alt={displayTitle(activeTactic)} style={{ width: "100%", objectFit: "cover" }} />
+                {editMode && (
+                  <div style={{ position: "absolute", bottom: 10, right: 10, display: "flex", gap: 6 }}>
+                    <button type="button" onClick={pickEditImage} style={{
+                      padding: "6px 14px", fontSize: 11, fontWeight: 700, color: BG, background: Y,
+                      border: "none", borderRadius: 6, cursor: "pointer",
+                    }}>Change image</button>
+                    <button type="button" onClick={() => setEditForm(f => ({ ...f, imageUrl: "" }))} style={{
+                      padding: "6px 10px", fontSize: 11, fontWeight: 700, color: WHITE,
+                      background: `${BG}cc`, border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+                    }}>Remove</button>
+                  </div>
+                )}
+              </div>
+            )}
+            {editMode && !editForm?.imageUrl && (
+              <div style={{ padding: "16px 24px 0" }}>
+                <button type="button" onClick={pickEditImage} style={{
+                  width: "100%", padding: "20px", fontSize: 12, fontWeight: 700, color: MUTED,
+                  background: "transparent", border: `2px dashed ${BORDER}`, borderRadius: 8, cursor: "pointer",
+                }}>Click to add image</button>
+              </div>
             )}
 
             <div style={{ padding: "24px 24px 20px" }}>

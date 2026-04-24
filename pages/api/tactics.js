@@ -9,6 +9,10 @@ function uuid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 }
 
+export const config = {
+  api: { bodyParser: { sizeLimit: "10mb" } },
+};
+
 export default async function handler(req, res) {
   if (req.method === "GET") {
     const tactics = await kvGet(CACHE_KEY) || [];
@@ -25,7 +29,7 @@ export default async function handler(req, res) {
   let tactics = await kvGet(CACHE_KEY) || [];
 
   if (action === "create") {
-    const { title, channel, pillar, status, objective, kpi, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes, createdBy } = body;
+    const { title, channel, pillar, status, objective, kpi, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes, imageUrl, createdBy } = body;
     if (!title || !title.trim()) return res.status(400).json({ error: "Title is required" });
     if (!channel) return res.status(400).json({ error: "Channel is required" });
 
@@ -46,6 +50,7 @@ export default async function handler(req, res) {
       startDate: startDate || "",
       endDate: endDate || "",
       notes: notes || "",
+      imageUrl: imageUrl || "",
       order: Date.now(),
       likes: 0,
       dislikes: 0,
@@ -61,18 +66,20 @@ export default async function handler(req, res) {
   }
 
   if (action === "update") {
-    const { tacticId, title, channel, pillar, status, objective, kpi, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes, order, editedBy } = body;
+    const { tacticId, title, channel, pillar, status, objective, kpi, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes, imageUrl, order, editedBy } = body;
     const tactic = tactics.find(t => t.id === tacticId);
     if (!tactic) return res.status(404).json({ error: "Tactic not found" });
 
     // Push a revision snapshot of the fields that are changing
-    const tracked = ["title", "channel", "pillar", "status", "objective", "kpi", "roleOfChannel", "audience", "audienceDetail", "format", "phase", "budget", "startDate", "endDate", "notes"];
-    const incoming = { title, channel, pillar, status, objective, kpi, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes };
+    const tracked = ["title", "channel", "pillar", "status", "objective", "kpi", "roleOfChannel", "audience", "audienceDetail", "format", "phase", "budget", "startDate", "endDate", "notes", "imageUrl"];
+    const incoming = { title, channel, pillar, status, objective, kpi, roleOfChannel, audience, audienceDetail, format, phase, budget, startDate, endDate, notes, imageUrl };
     const changes = [];
     for (const k of tracked) {
       const next = incoming[k];
       if (next === undefined) continue;
       const prev = tactic[k];
+      // Skip snapshotting image data URIs so the log doesn't balloon
+      if (k === "imageUrl" && typeof next === "string" && next.startsWith("data:")) continue;
       const same = JSON.stringify(prev ?? "") === JSON.stringify(next ?? "");
       if (!same) changes.push({ field: k, from: prev ?? "", to: next });
     }
@@ -98,6 +105,7 @@ export default async function handler(req, res) {
     if (startDate !== undefined) tactic.startDate = startDate;
     if (endDate !== undefined) tactic.endDate = endDate;
     if (notes !== undefined) tactic.notes = notes;
+    if (imageUrl !== undefined) tactic.imageUrl = imageUrl;
     if (order !== undefined) tactic.order = order;
     tactic.updatedAt = new Date().toISOString();
     await kvSet(CACHE_KEY, tactics);
