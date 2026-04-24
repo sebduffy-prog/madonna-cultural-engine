@@ -66,6 +66,7 @@ const STATUS_OPTIONS = [
   { key: "Planned",  color: TEAL },
   { key: "Approved", color: GREEN },
   { key: "Booked",   color: Y },
+  { key: "Archived", color: MUTED },
 ];
 const STATUS_BY_KEY = Object.fromEntries(STATUS_OPTIONS.map(s => [s.key, s]));
 
