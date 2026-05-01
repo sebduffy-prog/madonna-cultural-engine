@@ -1022,11 +1022,11 @@ export default function Dashboard({ comments = [], gwiData = [], murals = [], ve
             <PulseParticleText text="The Recording Studio" fontSize={140} color={WHITE} mouseRadius={130} />
           </div>
           <div style={{ height: 3, width: 180, background: Y, borderRadius: 2, margin: "14px auto 32px" }} />
-          <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "Tune5") setAuthed(true); }} placeholder="Enter password" style={{ background: "rgba(21,21,21,0.8)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif", backdropFilter: "blur(10px)" }} autoFocus />
+          <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pw === "madonna2026") setAuthed(true); }} placeholder="Enter password" style={{ background: "rgba(21,21,21,0.8)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 20px", fontSize: 14, color: WHITE, outline: "none", width: 220, textAlign: "center", fontFamily: "'Inter Tight', system-ui, sans-serif", backdropFilter: "blur(10px)" }} autoFocus />
           <div style={{ marginTop: 12 }}>
-            <button onClick={() => { if (pw === "Tune5") setAuthed(true); }} style={{ background: Y, color: BG, border: "none", borderRadius: 8, padding: "10px 32px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Enter</button>
+            <button onClick={() => { if (pw === "madonna2026") setAuthed(true); }} style={{ background: Y, color: BG, border: "none", borderRadius: 8, padding: "10px 32px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter Tight', system-ui, sans-serif" }}>Enter</button>
           </div>
-          {pw.length > 0 && pw !== "Tune5" && <p style={{ color: RED, fontSize: 12, marginTop: 12 }}>Incorrect password</p>}
+          {pw.length > 0 && pw !== "madonna2026" && <p style={{ color: RED, fontSize: 12, marginTop: 12 }}>Incorrect password</p>}
         </div>
       </div>
     );
